@@ -1,0 +1,32 @@
+# Eseguire il progetto in locale e pubblicarlo su Vercel
+
+## Requisiti
+- Node.js 20 o superiore
+- Accesso al progetto Supabase (URL, anon key, service role key)
+- Non serve avere VS Code installato: basta un terminale
+
+## Prima configurazione su un nuovo computer
+1. Copia il progetto (via `git clone` oppure copiando la cartella, **escludendo** `node_modules/` e `.next/`)
+2. Crea il file `.env.local` nella root del progetto con queste variabili (vedi `.env.example`):
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+
+Avvio quotidiano in locale
+
+Il sito è disponibile su http://localhost:3000.
+
+Il server gira solo finché il terminale resta aperto e il computer è acceso: va rilanciato ad ogni riavvio o dopo aver chiuso il terminale. Non serve rifare npm install (solo se cambiano le dipendenze in package.json).
+
+Pubblicazione su Vercel
+Con Vercel il sito resta online 24/7 senza dover tenere acceso un computer.
+
+Crea un account su vercel.com e collega il repository Git del progetto (GitHub, GitLab o Bitbucket).
+Importa il progetto: Vercel riconosce automaticamente che è un'app Next.js.
+Nelle impostazioni del progetto su Vercel, aggiungi le stesse variabili d'ambiente di .env.local:
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+Avvia il deploy. Ad ogni push sul branch collegato, Vercel rifà automaticamente la build e pubblica la nuova versione.
+Il database resta sempre su Supabase: sia in locale che su Vercel il progetto si collega allo stesso Supabase, quindi i dati sono condivisi automaticamente.
