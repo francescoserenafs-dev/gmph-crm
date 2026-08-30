@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { GlobalSearch } from "@/components/shared/global-search";
 
 const navigationItems = [
@@ -15,6 +15,15 @@ const navigationItems = [
 
 export function AppNavigation() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  if (pathname === "/login") return null;
+
+  async function handleLogout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <>
@@ -41,6 +50,7 @@ export function AppNavigation() {
               </Link>
             );
           })}
+          <button className="text-sm font-medium text-[#675f57] hover:text-[#27231f]" onClick={handleLogout} type="button">Esci</button>
         </div>
       </nav>
       <div className="border-b border-[#d8d0c5] bg-[#efe6dc]">
