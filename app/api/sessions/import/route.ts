@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       if (!clientId) {
         const { data: existingClient } = await supabaseAdmin.from("clients").select("id").eq("email", email).maybeSingle();
         if (existingClient) {
-          clientId = existingClient.id;
+          clientId = existingClient.id as string;
         } else {
           const { data: newClient, error: createClientError } = await supabaseAdmin
             .from("clients")
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
             errors.push({ row: rowNumber, error: "Non e stato possibile creare il cliente." });
             continue;
           }
-          clientId = newClient.id;
+          clientId = newClient.id as string;
         }
         clientIdByEmail.set(email, clientId);
       }
