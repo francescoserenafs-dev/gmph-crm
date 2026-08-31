@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const sessionFields =
-  "id, scheduled_at, duration_minutes, location, service_name, service_detail, notes, agreed_price_cents, service_type_id, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(id,amount_cents,paid_at,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes)";
+  "id, scheduled_at, duration_minutes, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(id,amount_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,notes,created_at)";
 
 async function loadSession(id: string) {
   return supabaseAdmin.from("sessions").select(sessionFields).eq("id", id).maybeSingle();
@@ -49,6 +49,29 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       .eq("session_id", id)
       .order("changed_at", { ascending: false })
       .limit(1);
+
+    const { data } = await loadSession(id);
+    return NextResponse.json({ session: data });
+  }
+
+  if (body.action === "updateImageConsent") {
+    const granted = body.granted === true;
+
+    const { data: current } = await supabaseAdmin.from("sessions").select("image_consent_granted_at, image_consent_revoked_at").eq("id", id).maybeSingle();
+    if (!current) return NextResponse.json({ error: "Sessione non trovata." }, { status: 404 });
+
+    const isActive = current.image_consent_granted_at !== null && current.image_consent_revoked_at === null;
+    const now = new Date().toISOString();
+
+    const { error: consentError } = await supabaseAdmin
+      .from("sessions")
+      .update({
+        image_consent_granted_at: granted ? (isActive ? current.image_consent_granted_at : now) : current.image_consent_granted_at,
+        image_consent_revoked_at: granted ? null : isActive ? now : current.image_consent_revoked_at,
+      })
+      .eq("id", id);
+
+    if (consentError) return NextResponse.json({ error: "Aggiornamento del consenso non riuscito." }, { status: 500 });
 
     const { data } = await loadSession(id);
     return NextResponse.json({ session: data });

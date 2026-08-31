@@ -15,7 +15,6 @@ const crmFields = [
   { key: "address", label: "Indirizzo" },
   { key: "notes", label: "Note" },
   { key: "privacyConsentGranted", label: "Consenso privacy" },
-  { key: "imageConsentGranted", label: "Consenso immagini" },
 ] as const;
 
 type FieldKey = (typeof crmFields)[number]["key"];
@@ -91,7 +90,6 @@ function autoMap(header: string): FieldKey {
   if (/indiriz|address|via/.test(value)) return "address";
   if (/note|nota|comment/.test(value)) return "notes";
   if (/privacy/.test(value)) return "privacyConsentGranted";
-  if (/immagin|image|foto|ritratt/.test(value)) return "imageConsentGranted";
   return "ignore";
 }
 
@@ -153,7 +151,7 @@ export function ClientImporter() {
         if (field === "ignore") return;
         const value = (row[index] ?? "").trim();
         if (!value) return;
-        if (field === "privacyConsentGranted" || field === "imageConsentGranted") {
+        if (field === "privacyConsentGranted") {
           client[field] = parseConsentValue(value);
         } else {
           client[field] = field === "birthDate" ? normalizeDate(value) : value;

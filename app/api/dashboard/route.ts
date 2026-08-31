@@ -12,6 +12,7 @@ type DashboardSession = {
   current_stage: { name: string; code: string } | null;
   client: { id: string; first_name: string; last_name: string } | null;
   payments: { amount_cents: number }[];
+  extras: { price_cents: number }[];
 };
 
 function periodStart(period: string): string | null {
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const [sessionsResult, paymentsResult, vouchersResult] = await Promise.all([
     supabaseAdmin
       .from("sessions")
-      .select("id, scheduled_at, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents)"),
+      .select("id, scheduled_at, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(price_cents)"),
     supabaseAdmin.from("payments").select("amount_cents, paid_at, category, payment_method_name"),
     supabaseAdmin.from("gift_vouchers").select("status, value_cents, purchase_price_cents, expires_at"),
   ]);
@@ -50,13 +51,14 @@ export async function GET(request: NextRequest) {
     .slice(0, 6)
     .map((session) => {
       const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+      const due = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
       return {
         id: session.id,
         scheduled_at: session.scheduled_at,
         service_name: session.service_name,
         client: session.client,
         stage: session.current_stage?.name ?? "-",
-        status: paid === 0 ? "Da saldare" : paid < session.agreed_price_cents ? "Parzialmente pagata" : "Saldata",
+        status: due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata",
       };
     });
 
@@ -68,12 +70,13 @@ export async function GET(request: NextRequest) {
   let lateSessions = 0;
   for (const session of activeSessions) {
     const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const balance = session.agreed_price_cents - paid;
+    const due = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
+    const balance = due - paid;
     if (balance > 0) receivable += balance;
-    if (paid === 0) unpaid += 1;
-    else if (paid < session.agreed_price_cents) partial += 1;
-    else settled += 1;
-    sessionsTotalValue += session.agreed_price_cents;
+    if (due === 0 || paid >= due) settled += 1;
+    else if (paid === 0) unpaid += 1;
+    else partial += 1;
+    sessionsTotalValue += due;
     if (session.current_stage?.code === "booked" && session.scheduled_at < nowIso) lateSessions += 1;
   }
 

@@ -32,11 +32,6 @@ const categoryLabels: Record<string, string> = {
   voucher_redemption: "Utilizzo buono regalo",
 };
 
-function toLocalInput(date: Date) {
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
-}
-
 export function PaymentDirectory() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,7 +47,7 @@ export function PaymentDirectory() {
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<"new" | "edit" | null>(searchParams.get("new") === "1" ? "new" : null);
   const [editing, setEditing] = useState<Payment | null>(null);
-  const [form, setForm] = useState({ sessionId: "", amountEuros: "", paidAt: toLocalInput(new Date()), methodId: "", category: "balance", notes: "" });
+  const [form, setForm] = useState({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: "", category: "balance", notes: "" });
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
@@ -114,7 +109,7 @@ export function PaymentDirectory() {
   }, [dialog, form.sessionId]);
 
   function openNew() {
-    setForm({ sessionId: "", amountEuros: "", paidAt: toLocalInput(new Date()), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
+    setForm({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
     setVoucherId("");
     setError(null);
     setDialog("new");
@@ -123,7 +118,7 @@ export function PaymentDirectory() {
   function openEdit(payment: Payment) {
     if (payment.applied_voucher_id) return;
     setEditing(payment);
-    setForm({ sessionId: payment.session?.id ?? "", amountEuros: String(payment.amount_cents / 100), paidAt: toLocalInput(new Date(payment.paid_at)), methodId: methods.find((method) => method.name === payment.payment_method_name)?.id ?? "", category: payment.category, notes: payment.notes ?? "" });
+    setForm({ sessionId: payment.session?.id ?? "", amountEuros: String(payment.amount_cents / 100), paidAt: new Date(payment.paid_at).toISOString().slice(0, 10), methodId: methods.find((method) => method.name === payment.payment_method_name)?.id ?? "", category: payment.category, notes: payment.notes ?? "" });
     setError(null);
     setDialog("edit");
   }
@@ -293,7 +288,7 @@ export function PaymentDirectory() {
               ) : (
                 <>
                   <label className="flex flex-col gap-2 text-sm font-medium">Importo (EUR)<input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setForm({ ...form, amountEuros: e.target.value })} required type="number" value={form.amountEuros} /></label>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Data<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, paidAt: e.target.value })} required type="datetime-local" value={form.paidAt} /></label>
+                  <label className="flex flex-col gap-2 text-sm font-medium">Data<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, paidAt: e.target.value })} required type="date" value={form.paidAt} /></label>
                   <label className="flex flex-col gap-2 text-sm font-medium">Causale
                     <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, category: e.target.value })} required value={form.category}>
                       <option value="deposit">Caparra</option>

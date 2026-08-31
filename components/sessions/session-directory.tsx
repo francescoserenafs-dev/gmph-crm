@@ -22,10 +22,11 @@ type Session = {
   client: { id: string; first_name: string; last_name: string } | null;
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
+  extras: { price_cents: number }[];
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
-type SessionForm = { clientId: string; serviceTypeId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; location: string; serviceDetail: string; notes: string };
+type SessionForm = { clientId: string; serviceTypeId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; location: string; serviceDetail: string; notes: string; imageConsentGranted: boolean };
 type QuickClient = { firstName: string; lastName: string; email: string };
 type Filters = { clientId: string; serviceTypeIds: string[]; stageIds: string[]; paymentStatuses: string[]; day: string };
 type ExpiringVoucher = { id: string; code: string; expires_at: string; purchaser: { first_name: string; last_name: string } | null };
@@ -33,7 +34,7 @@ type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "va
 
 const VOUCHER_METHOD = "__voucher__";
 
-const emptySession: SessionForm = { clientId: "", serviceTypeId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "" };
+const emptySession: SessionForm = { clientId: "", serviceTypeId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "", imageConsentGranted: false };
 const emptyFilters: Filters = { clientId: "", serviceTypeIds: [], stageIds: [], paymentStatuses: [], day: "" };
 const paymentStatusOptions = [
   { id: "unpaid", name: "Da saldare" },
@@ -59,6 +60,10 @@ function localDayKey(iso: string) {
 function toLocalInput(date: Date) {
   const offset = date.getTimezoneOffset();
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+}
+
+function totalDue(session: { agreed_price_cents: number; extras: { price_cents: number }[] }) {
+  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
 }
 
 export function SessionDirectory() {
@@ -214,10 +219,11 @@ export function SessionDirectory() {
     let settled = 0;
     for (const session of monthSessions) {
       const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-      expected += session.agreed_price_cents;
+      const due = totalDue(session);
+      expected += due;
       collected += paid;
-      if (paid === 0) unpaid += 1;
-      else if (paid >= session.agreed_price_cents) settled += 1;
+      if (due === 0 || paid >= due) settled += 1;
+      else if (paid === 0) unpaid += 1;
     }
     return { total: monthSessions.length, unpaid, settled, expected, collected };
   }, [calendarSessions, month]);
@@ -248,6 +254,7 @@ export function SessionDirectory() {
         location: source.location ?? "",
         serviceDetail: source.service_detail ?? "",
         notes: source.notes ?? "",
+        imageConsentGranted: false,
       });
       setQuickClientOpen(false);
       setError(null);
@@ -288,7 +295,7 @@ export function SessionDirectory() {
 
   function openInlineStage(session: Session) { setStageForm({ stageId: session.current_stage?.id ?? "", changedAt: toLocalInput(new Date()), notes: "" }); setError(null); setInline({ type: "stage", session }); }
   function openInlinePayment(session: Session) {
-    setPaymentForm({ amountEuros: "", paidAt: toLocalInput(new Date()), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
+    setPaymentForm({ amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
     setVoucherId("");
     setEligibleVouchers([]);
     setError(null);
@@ -434,6 +441,8 @@ export function SessionDirectory() {
                   "Data/ora": dateTime.format(new Date(session.scheduled_at)),
                   "Durata (min)": session.duration_minutes,
                   "Prezzo concordato": (session.agreed_price_cents / 100).toFixed(2),
+                  Extra: (session.extras.reduce((sum, extra) => sum + extra.price_cents, 0) / 100).toFixed(2),
+                  "Totale dovuto": (totalDue(session) / 100).toFixed(2),
                   Pagato: (session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) / 100).toFixed(2),
                   Avanzamento: session.current_stage?.name ?? "",
                 }));
@@ -472,7 +481,8 @@ export function SessionDirectory() {
             <section className="overflow-hidden border border-[#d8d0c5] bg-white">
               {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento sessioni...</p> : visibleSessions.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessuna sessione da mostrare.</p> : visibleSessions.map((session) => {
                 const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-                const paymentStatus: PaymentStatus = paid === 0 ? "unpaid" : paid < session.agreed_price_cents ? "partial" : "paid";
+                const due = totalDue(session);
+                const paymentStatus: PaymentStatus = due === 0 ? "paid" : paid === 0 ? "unpaid" : paid < due ? "partial" : "paid";
                 const status = paymentStatusLabels[paymentStatus];
                 const isLate = session.current_stage?.code === "booked" && new Date(session.scheduled_at) < new Date();
                 return (
@@ -609,6 +619,10 @@ export function SessionDirectory() {
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note
               <textarea className="min-h-20 border border-[#cfc5b8] bg-white p-3" onChange={(e) => setSessionForm({ ...sessionForm, notes: e.target.value })} value={sessionForm.notes} />
             </label>
+            <label className="mt-4 flex items-start gap-3 text-sm leading-5 text-[#514a43]">
+              <input checked={sessionForm.imageConsentGranted} className="mt-0.5 size-4 accent-[#9b5d43]" onChange={(e) => setSessionForm({ ...sessionForm, imageConsentGranted: e.target.checked })} type="checkbox" />
+              <span>Consenso all&apos;utilizzo delle immagini ricevuto per questa sessione</span>
+            </label>
             {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
             <ModalActions busy={busy} onCancel={() => setDialog(null)} submitLabel="Salva sessione" />
           </form>
@@ -671,7 +685,7 @@ export function SessionDirectory() {
             ) : (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <InputField label="Importo (EUR)" min="1" onChange={(value) => setPaymentForm({ ...paymentForm, amountEuros: value })} type="number" value={paymentForm.amountEuros} />
-                <InputField label="Data" onChange={(value) => setPaymentForm({ ...paymentForm, paidAt: value })} type="datetime-local" value={paymentForm.paidAt} />
+                <InputField label="Data" onChange={(value) => setPaymentForm({ ...paymentForm, paidAt: value })} type="date" value={paymentForm.paidAt} />
                 <label className="flex flex-col gap-2 text-sm font-medium">Causale
                   <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, category: e.target.value })} required value={paymentForm.category}>
                     <option value="deposit">Caparra</option>

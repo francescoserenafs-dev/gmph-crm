@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const [services, methods, stages, settings] = await Promise.all([
-    supabaseAdmin.from("service_types").select("id, name, is_active, sort_order").order("sort_order"),
+    supabaseAdmin.from("service_types").select("id, name, is_active, is_addon, sort_order").order("sort_order"),
     supabaseAdmin.from("payment_methods").select("id, name, is_active, is_system, sort_order").order("sort_order"),
     supabaseAdmin.from("session_stages").select("id, name, is_active, sort_order").order("sort_order"),
     supabaseAdmin.from("app_settings").select("voucher_validity_months, annual_budget_cents").eq("id", true).maybeSingle(),

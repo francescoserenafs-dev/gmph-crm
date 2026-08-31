@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
       address: result.data.address,
       notes: result.data.notes,
       privacy_consent_granted_at: result.data.privacyConsentGranted ? new Date().toISOString() : null,
-      image_consent_granted_at: result.data.imageConsentGranted ? new Date().toISOString() : null,
     });
 
     if (error) {

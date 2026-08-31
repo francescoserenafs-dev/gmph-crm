@@ -21,6 +21,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/co
   if (typeof body.name === "string" && body.name.trim()) update.name = body.name.trim();
   if (typeof body.isActive === "boolean") update.is_active = body.isActive;
   if (typeof body.sortOrder === "number" && Number.isInteger(body.sortOrder)) update.sort_order = body.sortOrder;
+  if (entity === "services" && typeof body.isAddon === "boolean") update.is_addon = body.isAddon;
 
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Nessuna modifica." }, { status: 400 });
 

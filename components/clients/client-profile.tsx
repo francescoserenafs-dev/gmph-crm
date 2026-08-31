@@ -24,8 +24,6 @@ type Client = {
   is_archived: boolean;
   privacy_consent_granted_at: string | null;
   privacy_consent_revoked_at: string | null;
-  image_consent_granted_at: string | null;
-  image_consent_revoked_at: string | null;
   created_at: string;
 };
 
@@ -38,7 +36,6 @@ type ClientForm = {
   address: string;
   notes: string;
   privacyConsentGranted: boolean;
-  imageConsentGranted: boolean;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -76,10 +73,6 @@ function toForm(client: Client): ClientForm {
       client.privacy_consent_granted_at,
       client.privacy_consent_revoked_at,
     ),
-    imageConsentGranted: isConsentActive(
-      client.image_consent_granted_at,
-      client.image_consent_revoked_at,
-    ),
   };
 }
 
@@ -97,7 +90,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
   const [vouchers, setVouchers] = useState<OverviewVoucher[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(searchParams.get("pay") === "1");
-  const [paymentForm, setPaymentForm] = useState({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 16), methodId: "", category: "balance", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: "", category: "balance", notes: "" });
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [overviewKey, setOverviewKey] = useState(0);
   const [nowTs] = useState(() => Date.now());
@@ -145,7 +138,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
   }, [clientId, overviewKey]);
 
   function openPaymentDialog() {
-    setPaymentForm({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 16), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
+    setPaymentForm({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
     setPaymentError(null);
     setPaymentDialogOpen(true);
   }
@@ -393,7 +386,6 @@ export function ClientProfile({ clientId }: { clientId: string }) {
             <legend className="text-lg font-semibold">Consensi</legend>
             <div className="mt-4 grid gap-4">
               <ConsentField checked={form.privacyConsentGranted} label="Trattamento dei dati personali" onChange={(value) => updateForm("privacyConsentGranted", value)} />
-              <ConsentField checked={form.imageConsentGranted} label="Utilizzo delle immagini" onChange={(value) => updateForm("imageConsentGranted", value)} />
             </div>
           </fieldset>
 
@@ -472,7 +464,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
             {sessions.length === 0 ? <p className="mt-2 text-xs text-[#a53e31]">Questo cliente non ha ancora sessioni: creane una prima di registrare un pagamento.</p> : null}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-2 text-sm font-medium">Importo (EUR)<input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setPaymentForm({ ...paymentForm, amountEuros: e.target.value })} required type="number" value={paymentForm.amountEuros} /></label>
-              <label className="flex flex-col gap-2 text-sm font-medium">Data<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, paidAt: e.target.value })} required type="datetime-local" value={paymentForm.paidAt} /></label>
+              <label className="flex flex-col gap-2 text-sm font-medium">Data<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, paidAt: e.target.value })} required type="date" value={paymentForm.paidAt} /></label>
               <label className="flex flex-col gap-2 text-sm font-medium">Metodo
                 <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, methodId: e.target.value })} required value={paymentForm.methodId}>
                   <option value="">Seleziona</option>

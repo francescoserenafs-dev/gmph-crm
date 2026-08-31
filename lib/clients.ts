@@ -10,7 +10,6 @@ export type ClientInput = {
   address: string | null;
   notes: string | null;
   privacyConsentGranted: boolean;
-  imageConsentGranted: boolean;
 };
 
 type ClientInputResult =
@@ -55,7 +54,6 @@ export function parseClientInput(value: unknown): ClientInputResult {
   const address = readOptionalText(input.address, 500);
   const notes = readOptionalText(input.notes, 2_000);
   const privacyConsentGranted = input.privacyConsentGranted === true;
-  const imageConsentGranted = input.imageConsentGranted === true;
 
   if (!firstName || !lastName || !email) {
     return { data: null, error: "Nome, cognome ed email sono obbligatori." };
@@ -79,7 +77,6 @@ export function parseClientInput(value: unknown): ClientInputResult {
       address,
       notes,
       privacyConsentGranted,
-      imageConsentGranted,
     },
     error: null,
   };

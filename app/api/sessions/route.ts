@@ -3,16 +3,18 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents)";
+const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(price_cents)";
 
 type SessionRow = {
   id: string;
   scheduled_at: string;
   agreed_price_cents: number;
+  is_settled: boolean;
   service_type_id: string;
   client: { id: string } | null;
   current_stage: { id: string; code: string } | null;
   payments: { amount_cents: number }[];
+  extras: { price_cents: number }[];
 };
 
 export async function GET(request: NextRequest) {
@@ -34,7 +36,8 @@ export async function GET(request: NextRequest) {
     if (serviceTypeIds.length > 0 && !serviceTypeIds.includes(session.service_type_id)) return false;
     if (stageIds.length > 0 && !(session.current_stage && stageIds.includes(session.current_stage.id))) return false;
     const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const status = paid === 0 ? "unpaid" : paid < session.agreed_price_cents ? "partial" : "paid";
+    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
+    const status = totalDue === 0 ? "paid" : paid === 0 ? "unpaid" : paid < totalDue ? "partial" : "paid";
     return paymentStatuses.length === 0 || paymentStatuses.includes(status);
   }).sort((first, second) => {
     const firstFuture = first.scheduled_at >= now;
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
   const location = typeof body.location === "string" && body.location.trim() ? body.location.trim() : null;
   const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
   const serviceDetail = typeof body.serviceDetail === "string" && body.serviceDetail.trim() ? body.serviceDetail.trim() : null;
+  const imageConsentGranted = body.imageConsentGranted === true;
 
   if (!clientId || !serviceTypeId || !scheduledAt || Number.isNaN(scheduledAt.valueOf()) || !Number.isInteger(durationMinutes) || durationMinutes <= 0 || !Number.isInteger(priceEuros) || priceEuros < 0) {
     return NextResponse.json({ error: "Compila tutti i campi obbligatori con valori validi." }, { status: 400 });
@@ -67,13 +71,13 @@ export async function POST(request: NextRequest) {
 
   const [{ data: client }, { data: service }, { data: stage }] = await Promise.all([
     supabaseAdmin.from("clients").select("id").eq("id", clientId).eq("is_archived", false).maybeSingle(),
-    supabaseAdmin.from("service_types").select("id,name").eq("id", serviceTypeId).eq("is_active", true).maybeSingle(),
+    supabaseAdmin.from("service_types").select("id,name").eq("id", serviceTypeId).eq("is_active", true).eq("is_addon", false).maybeSingle(),
     supabaseAdmin.from("session_stages").select("id").eq("code", scheduledAt < new Date() ? "completed" : "booked").maybeSingle(),
   ]);
 
   if (!client || !service || !stage) return NextResponse.json({ error: "Cliente, servizio o avanzamento non disponibile." }, { status: 400 });
 
-  const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id }).select(sessionFields).single();
+  const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
   if (error) return NextResponse.json({ error: error.message.includes("overlaps") ? "Questa sessione si sovrappone a un appuntamento esistente." : error.message }, { status: error.message.includes("overlaps") ? 409 : 500 });
 
   return NextResponse.json({ session: data }, { status: 201 });

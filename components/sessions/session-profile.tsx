@@ -11,7 +11,8 @@ import { Modal } from "@/components/shared/modal";
 type Payment = {
   id: string;
   amount_cents: number;
-  paid_at: string;
+  paid_at: string | null;
+  paid_date: string | null;
   category: string;
   payment_method_name: string;
   applied_voucher_id: string | null;
@@ -20,6 +21,8 @@ type Payment = {
 };
 
 type StageEvent = { id: string; stage_name: string; changed_at: string; notes: string | null };
+
+type Extra = { id: string; service_type_id: string; service_name: string; price_cents: number; notes: string | null; created_at: string };
 
 type Session = {
   id: string;
@@ -30,14 +33,19 @@ type Session = {
   service_detail: string | null;
   notes: string | null;
   agreed_price_cents: number;
+  is_settled: boolean;
   current_stage: { id: string; name: string; code: string } | null;
   client: { id: string; first_name: string; last_name: string } | null;
   payments: Payment[];
   stage_history: StageEvent[];
+  extras: Extra[];
+  image_consent_granted_at: string | null;
+  image_consent_revoked_at: string | null;
 };
 
 type Stage = { id: string; name: string; code: string };
 type Method = { id: string; name: string };
+type AddonService = { id: string; name: string };
 type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number | null };
 
 const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
@@ -63,16 +71,18 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
+  const [addonServices, setAddonServices] = useState<AddonService[]>([]);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
   const [selectedVoucher, setSelectedVoucher] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | null>(null);
+  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [stageForm, setStageForm] = useState({ stageId: "", changedAt: "", notes: "" });
-  const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: "", methodId: "", category: "balance", notes: "" });
+  const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: "", paidDate: "", methodId: "", category: "balance", notes: "" });
   const [editForm, setEditForm] = useState({ scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "" });
+  const [extraForm, setExtraForm] = useState({ serviceTypeId: "", priceEuros: "", notes: "" });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -90,7 +100,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
-        if (stagesRes.ok) setStages(stagesBody.stages);
+        if (stagesRes.ok) { setStages(stagesBody.stages); setAddonServices(stagesBody.addonServices ?? []); }
         if (methodsRes.ok) setMethods(methodsBody.methods);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
@@ -102,9 +112,49 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   }, [sessionId, refreshKey]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
-  const balance = (session?.agreed_price_cents ?? 0) - paid;
+  const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;
+  const due = (session?.agreed_price_cents ?? 0) + extrasTotal;
+  const balance = due - paid;
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
+  const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
+
+  function openExtraDialog() {
+    setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
+    setError(null);
+    setDialog("extra");
+  }
+
+  async function submitExtra(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/extras`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(extraForm) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setDialog(null); setRefreshKey((key) => key + 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiunta extra non riuscita."); } finally { setBusy(false); }
+  }
+
+  async function deleteExtra(extraId: string) {
+    if (!confirm("Rimuovere questo extra dalla sessione?")) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/extras/${extraId}`, { method: "DELETE" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setRefreshKey((key) => key + 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Rimozione non riuscita."); } finally { setBusy(false); }
+  }
+
+  async function toggleImageConsent(granted: boolean) {
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updateImageConsent", granted }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setSession(body.session as Session);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento del consenso non riuscito."); } finally { setBusy(false); }
+  }
 
   function openStageDialog() {
     setStageForm({ stageId: session?.current_stage?.id ?? "", changedAt: toLocalInput(new Date().toISOString()), notes: "" });
@@ -113,7 +163,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   }
 
   function openPaymentDialog() {
-    setPaymentForm({ amountEuros: "", paidAt: toLocalInput(new Date().toISOString()), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
+    setPaymentForm({ amountEuros: "", paidAt: "", paidDate: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
     setError(null);
     setDialog("payment");
   }
@@ -246,7 +296,11 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   if (loading) return <main className="p-8 text-sm text-[#675f57]">Caricamento sessione...</main>;
   if (!session) return <main className="p-8"><p className="text-sm text-[#a53e31]">{error ?? "Sessione non trovata."}</p><Link className="mt-4 inline-block text-sm font-semibold text-[#9b5d43]" href="/sessions">Torna alle sessioni</Link></main>;
 
-  const orderedPayments = [...session.payments].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+  const orderedPayments = [...session.payments].sort((a, b) => {
+    const dateA = a.paid_at ? new Date(a.paid_at).getTime() : new Date(a.paid_date + "T00:00:00").getTime();
+    const dateB = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.paid_date + "T00:00:00").getTime();
+    return dateB - dateA;
+  });
   const orderedStages = [...session.stage_history].sort((a, b) => b.changed_at.localeCompare(a.changed_at));
 
   return (
@@ -280,6 +334,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
                   { label: "Modifica", onClick: openEditDialog },
                   { label: "Aggiorna avanzamento", onClick: openStageDialog },
                   ...(!isCancelled ? [{ label: "Applica buono", onClick: openVoucherDialog }] : []),
+                  ...(!isCancelled ? [{ label: "Aggiungi extra", onClick: openExtraDialog }] : []),
                   { label: "Duplica sessione", onClick: () => router.push(`/sessions?duplicate=${session.id}`) },
                   { label: "Elimina", onClick: () => { setError(null); setDialog("delete"); }, destructive: true },
                 ]}
@@ -298,10 +353,38 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           <Card label="Avanzamento">{session.current_stage?.name ?? "-"}</Card>
           <Card label="Luogo">{session.location ?? "-"}</Card>
           <Card label="Incassato">{euro.format(paid / 100)}</Card>
-          <Card label="Stato pagamento">{paid === 0 ? "Da saldare" : paid < session.agreed_price_cents ? "Parzialmente pagata" : "Saldata"}</Card>
+          <Card label="Stato pagamento">{due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata"}</Card>
         </div>
 
         {session.notes ? <p className="mt-6 border-l-2 border-[#d8d0c5] bg-white px-4 py-3 text-sm text-[#514a43]">{session.notes}</p> : null}
+
+        <section className="mt-6 flex items-center justify-between border border-[#d8d0c5] bg-white px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Consenso utilizzo immagini</p>
+            <p className="mt-1 text-sm font-medium">{imageConsentActive ? "Concesso" : "Non concesso"}</p>
+          </div>
+          <button className="h-10 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] disabled:opacity-60" disabled={busy} onClick={() => toggleImageConsent(!imageConsentActive)} type="button">
+            {imageConsentActive ? "Revoca consenso" : "Concedi consenso"}
+          </button>
+        </section>
+
+        <section className="mt-9">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Extra</h2>
+            {!isCancelled ? <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={openExtraDialog} type="button">Aggiungi extra</button> : null}
+          </div>
+          <div className="mt-4 overflow-hidden border border-[#d8d0c5] bg-white">
+            {session.extras.length === 0 ? <p className="p-6 text-sm text-[#675f57]">Nessun extra collegato a questa sessione.</p> : session.extras.map((extra) => (
+              <article className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0" key={extra.id}>
+                <div>
+                  <p className="text-sm font-semibold">{extra.service_name} - {euro.format(extra.price_cents / 100)}</p>
+                  {extra.notes ? <p className="mt-1 text-xs text-[#675f57]">{extra.notes}</p> : null}
+                </div>
+                <button className="text-sm font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => deleteExtra(extra.id)} type="button">Elimina</button>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <section className="mt-9">
           <h2 className="text-lg font-semibold">Pagamenti</h2>
@@ -310,7 +393,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
               <article className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0" key={payment.id}>
                 <div>
                   <p className="text-sm font-semibold">{euro.format(payment.amount_cents / 100)} - {categoryLabels[payment.category] ?? payment.category}</p>
-                  <p className="mt-1 text-xs text-[#675f57]">{dateOnly.format(new Date(payment.paid_at))} - {payment.payment_method_name}</p>
+                  <p className="mt-1 text-xs text-[#675f57]">{payment.paid_date ? dateOnly.format(new Date(payment.paid_date + "T00:00:00")) : dateOnly.format(new Date(payment.paid_at!))} - {payment.payment_method_name}</p>
                 </div>
                 <button className="text-sm font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => deletePayment(payment.id, Boolean(payment.applied_voucher_id))} type="button">Elimina</button>
               </article>
@@ -393,8 +476,8 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
               <label className="flex flex-col gap-2 text-sm font-medium">Importo (EUR)
                 <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setPaymentForm({ ...paymentForm, amountEuros: e.target.value })} required type="number" value={paymentForm.amountEuros} />
               </label>
-              <label className="flex flex-col gap-2 text-sm font-medium">Data
-                <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, paidAt: e.target.value })} required type="datetime-local" value={paymentForm.paidAt} />
+              <label className="flex flex-col gap-2 text-sm font-medium">Data del pagamento
+                <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, paidDate: e.target.value })} required type="date" value={paymentForm.paidDate} />
               </label>
               <label className="flex flex-col gap-2 text-sm font-medium">Metodo
                 <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, methodId: e.target.value })} required value={paymentForm.methodId}>
@@ -437,6 +520,36 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             <div className="mt-6 flex justify-end gap-3">
               <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
               <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || eligibleVouchers.length === 0} type="submit">{busy ? "Applicazione..." : "Applica buono"}</button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {dialog === "extra" ? (
+        <Modal onClose={() => setDialog(null)} title="Aggiungi extra">
+          <form onSubmit={submitExtra}>
+            {addonServices.length === 0 ? (
+              <p className="text-sm text-[#675f57]">Nessun servizio extra configurato. Aggiungine uno in Configurazione.</p>
+            ) : (
+              <>
+                <label className="flex flex-col gap-2 text-sm font-medium">Servizio extra
+                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, serviceTypeId: e.target.value })} required value={extraForm.serviceTypeId}>
+                    <option value="">Seleziona</option>
+                    {addonServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+                  </select>
+                </label>
+                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Prezzo (EUR)
+                  <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="0" onChange={(e) => setExtraForm({ ...extraForm, priceEuros: e.target.value })} required type="number" value={extraForm.priceEuros} />
+                </label>
+                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note (facoltativo)
+                  <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, notes: e.target.value })} value={extraForm.notes} />
+                </label>
+              </>
+            )}
+            {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
+              <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || addonServices.length === 0} type="submit">{busy ? "Salvataggio..." : "Aggiungi extra"}</button>
             </div>
           </form>
         </Modal>

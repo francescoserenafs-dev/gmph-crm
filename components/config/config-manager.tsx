@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; sort_order: number };
+type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number };
 type Config = { services: Item[]; methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number };
 
 const entityLabels = { services: "Tipi di servizio", methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
@@ -64,6 +64,10 @@ export function ConfigManager() {
 
   function toggle(entity: EntityKey, item: Item) {
     void run(() => fetch(`/api/config/${entity}/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !item.is_active }) }));
+  }
+
+  function toggleAddon(item: Item) {
+    void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isAddon: !item.is_addon }) }));
   }
 
   function rename(entity: EntityKey, item: Item) {
@@ -136,10 +140,11 @@ export function ConfigManager() {
               <span aria-hidden className={`shrink-0 text-[#958b80] ${item.is_system ? "opacity-30" : "cursor-grab"}`}>&#9776;</span>
               <div className="min-w-0 flex-1">
                 <p className={`truncate text-sm font-medium ${item.is_active ? "" : "text-[#958b80] line-through"}`}>{item.name}</p>
-                {item.is_system ? <p className="text-xs text-[#675f57]">Voce di sistema</p> : null}
+                {item.is_system ? <p className="text-xs text-[#675f57]">Voce di sistema</p> : entity === "services" && item.is_addon ? <p className="text-xs text-[#675f57]">Servizio extra (non prenotabile da solo)</p> : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => rename(entity, item)} type="button">Rinomina</button>}
+                {entity === "services" ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggleAddon(item)} type="button">{item.is_addon ? "Rendi sessione" : "Rendi extra"}</button> : null}
                 {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggle(entity, item)} type="button">{item.is_active ? "Disattiva" : "Attiva"}</button>}
               </div>
             </div>

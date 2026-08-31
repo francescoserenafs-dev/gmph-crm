@@ -74,7 +74,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/vo
       if (!requestedServiceTypeId || !Number.isInteger(purchaseEuros) || purchaseEuros <= 0) {
         return NextResponse.json({ error: "Per un buono a sessione indica servizio e prezzo di acquisto." }, { status: 400 });
       }
-      const { data: service } = await supabaseAdmin.from("service_types").select("id,name").eq("id", requestedServiceTypeId).eq("is_active", true).maybeSingle();
+      const { data: service } = await supabaseAdmin.from("service_types").select("id,name").eq("id", requestedServiceTypeId).eq("is_active", true).eq("is_addon", false).maybeSingle();
       if (!service) return NextResponse.json({ error: "Servizio non disponibile." }, { status: 400 });
       serviceName = service.name;
       serviceTypeId = requestedServiceTypeId;

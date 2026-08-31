@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const clientFields =
-  "id, first_name, last_name, email, phone, birth_date, address, notes, is_archived, privacy_consent_granted_at, privacy_consent_revoked_at, image_consent_granted_at, image_consent_revoked_at, created_at, updated_at";
+  "id, first_name, last_name, email, phone, birth_date, address, notes, is_archived, privacy_consent_granted_at, privacy_consent_revoked_at, created_at, updated_at";
 
 async function getClient(id: string) {
   return supabaseAdmin.from("clients").select(clientFields).eq("id", id).maybeSingle();
@@ -77,8 +77,6 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/cl
   const privacyConsentIsActive =
     currentClient.privacy_consent_granted_at !== null &&
     currentClient.privacy_consent_revoked_at === null;
-  const imageConsentIsActive =
-    currentClient.image_consent_granted_at !== null && currentClient.image_consent_revoked_at === null;
 
   const { data, error } = await supabaseAdmin
     .from("clients")
@@ -100,16 +98,6 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/cl
         : privacyConsentIsActive
           ? now
           : currentClient.privacy_consent_revoked_at,
-      image_consent_granted_at: clientInput.imageConsentGranted
-        ? imageConsentIsActive
-          ? currentClient.image_consent_granted_at
-          : now
-        : currentClient.image_consent_granted_at,
-      image_consent_revoked_at: clientInput.imageConsentGranted
-        ? null
-        : imageConsentIsActive
-          ? now
-          : currentClient.image_consent_revoked_at,
     })
     .eq("id", id)
     .select(clientFields)

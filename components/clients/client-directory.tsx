@@ -28,7 +28,6 @@ type ClientForm = {
   address: string;
   notes: string;
   privacyConsentGranted: boolean;
-  imageConsentGranted: boolean;
 };
 
 const emptyForm: ClientForm = {
@@ -40,7 +39,6 @@ const emptyForm: ClientForm = {
   address: "",
   notes: "",
   privacyConsentGranted: false,
-  imageConsentGranted: false,
 };
 
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
@@ -496,17 +494,6 @@ export function ClientDirectory() {
                       type="checkbox"
                     />
                     <span>Consenso al trattamento dei dati personali ricevuto</span>
-                  </label>
-                  <label className="flex items-start gap-3 text-sm leading-5 text-[#514a43]">
-                    <input
-                      checked={form.imageConsentGranted}
-                      className="mt-0.5 size-4 accent-[#9b5d43]"
-                      onChange={(event) =>
-                        updateForm("imageConsentGranted", event.target.checked)
-                      }
-                      type="checkbox"
-                    />
-                    <span>Consenso all&apos;utilizzo delle immagini ricevuto</span>
                   </label>
                 </div>
               </fieldset>

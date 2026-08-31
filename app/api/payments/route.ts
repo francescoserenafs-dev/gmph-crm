@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const allowedCategories = ["deposit", "balance", "full_payment"];
 
 const paymentFields =
-  "id, amount_cents, paid_at, category, payment_method_name, applied_voucher_id, notes, session:sessions!payments_session_id_fkey(id,service_name,scheduled_at,client:clients!sessions_client_id_fkey(id,first_name,last_name)), voucher:gift_vouchers!payments_voucher_id_fkey(id,code,purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name))";
+  "id, amount_cents, paid_at, paid_date, category, payment_method_name, applied_voucher_id, notes, reference, session:sessions!payments_session_id_fkey(id,service_name,scheduled_at,client:clients!sessions_client_id_fkey(id,first_name,last_name)), voucher:gift_vouchers!payments_voucher_id_fkey(id,code,purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name))";
 
 export async function GET(request: NextRequest) {
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1);
@@ -32,15 +32,17 @@ export async function POST(request: NextRequest) {
   const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
   const amountEuros = Number(body.amountEuros);
   const paidAt = typeof body.paidAt === "string" ? new Date(body.paidAt) : null;
+  const paidDate = typeof body.paidDate === "string" ? body.paidDate : null;
   const methodId = typeof body.methodId === "string" ? body.methodId : "";
   const category = typeof body.category === "string" ? body.category : "";
   const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
 
-  if (!sessionId || !Number.isInteger(amountEuros) || amountEuros <= 0 || !paidAt || Number.isNaN(paidAt.valueOf()) || !methodId || !allowedCategories.includes(category)) {
+  // At least one of paid_at or paid_date must be provided
+  if (!sessionId || !Number.isInteger(amountEuros) || amountEuros <= 0 || (!paidAt && !paidDate) || !methodId || !allowedCategories.includes(category)) {
     return NextResponse.json({ error: "Compila sessione, importo, data, metodo e causale con valori validi." }, { status: 400 });
   }
 
-  if (paidAt.getTime() > Date.now()) {
+  if (paidAt && paidAt.getTime() > Date.now()) {
     return NextResponse.json({ error: "La data del pagamento non puo essere futura." }, { status: 400 });
   }
 
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("payments")
-    .insert({ session_id: sessionId, payment_method_id: methodId, category, amount_cents: amountEuros * 100, paid_at: paidAt.toISOString(), notes })
+    .insert({ session_id: sessionId, payment_method_id: methodId, category, amount_cents: amountEuros * 100, paid_at: paidAt?.toISOString() || null, paid_date: paidDate, notes })
     .select("id")
     .single();
 
