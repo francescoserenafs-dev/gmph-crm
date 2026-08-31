@@ -22,3 +22,12 @@ export function ArchiveIcon({ className = "size-5" }: { className?: string }) {
   );
 }
 
+export function DuplicateIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+      <rect height="13" rx="1.5" width="13" x="9" y="9" />
+      <path d="M15 6V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v8.5A1.5 1.5 0 0 0 5 15h1" strokeLinecap="round" />
+    </svg>
+  );
+}
+

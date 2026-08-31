@@ -18,6 +18,7 @@ type Dashboard = {
   receivable: number;
   paymentStatus: { unpaid: number; partial: number; settled: number };
   sessionsTotalValue: number;
+  lateSessions: number;
   income: { total: number; byMethod: Record<string, number> };
   vouchers: { sold: number; active: number; redeemed: number; expired: number; expiringSoon: number; activeValue: number };
 };
@@ -156,6 +157,11 @@ export function Dashboard() {
               <Metric label="Parzialmente pagate" value={String(data.paymentStatus.partial)} />
               <Metric label="Sessioni saldate" value={String(data.paymentStatus.settled)} />
             </div>
+            {data.lateSessions > 0 ? (
+              <Link className="mt-4 flex items-center gap-2 border border-[#a53e31] bg-[#fff1ef] px-4 py-3 text-sm font-medium text-[#a53e31] hover:bg-[#ffe4e0]" href="/sessions">
+                {data.lateSessions} {data.lateSessions === 1 ? "sessione" : "sessioni"} passate con avanzamento ancora fermo a &quot;Prenotata&quot; — controlla e aggiorna lo stato.
+              </Link>
+            ) : null}
 
             <div className="mt-8 flex flex-col items-start gap-6 lg:flex-row">
               <section className="flex aspect-square w-full max-w-[420px] flex-col border border-[#d8d0c5] bg-white p-3 sm:p-5">

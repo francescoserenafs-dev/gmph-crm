@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
+import { ActionMenu } from "@/components/shared/action-menu";
 import { ArchiveIcon, TrashIcon } from "@/components/shared/icons";
 
 type OverviewSession = { id: string; scheduled_at: string; service_name: string; agreed_price_cents: number; current_stage: { name: string; code: string } | null; payments: { amount_cents: number }[] };
@@ -310,7 +311,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
               </button>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link
                 className="grid h-11 place-items-center bg-[#9b5d43] px-5 text-sm font-semibold text-white"
                 href={`/sessions?newSession=${client.id}`}
@@ -318,21 +319,21 @@ export function ClientProfile({ clientId }: { clientId: string }) {
                 Nuova sessione
               </Link>
               <button
-                className="h-11 border border-[#9b5d43] px-5 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]"
+                className="hidden h-11 border border-[#9b5d43] px-5 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] sm:inline-flex sm:items-center"
                 onClick={openPaymentDialog}
                 type="button"
               >
                 Registra pagamento
               </button>
               <Link
-                className="grid h-11 place-items-center border border-[#9b5d43] px-5 text-sm font-semibold text-[#9b5d43]"
+                className="hidden h-11 place-items-center border border-[#9b5d43] px-5 text-sm font-semibold text-[#9b5d43] sm:grid"
                 href={`/vouchers?purchaser=${client.id}`}
               >
                 Buoni regalo
               </Link>
               <button
                 aria-label="Archivia cliente"
-                className="grid size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef]"
+                className="hidden size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef] sm:grid"
                 onClick={() => setIsArchiveDialogOpen(true)}
                 title="Archivia cliente"
                 type="button"
@@ -341,13 +342,23 @@ export function ClientProfile({ clientId }: { clientId: string }) {
               </button>
               <button
                 aria-label="Elimina cliente"
-                className="grid size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef]"
+                className="hidden size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef] sm:grid"
                 onClick={openDeleteDialog}
                 title="Elimina cliente"
                 type="button"
               >
                 <TrashIcon />
               </button>
+              <div className="sm:hidden">
+                <ActionMenu
+                  items={[
+                    { label: "Registra pagamento", onClick: openPaymentDialog },
+                    { label: "Buoni regalo", onClick: () => router.push(`/vouchers?purchaser=${client.id}`) },
+                    { label: "Archivia cliente", onClick: () => setIsArchiveDialogOpen(true) },
+                    { label: "Elimina cliente", onClick: openDeleteDialog, destructive: true },
+                  ]}
+                />
+              </div>
             </div>
           )}
         </header>
@@ -449,8 +460,8 @@ export function ClientProfile({ clientId }: { clientId: string }) {
       </section>
 
       {paymentDialogOpen ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl" onSubmit={submitPayment}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-none sm:pb-6" onSubmit={submitPayment}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Registra pagamento</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => setPaymentDialogOpen(false)} type="button">x</button></div>
             <label className="mt-6 flex flex-col gap-2 text-sm font-medium">Sessione di riferimento
               <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setPaymentForm({ ...paymentForm, sessionId: e.target.value })} required value={paymentForm.sessionId}>
@@ -487,8 +498,8 @@ export function ClientProfile({ clientId }: { clientId: string }) {
       ) : null}
 
       {deleteDialogOpen ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <section className="w-full max-w-md bg-[#fdfbf8] p-6 shadow-xl">
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <section className="w-full max-w-md rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-none sm:pb-6">
             <h2 className="text-xl font-semibold">Elimina cliente?</h2>
             {deleteLinked ? (
               <div className="mt-3 text-sm leading-6 text-[#675f57]">
@@ -512,8 +523,8 @@ export function ClientProfile({ clientId }: { clientId: string }) {
       ) : null}
 
       {isArchiveDialogOpen ? (
-        <div aria-labelledby="archive-client-title" aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <section className="w-full max-w-md bg-[#fdfbf8] p-6 shadow-xl">
+        <div aria-labelledby="archive-client-title" aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <section className="w-full max-w-md rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-none sm:pb-6">
             <h2 className="text-xl font-semibold" id="archive-client-title">Archivia cliente?</h2>
             <p className="mt-3 text-sm leading-6 text-[#675f57]">
               Il cliente restera nello storico e potra essere ripristinato, ma non comparira nelle nuove attivita.

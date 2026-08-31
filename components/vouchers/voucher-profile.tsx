@@ -250,8 +250,8 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
       </section>
 
       {paymentDialogOpen ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="w-full max-w-md bg-[#fdfbf8] p-6 shadow-xl" onSubmit={submitPayment}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="w-full max-w-md rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-none sm:pb-6" onSubmit={submitPayment}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Registra pagamento</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => setPaymentDialogOpen(false)} type="button">x</button></div>
             <label className="mt-6 flex flex-col gap-2 text-sm font-medium">Importo (EUR)
               <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setPaymentForm({ ...paymentForm, amountEuros: e.target.value })} required type="number" value={paymentForm.amountEuros} />

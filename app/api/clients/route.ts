@@ -97,7 +97,10 @@ export async function GET(request: NextRequest) {
   const clientIds = sortedClients.map((client) => client.id);
   const [{ data: clientSessions, error: sessionsError }, { data: clientVouchers, error: vouchersError }] =
     await Promise.all([
-      supabaseAdmin.from("sessions").select("client_id, agreed_price_cents").in("client_id", clientIds),
+      supabaseAdmin
+        .from("sessions")
+        .select("client_id, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), payments(amount_cents)")
+        .in("client_id", clientIds),
       supabaseAdmin
         .from("gift_vouchers")
         .select("purchaser_client_id, purchase_price_cents")
@@ -112,8 +115,15 @@ export async function GET(request: NextRequest) {
   }
 
   const ltvByClient = new Map<string, number>();
+  const balanceByClient = new Map<string, number>();
   for (const session of clientSessions) {
     ltvByClient.set(session.client_id, (ltvByClient.get(session.client_id) ?? 0) + session.agreed_price_cents);
+    const stage = session.current_stage as { code?: string } | null;
+    if (stage?.code !== "cancelled") {
+      const paid = (session.payments ?? []).reduce((sum: number, payment: { amount_cents: number }) => sum + payment.amount_cents, 0);
+      const balance = session.agreed_price_cents - paid;
+      if (balance > 0) balanceByClient.set(session.client_id, (balanceByClient.get(session.client_id) ?? 0) + balance);
+    }
   }
   for (const voucher of clientVouchers) {
     ltvByClient.set(
@@ -125,6 +135,7 @@ export async function GET(request: NextRequest) {
   const clients = sortedClients.map((client) => ({
     ...client,
     ltv_cents: ltvByClient.get(client.id) ?? 0,
+    balance_cents: balanceByClient.get(client.id) ?? 0,
   }));
 
   if (sort === "ltv") {

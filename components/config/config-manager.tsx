@@ -125,7 +125,7 @@ export function ConfigManager() {
         <div className="mt-4 divide-y divide-[#eee8df]">
           {items.map((item, index) => (
             <div
-              className={`flex items-center gap-3 py-3 ${dragOverIndex === index && dragItem?.entity === entity ? "bg-[#f1e3db]" : ""}`}
+              className={`flex flex-wrap items-center gap-3 py-3 ${dragOverIndex === index && dragItem?.entity === entity ? "bg-[#f1e3db]" : ""}`}
               draggable={!item.is_system}
               key={item.id}
               onDragEnd={() => { setDragItem(null); setDragOverIndex(null); }}

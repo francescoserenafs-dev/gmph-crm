@@ -16,6 +16,7 @@ type Client = {
   is_archived: boolean;
   updated_at: string;
   ltv_cents: number;
+  balance_cents: number;
 };
 
 type ClientForm = {
@@ -58,6 +59,7 @@ export function ClientDirectory() {
   const [sort, setSort] = useState<"alphabetical" | "recent" | "next_session" | "ltv">(
     (searchParams.get("sort") as "alphabetical" | "recent" | "next_session" | "ltv") || "alphabetical",
   );
+  const [onlyWithBalance, setOnlyWithBalance] = useState(searchParams.get("balance") === "1");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(searchParams.get("new") === "1");
@@ -72,8 +74,9 @@ export function ClientDirectory() {
     const parameters = new URLSearchParams();
     if (sort !== "alphabetical") parameters.set("sort", sort);
     if (search.trim()) parameters.set("search", search.trim());
+    if (onlyWithBalance) parameters.set("balance", "1");
     router.replace(`/clients${parameters.toString() ? `?${parameters.toString()}` : ""}`, { scroll: false });
-  }, [search, sort, router]);
+  }, [search, sort, onlyWithBalance, router]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -124,8 +127,10 @@ export function ClientDirectory() {
     setSelectedIds(new Set());
   }, [clients]);
 
+  const visibleClients = onlyWithBalance ? clients.filter((client) => client.balance_cents > 0) : clients;
+
   function toggleSelectAll(checked: boolean) {
-    setSelectedIds(checked ? new Set(clients.map((client) => client.id)) : new Set());
+    setSelectedIds(checked ? new Set(visibleClients.map((client) => client.id)) : new Set());
   }
 
   function toggleSelectOne(id: string, checked: boolean) {
@@ -245,13 +250,15 @@ export function ClientDirectory() {
               fetchRows={async () => {
                 const response = await fetch(`/api/clients?sort=${sort}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`);
                 const body = await response.json();
-                return ((body.clients ?? []) as Client[]).map((client) => ({
+                const rows = ((body.clients ?? []) as Client[]).filter((client) => !onlyWithBalance || client.balance_cents > 0);
+                return rows.map((client) => ({
                   Nome: client.first_name,
                   Cognome: client.last_name,
                   Email: client.email,
                   Telefono: client.phone ?? "",
                   "Data di nascita": client.birth_date ?? "",
                   LTV: (client.ltv_cents / 100).toFixed(2),
+                  "Saldo residuo": (client.balance_cents / 100).toFixed(2),
                 }));
               }}
               filename="clienti"
@@ -305,15 +312,20 @@ export function ClientDirectory() {
               <option value="ltv">LTV (dal piu alto)</option>
             </select>
           </label>
+
+          <label className="flex h-11 items-center gap-2 text-sm font-medium">
+            <input checked={onlyWithBalance} className="size-4 accent-[#9b5d43]" onChange={(event) => setOnlyWithBalance(event.target.checked)} type="checkbox" />
+            Solo con saldo residuo
+          </label>
         </div>
 
         <section aria-live="polite" className="mt-7 overflow-hidden border border-[#d8d0c5] bg-white">
-          <div className="grid grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] items-center gap-4 border-b border-[#d8d0c5] bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57]">
+          <div className="hidden grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] items-center gap-4 border-b border-[#d8d0c5] bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57] sm:grid">
             <input
               aria-label="Seleziona tutti i clienti"
-              checked={clients.length > 0 && selectedIds.size === clients.length}
+              checked={visibleClients.length > 0 && selectedIds.size === visibleClients.length}
               className="size-4 accent-[#9b5d43]"
-              disabled={clients.length === 0}
+              disabled={visibleClients.length === 0}
               onChange={(event) => toggleSelectAll(event.target.checked)}
               type="checkbox"
             />
@@ -341,7 +353,7 @@ export function ClientDirectory() {
             </div>
           ) : null}
 
-          {!isLoading && !loadError && clients.length === 0 ? (
+          {!isLoading && !loadError && visibleClients.length === 0 ? (
             <div className="px-5 py-14 text-center">
               <p className="text-base font-medium">Nessun cliente da mostrare.</p>
               <p className="mt-2 text-sm text-[#675f57]">
@@ -351,9 +363,9 @@ export function ClientDirectory() {
           ) : null}
 
           {!isLoading && !loadError
-            ? clients.map((client) => (
+            ? visibleClients.map((client) => (
                 <article
-                  className="group grid grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] items-center gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0"
+                  className="group flex flex-col gap-2 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:grid sm:grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] sm:items-center sm:gap-4"
                   key={client.id}
                 >
                   <input
@@ -380,7 +392,7 @@ export function ClientDirectory() {
                       {euro.format((client.ltv_cents ?? 0) / 100)}
                     </p>
                   </Link>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Link className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" href={`/sessions?newSession=${client.id}`}>Crea Sessione</Link>
                     <Link className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" href={`/clients/${client.id}?pay=1`}>Registra Pagamento</Link>
                   </div>
@@ -394,12 +406,12 @@ export function ClientDirectory() {
         <div
           aria-labelledby="new-client-title"
           aria-modal="true"
-          className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4"
           onMouseDown={closeModal}
           role="dialog"
         >
           <section
-            className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl sm:p-8"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-none sm:p-8 sm:pb-8"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">

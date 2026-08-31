@@ -219,13 +219,13 @@ export function PaymentDirectory() {
         {error ? <p className="mt-5 text-sm text-[#a53e31]">{error}</p> : null}
 
         <section className="mt-5 overflow-hidden border border-[#d8d0c5] bg-white">
-          <div className="grid grid-cols-[1fr_0.9fr_1.4fr_1fr_1fr_0.9fr_230px] gap-3 bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57]">
+          <div className="hidden grid-cols-[1fr_0.9fr_1.4fr_1fr_1fr_0.9fr_230px] gap-3 bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57] sm:grid">
             <span>Cliente</span><span>Data</span><span>Riferimento</span><span>Causale</span><span>Metodo</span><span>Importo</span><span>Azioni</span>
           </div>
           {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento pagamenti...</p> : payments.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessun pagamento da mostrare.</p> : payments.map((payment) => {
             const payer = payment.session?.client ?? payment.voucher?.purchaser ?? null;
             return (
-              <article className="grid grid-cols-[1fr_0.9fr_1.4fr_1fr_1fr_0.9fr_230px] items-center gap-3 border-t border-[#eee8df] px-5 py-4 text-sm" key={payment.id}>
+              <article className="flex flex-col gap-2 border-t border-[#eee8df] px-5 py-4 text-sm sm:grid sm:grid-cols-[1fr_0.9fr_1.4fr_1fr_1fr_0.9fr_230px] sm:items-center sm:gap-3" key={payment.id}>
                 <span className="min-w-0 truncate font-medium">
                   {payer ? <Link className="hover:underline" href={`/clients/${payer.id}`}>{payer.first_name} {payer.last_name}</Link> : "-"}
                 </span>
@@ -233,10 +233,10 @@ export function PaymentDirectory() {
                 <span className="min-w-0 truncate">
                   {payment.session ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/sessions/${payment.session.id}`}>{payment.session.service_name}</Link> : payment.voucher ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/vouchers/${payment.voucher.id}`}>Buono {payment.voucher.code}</Link> : "-"}
                 </span>
-                <span>{categoryLabels[payment.category] ?? payment.category}</span>
-                <span>{payment.payment_method_name}</span>
-                <span>{euro.format(payment.amount_cents / 100)}</span>
-                <span className="flex justify-end gap-2">
+                <span><span className="text-xs text-[#675f57] sm:hidden">Causale: </span>{categoryLabels[payment.category] ?? payment.category}</span>
+                <span><span className="text-xs text-[#675f57] sm:hidden">Metodo: </span>{payment.payment_method_name}</span>
+                <span className="font-semibold sm:font-normal">{euro.format(payment.amount_cents / 100)}</span>
+                <span className="flex justify-start gap-2 sm:justify-end">
                   {payment.applied_voucher_id ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openEdit(payment)} type="button">Modifica</button>}
                   <button className="border border-[#a53e31] px-2 py-1 text-xs font-semibold text-[#a53e31] hover:bg-[#fff1ef] disabled:opacity-50" disabled={busy} onClick={() => remove(payment)} type="button">Elimina</button>
                 </span>
@@ -256,8 +256,8 @@ export function PaymentDirectory() {
       </section>
 
       {dialog ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl" onSubmit={dialog === "new" ? submitNew : submitEdit}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-none sm:pb-6" onSubmit={dialog === "new" ? submitNew : submitEdit}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">{dialog === "new" ? "Nuovo pagamento" : "Modifica pagamento"}</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => { setDialog(null); setEditing(null); }} type="button">x</button></div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {dialog === "edit" && editing?.voucher ? (

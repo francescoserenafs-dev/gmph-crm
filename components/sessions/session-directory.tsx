@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
 import { ExportButton } from "@/components/shared/export-button";
-import { ImportIcon } from "@/components/shared/icons";
+import { ImportIcon, DuplicateIcon } from "@/components/shared/icons";
+import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
 
 type Client = { id: string; first_name: string; last_name: string; email: string };
@@ -232,6 +233,36 @@ export function SessionDirectory() {
 
   function openNewSession() { setSessionForm(emptySession); setQuickClientOpen(false); setError(null); setDialog("new"); }
 
+  async function openDuplicateSession(id: string) {
+    try {
+      const response = await fetch(`/api/sessions/${id}`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      const source = body.session;
+      setSessionForm({
+        clientId: source.client?.id ?? "",
+        serviceTypeId: source.service_type_id ?? "",
+        scheduledAt: "",
+        durationMinutes: String(source.duration_minutes),
+        priceEuros: String(source.agreed_price_cents / 100),
+        location: source.location ?? "",
+        serviceDetail: source.service_detail ?? "",
+        notes: source.notes ?? "",
+      });
+      setQuickClientOpen(false);
+      setError(null);
+      setDialog("new");
+    } catch {
+      setError("Non e stato possibile duplicare la sessione.");
+    }
+  }
+
+  useEffect(() => {
+    const duplicateId = searchParams.get("duplicate");
+    if (duplicateId) void openDuplicateSession(duplicateId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function submitSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
@@ -443,6 +474,7 @@ export function SessionDirectory() {
                 const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
                 const paymentStatus: PaymentStatus = paid === 0 ? "unpaid" : paid < session.agreed_price_cents ? "partial" : "paid";
                 const status = paymentStatusLabels[paymentStatus];
+                const isLate = session.current_stage?.code === "booked" && new Date(session.scheduled_at) < new Date();
                 return (
                   <article className="flex flex-col gap-3 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between" key={session.id}>
                     <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -454,6 +486,7 @@ export function SessionDirectory() {
                         type="checkbox"
                       />
                       <PaymentStatusFlag status={paymentStatus} />
+                      {isLate ? <LateBadge /> : null}
                       <Link className="min-w-0 flex-1 hover:underline" href={`/sessions/${session.id}`}>
                         <p className="text-sm font-semibold">{dateTime.format(new Date(session.scheduled_at))}</p>
                         <p className="mt-1 text-xs text-[#675f57]">{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"} - {session.service_name} - {session.current_stage?.name ?? "-"} - {status}</p>
@@ -463,6 +496,15 @@ export function SessionDirectory() {
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlineEdit(session)} type="button">Modifica</button>
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlineStage(session)} type="button">Avanzamento</button>
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlinePayment(session)} type="button">Pagamento</button>
+                      <button
+                        aria-label="Duplica sessione"
+                        className="grid size-8 place-items-center border border-[#cfc5b8] hover:bg-[#eee8df]"
+                        onClick={() => openDuplicateSession(session.id)}
+                        title="Duplica sessione"
+                        type="button"
+                      >
+                        <DuplicateIcon className="size-4" />
+                      </button>
                     </div>
                   </article>
                 );
@@ -670,14 +712,14 @@ function PaymentStatusFlag({ status }: { status: PaymentStatus }) {
   );
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function LateBadge() {
+  const label = "Sessione in ritardo: la data e passata ma l'avanzamento e ancora \"Prenotata\"";
   return (
-    <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-      <section className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl">
-        <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">{title}</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={onClose} type="button">x</button></div>
-        <div className="mt-6">{children}</div>
-      </section>
-    </div>
+    <span aria-label={label} className="shrink-0" role="img" title={label}>
+      <svg aria-hidden="true" className="size-5" fill="none" stroke="#a53e31" strokeWidth={1.8} viewBox="0 0 24 24">
+        <path d="M12 9v4m0 3.5h.01M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
   );
 }
 

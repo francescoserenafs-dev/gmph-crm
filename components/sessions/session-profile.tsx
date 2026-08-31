@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
+import { ActionMenu } from "@/components/shared/action-menu";
+import { DuplicateIcon } from "@/components/shared/icons";
+import { Modal } from "@/components/shared/modal";
 
 type Payment = {
   id: string;
@@ -256,12 +259,32 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{session.service_name}{session.service_detail ? ` - ${session.service_detail}` : ""}</h1>
             <p className="mt-2 text-sm text-[#675f57]">{session.client ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/clients/${session.client.id}`}>{session.client.first_name} {session.client.last_name}</Link> : "Cliente non disponibile"}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button className="h-11 border border-[#cfc5b8] px-4 text-sm font-semibold hover:bg-[#eee8df]" onClick={openEditDialog} type="button">Modifica</button>
-            <button className="h-11 border border-[#cfc5b8] px-4 text-sm font-semibold hover:bg-[#eee8df]" onClick={openStageDialog} type="button">Aggiorna avanzamento</button>
+          <div className="flex flex-wrap items-center gap-2">
             {!isCancelled ? <button className="h-11 bg-[#9b5d43] px-4 text-sm font-semibold text-white" onClick={openPaymentDialog} type="button">Aggiungi pagamento</button> : null}
-            {!isCancelled ? <button className="h-11 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" onClick={openVoucherDialog} type="button">Applica buono</button> : null}
-            <button className="h-11 border border-[#a53e31] px-4 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef]" onClick={() => { setError(null); setDialog("delete"); }} type="button">Elimina</button>
+            <button className="hidden h-11 border border-[#cfc5b8] px-4 text-sm font-semibold hover:bg-[#eee8df] sm:inline-flex sm:items-center" onClick={openEditDialog} type="button">Modifica</button>
+            <button className="hidden h-11 border border-[#cfc5b8] px-4 text-sm font-semibold hover:bg-[#eee8df] sm:inline-flex sm:items-center" onClick={openStageDialog} type="button">Aggiorna avanzamento</button>
+            {!isCancelled ? <button className="hidden h-11 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] sm:inline-flex sm:items-center" onClick={openVoucherDialog} type="button">Applica buono</button> : null}
+            <button
+              aria-label="Duplica sessione"
+              className="hidden size-11 place-items-center border border-[#cfc5b8] hover:bg-[#eee8df] sm:grid"
+              onClick={() => router.push(`/sessions?duplicate=${session.id}`)}
+              title="Duplica sessione"
+              type="button"
+            >
+              <DuplicateIcon />
+            </button>
+            <button className="hidden h-11 border border-[#a53e31] px-4 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef] sm:inline-flex sm:items-center" onClick={() => { setError(null); setDialog("delete"); }} type="button">Elimina</button>
+            <div className="sm:hidden">
+              <ActionMenu
+                items={[
+                  { label: "Modifica", onClick: openEditDialog },
+                  { label: "Aggiorna avanzamento", onClick: openStageDialog },
+                  ...(!isCancelled ? [{ label: "Applica buono", onClick: openVoucherDialog }] : []),
+                  { label: "Duplica sessione", onClick: () => router.push(`/sessions?duplicate=${session.id}`) },
+                  { label: "Elimina", onClick: () => { setError(null); setDialog("delete"); }, destructive: true },
+                ]}
+              />
+            </div>
           </div>
         </header>
 
@@ -444,17 +467,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
 
 function Card({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="border border-[#d8d0c5] bg-white px-4 py-3"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p><p className="mt-1 text-sm font-medium">{children}</p></div>;
-}
-
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-      <section className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl">
-        <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">{title}</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={onClose} type="button">x</button></div>
-        <div className="mt-6">{children}</div>
-      </section>
-    </div>
-  );
 }
 
 function ModalActions({ busy, onCancel, submitLabel }: { busy: boolean; onCancel: () => void; submitLabel: string }) {

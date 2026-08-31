@@ -27,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <AppNavigation />
         {children}
+        <div className="h-16 sm:hidden" aria-hidden="true" />
       </body>
     </html>
   );

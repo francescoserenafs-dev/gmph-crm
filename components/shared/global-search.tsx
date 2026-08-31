@@ -6,14 +6,24 @@ import { useEffect, useRef, useState } from "react";
 type ClientResult = { id: string; first_name: string; last_name: string; email: string };
 type SessionResult = { id: string; scheduled_at: string; service_name: string; client: { first_name: string; last_name: string } | null };
 type VoucherResult = { id: string; code: string; service_name: string | null; purchaser: { first_name: string; last_name: string } | null; recipient: { first_name: string; last_name: string } | null };
+type PaymentResult = {
+  id: string;
+  amount_cents: number;
+  paid_at: string;
+  reference: string | null;
+  notes: string | null;
+  session: { id: string; service_name: string; client: { first_name: string; last_name: string } | null } | null;
+  voucher: { id: string; code: string; purchaser: { first_name: string; last_name: string } | null } | null;
+};
 
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
 export function GlobalSearch() {
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<{ clients: ClientResult[]; sessions: SessionResult[]; vouchers: VoucherResult[] }>({ clients: [], sessions: [], vouchers: [] });
+  const [results, setResults] = useState<{ clients: ClientResult[]; sessions: SessionResult[]; vouchers: VoucherResult[]; payments: PaymentResult[] }>({ clients: [], sessions: [], vouchers: [], payments: [] });
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,20 +35,20 @@ export function GlobalSearch() {
   }, []);
 
   useEffect(() => {
-    if (term.trim().length < 2) { setResults({ clients: [], sessions: [], vouchers: [] }); return; }
+    if (term.trim().length < 2) { setResults({ clients: [], sessions: [], vouchers: [], payments: [] }); return; }
     let active = true;
     setLoading(true);
     const timeout = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(term.trim())}`)
         .then((response) => response.json())
         .then((body) => { if (active) setResults(body); })
-        .catch(() => { if (active) setResults({ clients: [], sessions: [], vouchers: [] }); })
+        .catch(() => { if (active) setResults({ clients: [], sessions: [], vouchers: [], payments: [] }); })
         .finally(() => { if (active) setLoading(false); });
     }, 250);
     return () => { active = false; clearTimeout(timeout); };
   }, [term]);
 
-  const hasResults = results.clients.length > 0 || results.sessions.length > 0 || results.vouchers.length > 0;
+  const hasResults = results.clients.length > 0 || results.sessions.length > 0 || results.vouchers.length > 0 || results.payments.length > 0;
 
   return (
     <div className="relative w-full max-w-xl" ref={containerRef}>
@@ -91,6 +101,25 @@ export function GlobalSearch() {
                       </span>
                     </Link>
                   ))}
+                </div>
+              ) : null}
+              {results.payments.length > 0 ? (
+                <div>
+                  <p className="bg-[#eee8df] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Pagamenti</p>
+                  {results.payments.map((payment) => {
+                    const href = payment.session ? `/sessions/${payment.session.id}` : payment.voucher ? `/vouchers/${payment.voucher.id}` : "/payments";
+                    const context = payment.session
+                      ? `${payment.session.service_name}${payment.session.client ? ` - ${payment.session.client.first_name} ${payment.session.client.last_name}` : ""}`
+                      : payment.voucher
+                        ? `Buono ${payment.voucher.code}${payment.voucher.purchaser ? ` - ${payment.voucher.purchaser.first_name} ${payment.voucher.purchaser.last_name}` : ""}`
+                        : "-";
+                    return (
+                      <Link className="block px-3 py-2 hover:bg-[#f5f1eb]" href={href} key={payment.id} onClick={() => setOpen(false)}>
+                        <span className="font-medium">{euro.format(payment.amount_cents / 100)} - {context}</span>
+                        <span className="block text-xs text-[#675f57]">{dateOnly.format(new Date(payment.paid_at))}{payment.reference ? ` - ${payment.reference}` : ""}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               ) : null}
             </>

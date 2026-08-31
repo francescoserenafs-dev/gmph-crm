@@ -155,21 +155,21 @@ export function VoucherDirectory() {
         {error && !dialog ? <p className="mt-5 text-sm text-[#a53e31]">{error}</p> : null}
 
         <section className="mt-5 overflow-hidden border border-[#d8d0c5] bg-white">
-          <div className="grid grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] gap-3 bg-[#eee8df] px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57]">
+          <div className="hidden grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] gap-3 bg-[#eee8df] px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57] sm:grid">
             <span>Codice</span><span>Tipo</span><span>Acquirente</span><span>Beneficiario</span><span>Scadenza</span><span>Stato</span><span>Azioni</span>
           </div>
           {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento buoni...</p> : vouchers.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessun buono da mostrare.</p> : vouchers.map((voucher) => {
             const paid = voucher.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
             const balance = voucher.purchase_price_cents - paid;
             return (
-              <article className="grid grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] items-center gap-3 border-t border-[#eee8df] px-5 py-4 text-left text-sm" key={voucher.id}>
+              <article className="flex flex-col gap-2 border-t border-[#eee8df] px-5 py-4 text-left text-sm sm:grid sm:grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] sm:items-center sm:gap-3" key={voucher.id}>
                 <Link className="font-semibold hover:underline" href={`/vouchers/${voucher.id}`}>
                   {voucher.code}
                 </Link>
                   <span>{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</span>
-                  <span className="min-w-0 truncate">{voucher.purchaser ? <Link className="hover:underline" href={`/clients/${voucher.purchaser.id}`}>{voucher.purchaser.first_name} {voucher.purchaser.last_name}</Link> : "-"}</span>
-                  <span className="min-w-0 truncate">{voucher.recipient ? <Link className="hover:underline" href={`/clients/${voucher.recipient.id}`}>{voucher.recipient.first_name} {voucher.recipient.last_name}</Link> : "-"}</span>
-                  <span>{dateOnly.format(new Date(voucher.expires_at))}</span>
+                  <span className="min-w-0 truncate"><span className="text-xs text-[#675f57] sm:hidden">Acquirente: </span>{voucher.purchaser ? <Link className="hover:underline" href={`/clients/${voucher.purchaser.id}`}>{voucher.purchaser.first_name} {voucher.purchaser.last_name}</Link> : "-"}</span>
+                  <span className="min-w-0 truncate"><span className="text-xs text-[#675f57] sm:hidden">Beneficiario: </span>{voucher.recipient ? <Link className="hover:underline" href={`/clients/${voucher.recipient.id}`}>{voucher.recipient.first_name} {voucher.recipient.last_name}</Link> : "-"}</span>
+                  <span><span className="text-xs text-[#675f57] sm:hidden">Scadenza: </span>{dateOnly.format(new Date(voucher.expires_at))}</span>
                   <span>{statusLabels[voucher.status] ?? voucher.status}</span>
                 <span className="flex justify-start gap-2">
                   {balance > 0 ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openPayment(voucher)} type="button">Pagamento</button> : null}
@@ -192,8 +192,8 @@ export function VoucherDirectory() {
       </section>
 
       {dialog === "new" ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#fdfbf8] p-6 shadow-xl" onSubmit={submitNew}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-none sm:pb-6" onSubmit={submitNew}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Nuovo buono</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => setDialog(null)} type="button">x</button></div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-2 text-sm font-medium">Codice<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, code: e.target.value })} required value={form.code} /></label>
@@ -237,8 +237,8 @@ export function VoucherDirectory() {
       ) : null}
 
       {dialog === "recipient" ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="w-full max-w-md bg-[#fdfbf8] p-6 shadow-xl" onSubmit={submitRecipient}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="w-full max-w-md rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-none sm:pb-6" onSubmit={submitRecipient}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Beneficiario</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => { setDialog(null); setEditing(null); }} type="button">x</button></div>
             <div className="mt-6">
               <ClientCombobox clients={clients} emptyLabel="Nessuno" label="Cliente beneficiario" onChange={setRecipientValue} required={false} value={recipientValue} />
@@ -253,8 +253,8 @@ export function VoucherDirectory() {
       ) : null}
 
       {dialog === "payment" ? (
-        <div aria-modal="true" className="fixed inset-0 z-10 grid place-items-center bg-[#27231f]/45 p-4" role="dialog">
-          <form className="w-full max-w-md bg-[#fdfbf8] p-6 shadow-xl" onSubmit={submitPayment}>
+        <div aria-modal="true" className="fixed inset-0 z-40 flex items-end justify-center bg-[#27231f]/45 sm:items-center sm:p-4" role="dialog">
+          <form className="w-full max-w-md rounded-t-2xl bg-[#fdfbf8] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl sm:rounded-none sm:pb-6" onSubmit={submitPayment}>
             <div className="flex items-center justify-between"><h2 className="text-2xl font-semibold">Registra pagamento</h2><button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => { setDialog(null); setEditing(null); }} type="button">x</button></div>
             <label className="mt-6 flex flex-col gap-2 text-sm font-medium">Importo (EUR)
               <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setPaymentForm({ ...paymentForm, amountEuros: e.target.value })} required type="number" value={paymentForm.amountEuros} />
