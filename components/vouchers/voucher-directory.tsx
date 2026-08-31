@@ -47,6 +47,8 @@ export function VoucherDirectory() {
   const [recipientValue, setRecipientValue] = useState("");
   const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: "" });
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [quickClientOpen, setQuickClientOpen] = useState(false);
+  const [quickClient, setQuickClient] = useState({ firstName: "", lastName: "", email: "" });
 
   const query = useMemo(() => { const params = new URLSearchParams(); if (statusFilter) params.set("status", statusFilter); return params.toString(); }, [statusFilter]);
 
@@ -99,6 +101,19 @@ export function VoucherDirectory() {
       if (!response.ok) throw new Error(body.error);
       setDialog(null); setRefreshKey((key) => key + 1);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Creazione non riuscita."); } finally { setBusy(false); }
+  }
+
+  async function submitQuickClient() {
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch("/api/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(quickClient) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setForm((current) => ({ ...current, purchaserClientId: body.client.id }));
+      setClients((prev) => [...prev, body.client]);
+      setQuickClient({ firstName: "", lastName: "", email: "" });
+      setQuickClientOpen(false);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Creazione cliente non riuscita."); } finally { setBusy(false); }
   }
 
   function openRecipient(voucher: Voucher) { setEditing(voucher); setRecipientValue(voucher.recipient?.id ?? ""); setError(null); setDialog("recipient"); }
@@ -204,6 +219,17 @@ export function VoucherDirectory() {
                 </select>
               </label>
               <ClientCombobox clients={clients} onChange={(clientId) => setForm({ ...form, purchaserClientId: clientId })} value={form.purchaserClientId} />
+              <div className="mt-4 border-t border-[#d8d0c5] pt-4">
+                <button className="text-sm font-semibold text-[#9b5d43]" onClick={() => setQuickClientOpen((open) => !open)} type="button">{quickClientOpen ? "Chiudi creazione rapida cliente" : "Crea rapidamente un nuovo cliente"}</button>
+                {quickClientOpen ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <label className="flex flex-col gap-2 text-sm font-medium">Nome<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })} value={quickClient.firstName} /></label>
+                    <label className="flex flex-col gap-2 text-sm font-medium">Cognome<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })} value={quickClient.lastName} /></label>
+                    <label className="flex flex-col gap-2 text-sm font-medium">Email<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setQuickClient({ ...quickClient, email: e.target.value })} value={quickClient.email} /></label>
+                    <div className="sm:col-span-3"><button className="h-10 bg-[#27231f] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || !quickClient.firstName || !quickClient.lastName || !quickClient.email} onClick={submitQuickClient} type="button">Salva e seleziona cliente</button></div>
+                  </div>
+                ) : null}
+              </div>
               <ClientCombobox clients={clients} emptyLabel="Da assegnare" label="Beneficiario (facoltativo)" onChange={(clientId) => setForm({ ...form, recipientClientId: clientId })} required={false} value={form.recipientClientId} />
               {form.voucherType === "value" ? (
                 <label className="flex flex-col gap-2 text-sm font-medium">Valore (EUR)<input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setForm({ ...form, valueEuros: e.target.value })} required type="number" value={form.valueEuros} /></label>

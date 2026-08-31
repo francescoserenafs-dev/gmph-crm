@@ -378,6 +378,13 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         </section>
 
         <section className="mt-9">
+          <h2 className="text-lg font-semibold">Avanzamento</h2>
+          <div className="mt-4 bg-white p-6 border border-[#d8d0c5]">
+            <StageTimeline allStages={stages} currentStageId={session.current_stage?.id} stageHistory={session.stage_history} />
+          </div>
+        </section>
+
+        <section className="mt-9">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Extra</h2>
             {!isCancelled ? <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={openExtraDialog} type="button">Aggiungi extra</button> : null}
@@ -584,6 +591,50 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         </Modal>
       ) : null}
     </main>
+  );
+}
+
+function StageTimeline({ allStages, currentStageId, stageHistory }: { allStages: Stage[]; currentStageId: string | undefined; stageHistory: StageEvent[] }) {
+  const stageColorMap: Record<string, string> = {
+    booked: "#9b5d43",
+    in_progress: "#c69214",
+    completed: "#367e4a",
+    cancelled: "#a53e31",
+  };
+
+  const completedStageIds = new Set(stageHistory.map((e) => e.id));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start gap-3 gap-y-6">
+        {allStages.map((stage, index) => {
+          const stageCode = stage.code?.toLowerCase().replace(/\s+/g, "_") ?? stage.name.toLowerCase().replace(/\s+/g, "_");
+          const stageColor = stageColorMap[stageCode] || "#675f57";
+          const isCompleted = completedStageIds.has(stage.id);
+          const isCurrent = stage.id === currentStageId;
+          const shouldFill = isCompleted || isCurrent;
+
+          return (
+            <div key={stage.id} className="flex flex-col items-center gap-2">
+              <div
+                className={`size-10 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                  shouldFill ? "text-white" : "text-[#9b5d43]"
+                }`}
+                style={{
+                  backgroundColor: shouldFill ? stageColor : "white",
+                  borderColor: stageColor,
+                }}
+              >
+                {index + 1}
+              </div>
+              <p className="text-xs font-semibold text-center w-20 leading-tight break-words line-clamp-2">
+                {stage.name}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
