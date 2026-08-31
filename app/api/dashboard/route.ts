@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
   let unpaid = 0;
   let partial = 0;
   let settled = 0;
+  let sessionsTotalValue = 0;
   for (const session of activeSessions) {
     const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
     const balance = session.agreed_price_cents - paid;
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
     if (paid === 0) unpaid += 1;
     else if (paid < session.agreed_price_cents) partial += 1;
     else settled += 1;
+    sessionsTotalValue += session.agreed_price_cents;
   }
 
   const payments = paymentsResult.data ?? [];
@@ -106,6 +108,7 @@ export async function GET(request: NextRequest) {
     }),
     receivable,
     paymentStatus: { unpaid, partial, settled },
+    sessionsTotalValue,
     income: { total: incomeTotal, byMethod: incomeByMethod },
     vouchers: voucherStats,
   });

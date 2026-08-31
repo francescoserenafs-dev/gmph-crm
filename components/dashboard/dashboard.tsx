@@ -17,6 +17,7 @@ type Dashboard = {
   }[];
   receivable: number;
   paymentStatus: { unpaid: number; partial: number; settled: number };
+  sessionsTotalValue: number;
   income: { total: number; byMethod: Record<string, number> };
   vouchers: { sold: number; active: number; redeemed: number; expired: number; expiringSoon: number; activeValue: number };
 };
@@ -148,7 +149,8 @@ export function Dashboard() {
       <section className="mx-auto max-w-6xl">
         {loading ? <p className="mt-8 text-sm text-[#675f57]">Caricamento dashboard...</p> : error ? <p className="mt-8 text-sm text-[#a53e31]">{error}</p> : data ? (
           <>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+              <Metric label="Valore sessioni" value={euro.format(data.sessionsTotalValue / 100)} />
               <Metric label="Da incassare" value={euro.format(data.receivable / 100)} />
               <Metric label="Sessioni da saldare" value={String(data.paymentStatus.unpaid)} />
               <Metric label="Parzialmente pagate" value={String(data.paymentStatus.partial)} />
@@ -207,10 +209,10 @@ export function Dashboard() {
 
               <div className="flex w-full max-w-[320px] flex-col gap-4 lg:h-[420px]">
                 {budgetProgress ? (
-                  <section className="min-h-0 flex-1 border border-[#d8d0c5] bg-white p-4">
+                  <section className="flex min-h-0 flex-1 flex-col border border-[#d8d0c5] bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Budget {new Date().getFullYear()}</p>
                     <BudgetGaugeChart achievedCents={budgetProgress.achieved} budgetCents={budgetProgress.budget} />
-                    <p className="mt-3 text-center text-xs text-[#675f57]">{euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
+                    <p className="mt-1 text-center text-xs text-[#675f57]">{euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
                   </section>
                 ) : null}
                 <section className="min-h-0 flex-1 border border-[#d8d0c5] bg-white p-4">
