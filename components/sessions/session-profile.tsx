@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
@@ -68,6 +68,8 @@ function toLocalInput(iso: string) {
 
 export function SessionProfile({ sessionId }: { sessionId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openExtrasDialogOnMount = searchParams.get("extras") === "1";
   const [session, setSession] = useState<Session | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
@@ -76,7 +78,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [selectedVoucher, setSelectedVoucher] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | null>(null);
+  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | null>(openExtrasDialogOnMount ? "extra" : null);
   const [busy, setBusy] = useState(false);
 
   const [stageForm, setStageForm] = useState({ stageId: "", changedAt: "", notes: "" });
@@ -110,6 +112,13 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
     })();
     return () => { active = false; };
   }, [sessionId, refreshKey]);
+
+  // Auto-open extras dialog if query param is set
+  useEffect(() => {
+    if (openExtrasDialogOnMount && session && addonServices.length > 0 && dialog === "extra") {
+      setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
+    }
+  }, [openExtrasDialogOnMount, session, addonServices, dialog]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
   const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;

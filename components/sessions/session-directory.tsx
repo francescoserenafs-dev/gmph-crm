@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
 import { ExportButton } from "@/components/shared/export-button";
-import { ImportIcon, DuplicateIcon } from "@/components/shared/icons";
+import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
 
@@ -506,6 +506,14 @@ export function SessionDirectory() {
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlineEdit(session)} type="button">Modifica</button>
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlineStage(session)} type="button">Avanzamento</button>
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlinePayment(session)} type="button">Pagamento</button>
+                      <Link
+                        aria-label="Aggiungi extra"
+                        className="grid size-8 place-items-center border border-[#cfc5b8] hover:bg-[#eee8df]"
+                        href={`/sessions/${session.id}?extras=1`}
+                        title="Aggiungi extra"
+                      >
+                        <PlusIcon className="size-4" />
+                      </Link>
                       <button
                         aria-label="Duplica sessione"
                         className="grid size-8 place-items-center border border-[#cfc5b8] hover:bg-[#eee8df]"
