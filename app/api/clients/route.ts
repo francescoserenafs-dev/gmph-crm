@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Filtro non valido." }, { status: 400 });
   }
 
-  if (!(["alphabetical", "recent", "next_session"] as const).includes(sort)) {
+  if (!( ["alphabetical", "recent", "next_session", "ltv"] as const).includes(sort)) {
     return NextResponse.json({ error: "Ordinamento non valido." }, { status: 400 });
   }
 
@@ -126,6 +126,15 @@ export async function GET(request: NextRequest) {
     ...client,
     ltv_cents: ltvByClient.get(client.id) ?? 0,
   }));
+
+  if (sort === "ltv") {
+    clients.sort(
+      (firstClient, secondClient) =>
+        secondClient.ltv_cents - firstClient.ltv_cents ||
+        firstClient.last_name.localeCompare(secondClient.last_name) ||
+        firstClient.first_name.localeCompare(secondClient.first_name),
+    );
+  }
 
   return NextResponse.json({ clients });
 }

@@ -60,5 +60,5 @@ export function BudgetGaugeChart({ achievedCents, budgetCents }: { achievedCents
     };
   }, [achievedCents, budgetCents]);
 
-  return <div className="h-40 w-full" ref={containerRef} />;
+  return <div className="h-28 w-full" ref={containerRef} />;
 }

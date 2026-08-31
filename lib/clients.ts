@@ -1,5 +1,5 @@
 export type ClientListStatus = "active" | "archived";
-export type ClientListSort = "alphabetical" | "recent" | "next_session";
+export type ClientListSort = "alphabetical" | "recent" | "next_session" | "ltv";
 
 export type ClientInput = {
   firstName: string;

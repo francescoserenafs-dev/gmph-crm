@@ -163,14 +163,14 @@ export function VoucherDirectory() {
             const balance = voucher.purchase_price_cents - paid;
             return (
               <article className="grid grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] items-center gap-3 border-t border-[#eee8df] px-5 py-4 text-left text-sm" key={voucher.id}>
-                <Link className="contents hover:underline" href={`/vouchers/${voucher.id}`}>
-                  <span className="font-semibold">{voucher.code}</span>
+                <Link className="font-semibold hover:underline" href={`/vouchers/${voucher.id}`}>
+                  {voucher.code}
+                </Link>
                   <span>{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</span>
-                  <span className="min-w-0 truncate">{voucher.purchaser ? `${voucher.purchaser.first_name} ${voucher.purchaser.last_name}` : "-"}</span>
-                  <span className="min-w-0 truncate">{voucher.recipient ? `${voucher.recipient.first_name} ${voucher.recipient.last_name}` : "-"}</span>
+                  <span className="min-w-0 truncate">{voucher.purchaser ? <Link className="hover:underline" href={`/clients/${voucher.purchaser.id}`}>{voucher.purchaser.first_name} {voucher.purchaser.last_name}</Link> : "-"}</span>
+                  <span className="min-w-0 truncate">{voucher.recipient ? <Link className="hover:underline" href={`/clients/${voucher.recipient.id}`}>{voucher.recipient.first_name} {voucher.recipient.last_name}</Link> : "-"}</span>
                   <span>{dateOnly.format(new Date(voucher.expires_at))}</span>
                   <span>{statusLabels[voucher.status] ?? voucher.status}</span>
-                </Link>
                 <span className="flex justify-start gap-2">
                   {balance > 0 ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openPayment(voucher)} type="button">Pagamento</button> : null}
                   {voucher.status === "active" ? (

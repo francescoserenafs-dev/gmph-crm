@@ -55,8 +55,8 @@ export function ClientDirectory() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [sort, setSort] = useState<"alphabetical" | "recent" | "next_session">(
-    (searchParams.get("sort") as "alphabetical" | "recent" | "next_session") || "alphabetical",
+  const [sort, setSort] = useState<"alphabetical" | "recent" | "next_session" | "ltv">(
+    (searchParams.get("sort") as "alphabetical" | "recent" | "next_session" | "ltv") || "alphabetical",
   );
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -294,7 +294,7 @@ export function ClientDirectory() {
               className="h-11 border border-[#cfc5b8] bg-white px-3 text-sm outline-none focus:border-[#9b5d43] focus:ring-2 focus:ring-[#ead8ce]"
               onChange={(event) =>
                 setSort(
-                  event.target.value as "alphabetical" | "recent" | "next_session",
+                  event.target.value as "alphabetical" | "recent" | "next_session" | "ltv",
                 )
               }
               value={sort}
@@ -302,6 +302,7 @@ export function ClientDirectory() {
               <option value="alphabetical">Cognome e nome</option>
               <option value="recent">Aggiornati di recente</option>
               <option value="next_session">Prossima sessione</option>
+              <option value="ltv">LTV (dal piu alto)</option>
             </select>
           </label>
         </div>

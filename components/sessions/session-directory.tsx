@@ -22,6 +22,7 @@ type Session = {
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
 };
+type PaymentStatus = "unpaid" | "partial" | "paid";
 
 type SessionForm = { clientId: string; serviceTypeId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; location: string; serviceDetail: string; notes: string };
 type QuickClient = { firstName: string; lastName: string; email: string };
@@ -38,6 +39,11 @@ const paymentStatusOptions = [
   { id: "partial", name: "Parzialmente pagata" },
   { id: "paid", name: "Saldata" },
 ];
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  unpaid: "Da saldare",
+  partial: "Parzialmente pagata",
+  paid: "Saldata",
+};
 const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
@@ -435,7 +441,8 @@ export function SessionDirectory() {
             <section className="overflow-hidden border border-[#d8d0c5] bg-white">
               {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento sessioni...</p> : visibleSessions.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessuna sessione da mostrare.</p> : visibleSessions.map((session) => {
                 const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-                const status = paid === 0 ? "Da saldare" : paid < session.agreed_price_cents ? "Parzialmente pagata" : "Saldata";
+                const paymentStatus: PaymentStatus = paid === 0 ? "unpaid" : paid < session.agreed_price_cents ? "partial" : "paid";
+                const status = paymentStatusLabels[paymentStatus];
                 return (
                   <article className="flex flex-col gap-3 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between" key={session.id}>
                     <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -446,6 +453,7 @@ export function SessionDirectory() {
                         onChange={(event) => toggleSelectOne(session.id, event.target.checked)}
                         type="checkbox"
                       />
+                      <PaymentStatusFlag status={paymentStatus} />
                       <Link className="min-w-0 flex-1 hover:underline" href={`/sessions/${session.id}`}>
                         <p className="text-sm font-semibold">{dateTime.format(new Date(session.scheduled_at))}</p>
                         <p className="mt-1 text-xs text-[#675f57]">{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"} - {session.service_name} - {session.current_stage?.name ?? "-"} - {status}</p>
@@ -647,6 +655,19 @@ function SelectField({ label, onChange, options, value }: { label: string; onCha
 
 function InputField({ label, onChange, type = "text", value, min, optional = false, bare = false }: { label: string; onChange: (value: string) => void; type?: string; value: string; min?: string; optional?: boolean; bare?: boolean }) {
   return <label className="flex flex-col gap-2 text-sm font-medium">{label}<input className="h-11 border border-[#cfc5b8] bg-white px-3" min={min} onChange={(event) => onChange(event.target.value)} required={!optional && !bare} type={type} value={value} /></label>;
+}
+
+function PaymentStatusFlag({ status }: { status: PaymentStatus }) {
+  const color = status === "unpaid" ? "#a53e31" : status === "partial" ? "#c69214" : "#367e4a";
+  const label = paymentStatusLabels[status];
+
+  return (
+    <span aria-label={label} className="shrink-0" role="img" title={label}>
+      <svg aria-hidden="true" className="size-5" fill={color} viewBox="0 0 24 24">
+        <path d="M5 3a1 1 0 0 1 2 0v1.1c3-1.2 6.1 1.2 10-.2a1 1 0 0 1 1.34.94v9.32a1 1 0 0 1-.66.94C13.8 16.48 10.2 14 7 15.2V21a1 1 0 1 1-2 0V3Z" />
+      </svg>
+    </span>
+  );
 }
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {

@@ -93,6 +93,17 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     upcoming,
+    calendar: activeSessions.map((session) => {
+      const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+      return {
+        id: session.id,
+        scheduled_at: session.scheduled_at,
+        service_name: session.service_name,
+        client: session.client,
+        stage: session.current_stage?.name ?? "-",
+        status: paid === 0 ? "Da saldare" : paid < session.agreed_price_cents ? "Parzialmente pagata" : "Saldata",
+      };
+    }),
     receivable,
     paymentStatus: { unpaid, partial, settled },
     income: { total: incomeTotal, byMethod: incomeByMethod },

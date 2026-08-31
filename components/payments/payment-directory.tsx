@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ExportButton } from "@/components/shared/export-button";
 
 type SessionOption = { id: string; scheduled_at: string; service_name: string; client: { first_name: string; last_name: string } | null };
@@ -19,8 +18,8 @@ type Payment = {
   payment_method_name: string;
   applied_voucher_id: string | null;
   notes: string | null;
-  session: { id: string; service_name: string; scheduled_at: string; client: { first_name: string; last_name: string } | null } | null;
-  voucher: { id: string; code: string; purchaser: { first_name: string; last_name: string } | null } | null;
+  session: { id: string; service_name: string; scheduled_at: string; client: { id: string; first_name: string; last_name: string } | null } | null;
+  voucher: { id: string; code: string; purchaser: { id: string; first_name: string; last_name: string } | null } | null;
 };
 
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
@@ -58,7 +57,6 @@ export function PaymentDirectory() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
   const [voucherId, setVoucherId] = useState("");
-  const [historyPayment, setHistoryPayment] = useState<Payment | null>(null);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -228,7 +226,9 @@ export function PaymentDirectory() {
             const payer = payment.session?.client ?? payment.voucher?.purchaser ?? null;
             return (
               <article className="grid grid-cols-[1fr_0.9fr_1.4fr_1fr_1fr_0.9fr_230px] items-center gap-3 border-t border-[#eee8df] px-5 py-4 text-sm" key={payment.id}>
-                <span className="min-w-0 truncate font-medium">{payer ? `${payer.first_name} ${payer.last_name}` : "-"}</span>
+                <span className="min-w-0 truncate font-medium">
+                  {payer ? <Link className="hover:underline" href={`/clients/${payer.id}`}>{payer.first_name} {payer.last_name}</Link> : "-"}
+                </span>
                 <span>{dateOnly.format(new Date(payment.paid_at))}</span>
                 <span className="min-w-0 truncate">
                   {payment.session ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/sessions/${payment.session.id}`}>{payment.session.service_name}</Link> : payment.voucher ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/vouchers/${payment.voucher.id}`}>Buono {payment.voucher.code}</Link> : "-"}
@@ -238,7 +238,6 @@ export function PaymentDirectory() {
                 <span>{euro.format(payment.amount_cents / 100)}</span>
                 <span className="flex justify-end gap-2">
                   {payment.applied_voucher_id ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openEdit(payment)} type="button">Modifica</button>}
-                  <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => setHistoryPayment(payment)} type="button">Storico</button>
                   <button className="border border-[#a53e31] px-2 py-1 text-xs font-semibold text-[#a53e31] hover:bg-[#fff1ef] disabled:opacity-50" disabled={busy} onClick={() => remove(payment)} type="button">Elimina</button>
                 </span>
               </article>
@@ -316,17 +315,6 @@ export function PaymentDirectory() {
         </div>
       ) : null}
 
-      {historyPayment ? (
-        <div aria-modal="true" className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-10" role="dialog">
-          <div className="w-full max-w-lg bg-[#f5f1eb] p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Storico pagamento</h2>
-              <button aria-label="Chiudi" className="size-9 border border-[#cfc5b8]" onClick={() => setHistoryPayment(null)} type="button">x</button>
-            </div>
-            <AuditLogPanel recordId={historyPayment.id} table="payments" />
-          </div>
-        </div>
-      ) : null}
     </main>
   );
 }

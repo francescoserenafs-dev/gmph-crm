@@ -33,3 +33,19 @@ a[class*="bg-["],
 nav[aria-label="Navigazione principale"] {
   border-radius: 0;
 }
+
+@keyframes dashboard-calendar-detail-enter {
+  from {
+    opacity: 0;
+    transform: translateX(0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.dashboard-calendar-detail {
+  animation: dashboard-calendar-detail-enter 180ms ease-out;
+}

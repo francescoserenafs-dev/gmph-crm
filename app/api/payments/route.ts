@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const allowedCategories = ["deposit", "balance", "full_payment"];
 
 const paymentFields =
-  "id, amount_cents, paid_at, category, payment_method_name, applied_voucher_id, notes, session:sessions!payments_session_id_fkey(id,service_name,scheduled_at,client:clients!sessions_client_id_fkey(first_name,last_name)), voucher:gift_vouchers!payments_voucher_id_fkey(id,code,purchaser:clients!gift_vouchers_purchaser_client_id_fkey(first_name,last_name))";
+  "id, amount_cents, paid_at, category, payment_method_name, applied_voucher_id, notes, session:sessions!payments_session_id_fkey(id,service_name,scheduled_at,client:clients!sessions_client_id_fkey(id,first_name,last_name)), voucher:gift_vouchers!payments_voucher_id_fkey(id,code,purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name))";
 
 export async function GET(request: NextRequest) {
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1);
