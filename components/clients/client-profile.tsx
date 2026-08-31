@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
+import { ArchiveIcon, TrashIcon } from "@/components/shared/icons";
 
 type OverviewSession = { id: string; scheduled_at: string; service_name: string; agreed_price_cents: number; current_stage: { name: string; code: string } | null; payments: { amount_cents: number }[] };
 type OverviewPayment = { id: string; amount_cents: number; paid_at: string; category: string; payment_method_name: string; session: { id: string; service_name: string } | null; voucher: { id: string; code: string } | null };
+type OverviewVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number; status: string; expires_at: string; recipient: { id: string; first_name: string; last_name: string } | null };
 type Method = { id: string; name: string };
 
 type Client = {
@@ -47,6 +49,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", {
 const clientDateFormatter = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
 const sessionDateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const voucherStatusLabels: Record<string, string> = { active: "Attivo", redeemed: "Riscattato", expired: "Scaduto", cancelled: "Annullato" };
 const paymentCategoryLabels: Record<string, string> = {
   deposit: "Caparra",
   balance: "Saldo",
@@ -90,6 +93,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [sessions, setSessions] = useState<OverviewSession[]>([]);
   const [payments, setPayments] = useState<OverviewPayment[]>([]);
+  const [vouchers, setVouchers] = useState<OverviewVoucher[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(searchParams.get("pay") === "1");
   const [paymentForm, setPaymentForm] = useState({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 16), methodId: "", category: "balance", notes: "" });
@@ -133,7 +137,7 @@ export function ClientProfile({ clientId }: { clientId: string }) {
       const overviewBody = await overviewRes.json();
       const methodsBody = await methodsRes.json();
       if (!active) return;
-      if (overviewRes.ok) { setSessions(overviewBody.sessions ?? []); setPayments(overviewBody.payments ?? []); }
+      if (overviewRes.ok) { setSessions(overviewBody.sessions ?? []); setPayments(overviewBody.payments ?? []); setVouchers(overviewBody.vouchers ?? []); }
       if (methodsRes.ok) setMethods(methodsBody.methods ?? []);
     })().catch(() => {});
     return () => { active = false; };
@@ -296,11 +300,13 @@ export function ClientProfile({ clientId }: { clientId: string }) {
                 Ripristina cliente
               </button>
               <button
-                className="h-11 border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef]"
+                aria-label="Elimina cliente"
+                className="grid size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef]"
                 onClick={openDeleteDialog}
+                title="Elimina cliente"
                 type="button"
               >
-                Elimina cliente
+                <TrashIcon />
               </button>
             </div>
           ) : (
@@ -325,18 +331,22 @@ export function ClientProfile({ clientId }: { clientId: string }) {
                 Buoni regalo
               </Link>
               <button
-                className="h-11 border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef]"
+                aria-label="Archivia cliente"
+                className="grid size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef]"
                 onClick={() => setIsArchiveDialogOpen(true)}
+                title="Archivia cliente"
                 type="button"
               >
-                Archivia cliente
+                <ArchiveIcon />
               </button>
               <button
-                className="h-11 border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef]"
+                aria-label="Elimina cliente"
+                className="grid size-11 place-items-center border border-[#a53e31] text-[#a53e31] hover:bg-[#fff1ef]"
                 onClick={openDeleteDialog}
+                title="Elimina cliente"
                 type="button"
               >
-                Elimina cliente
+                <TrashIcon />
               </button>
             </div>
           )}
@@ -414,6 +424,23 @@ export function ClientProfile({ clientId }: { clientId: string }) {
                   <p className="mt-1 text-xs text-[#675f57]">{clientDateFormatter.format(new Date(payment.paid_at))} - {payment.payment_method_name} - {payment.session ? payment.session.service_name : payment.voucher ? `Buono ${payment.voucher.code}` : "-"}</p>
                 </div>
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-9">
+          <h2 className="text-lg font-semibold">Buoni regalo acquistati</h2>
+          <div className="mt-4 overflow-hidden border border-[#d8d0c5] bg-white">
+            {vouchers.length === 0 ? <p className="p-6 text-sm text-[#675f57]">Nessun buono acquistato.</p> : vouchers.map((voucher) => (
+              <Link className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0 hover:bg-[#f5f1eb]" href={`/vouchers/${voucher.id}`} key={voucher.id}>
+                <div>
+                  <p className="text-sm font-semibold">{voucher.code} - {voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</p>
+                  <p className="mt-1 text-xs text-[#675f57]">
+                    Beneficiario: {voucher.recipient ? `${voucher.recipient.first_name} ${voucher.recipient.last_name}` : "-"} - Scadenza: {clientDateFormatter.format(new Date(voucher.expires_at))} - {voucherStatusLabels[voucher.status] ?? voucher.status}
+                  </p>
+                </div>
+                <span className="text-sm font-medium">{euro.format(voucher.purchase_price_cents / 100)}</span>
+              </Link>
             ))}
           </div>
         </section>
