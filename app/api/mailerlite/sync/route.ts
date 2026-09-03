@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addSubscriberToGroup, findMailerLiteSubscriber, removeSubscriberFromGroup, upsertMailerLiteSubscriber } from "@/lib/mailerlite";
+import { listMailerLiteSubscribers, upsertMailerLiteSubscriber } from "@/lib/mailerlite";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +21,11 @@ async function loadSyncData() {
 
 async function prepareItems() {
   const { settings, clients } = await loadSyncData();
+  const subscribers = await listMailerLiteSubscribers();
+  const subscriberByEmail = new Map(subscribers.map((subscriber) => [subscriber.email.toLowerCase(), subscriber]));
   const items: SyncItem[] = [];
   for (const client of clients) {
-    const existing = client.mailerlite_subscriber_id ? { id: client.mailerlite_subscriber_id } : await findMailerLiteSubscriber(client.email);
+    const existing = subscriberByEmail.get(client.email.toLowerCase());
     items.push({ ...client, mailerlite_subscriber_id: existing?.id ?? null, action: existing ? client.mailerlite_sync_status === "error" ? "retry" : "update" : "create", group: client.privacy_consent_granted_at && !client.privacy_consent_revoked_at ? "marketing" : "transactional" });
   }
   return { settings, items };
@@ -39,11 +41,8 @@ export async function POST(request: NextRequest) {
     const errors: { id: string; name: string; error: string }[] = [];
     for (const item of items) {
       try {
-        const subscriber = await upsertMailerLiteSubscriber({ id: item.mailerlite_subscriber_id, email: item.email, name: item.first_name, lastName: item.last_name, phone: item.phone });
         const targetGroup = item.group === "marketing" ? settings.mailerlite_marketing_group_id : settings.mailerlite_transactional_group_id;
-        const otherGroup = item.group === "marketing" ? settings.mailerlite_transactional_group_id : settings.mailerlite_marketing_group_id;
-        await addSubscriberToGroup(subscriber.id, targetGroup);
-        await removeSubscriberFromGroup(subscriber.id, otherGroup);
+        const subscriber = await upsertMailerLiteSubscriber({ id: item.mailerlite_subscriber_id, email: item.email, name: item.first_name, lastName: item.last_name, phone: item.phone, groupId: targetGroup });
         await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: subscriber.id, mailerlite_sync_status: "synced", mailerlite_synced_at: syncedAt, mailerlite_last_error: null }).eq("id", item.id);
         synced += 1;
       } catch (error) {
