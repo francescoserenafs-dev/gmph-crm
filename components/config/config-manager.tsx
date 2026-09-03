@@ -245,7 +245,21 @@ export function ConfigManager() {
                 </form>
                 <p className="mt-4 text-xs text-[#675f57]">Ultima sincronizzazione: {config.mailerliteLastSyncAt ? new Date(config.mailerliteLastSyncAt).toLocaleString("it-IT") : "mai eseguita"}</p>
                 <button className="mt-3 border border-[#9b5d43] px-3 py-2 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" disabled={busy || !transactionalGroupId || !marketingGroupId} onClick={() => void previewMailerLiteSync()} type="button">Anteprima sincronizzazione</button>
-                {syncResult ? <p className="mt-3 text-sm">Sincronizzati: {syncResult.synced}. Errori: {syncResult.errors.length}.</p> : null}
+                {syncResult ? (
+                  <div className="mt-3 text-sm">
+                    <p>Sincronizzati: {syncResult.synced}. Errori: {syncResult.errors.length}.</p>
+                    {syncResult.errors.length > 0 ? (
+                      <details className="mt-3 border border-[#e4d8cc] bg-[#fffaf6] p-3">
+                        <summary className="cursor-pointer font-semibold">Mostra dettaglio errori</summary>
+                        <div className="mt-3 max-h-64 space-y-2 overflow-auto pr-2 text-xs">
+                          {syncResult.errors.map((item, index) => (
+                            <p className="border-b border-[#eee8df] pb-2 last:border-b-0" key={`${item.name}-${index}`}><span className="font-semibold">{item.name}</span>: {item.error}</p>
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ) : null}
                 {syncPreview ? <div className="mt-4 border-t border-[#eee8df] pt-4"><p className="text-sm font-semibold">{syncPreview.length} clienti da sincronizzare</p><div className="mt-2 max-h-52 overflow-auto text-xs">{syncPreview.map((item) => <p className="py-1" key={item.id}>{item.first_name} {item.last_name} ({item.email}) - {item.action}, gruppo {item.group === "marketing" ? "newsletter" : "transazionale"}</p>)}</div><div className="mt-4 flex gap-3"><button className="border px-3 py-2 text-sm" disabled={busy} onClick={() => setSyncPreview(null)} type="button">Annulla</button><button className="bg-[#9b5d43] px-3 py-2 text-sm font-semibold text-white" disabled={busy} onClick={() => void executeMailerLiteSync()} type="button">Conferma sincronizzazione</button></div></div> : null}
               </section>
 
