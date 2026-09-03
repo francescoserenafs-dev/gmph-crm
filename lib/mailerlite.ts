@@ -32,13 +32,9 @@ export async function upsertMailerLiteSubscriber(input: { id?: string | null; em
 }
 
 export async function findMailerLiteSubscriber(email: string) {
-  try {
-    const body = await request(`/subscribers/${encodeURIComponent(email)}`);
-    return body.data as { id: string };
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("404")) return null;
-    throw error;
-  }
+  const body = await request(`/subscribers?filter[email]=${encodeURIComponent(email)}&limit=1`);
+  const subscribers = Array.isArray(body.data) ? body.data as { id: string }[] : [];
+  return subscribers[0] ?? null;
 }
 
 export async function addSubscriberToGroup(subscriberId: string, groupId: string) {
