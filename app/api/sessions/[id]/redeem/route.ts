@@ -34,6 +34,7 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/ses
       : error.message.includes("not valid for this session") ? "Il buono non e valido per questo tipo di sessione."
       : error.message.includes("must be used in full") ? "Il buono deve essere applicato per intero."
       : error.message.includes("exceeds") ? "Il buono supera l'importo dovuto per la sessione."
+      : error.message.includes("voucher_overage_confirmed") ? "La configurazione Supabase non e aggiornata: applica la migration MailerLite voucher overage."
       : "Applicazione del buono non riuscita.";
     return NextResponse.json({ error: message }, { status: 409 });
   }
