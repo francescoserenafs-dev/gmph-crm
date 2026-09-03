@@ -2,6 +2,12 @@ const MAILERLITE_API_URL = "https://connect.mailerlite.com/api";
 
 type MailerLiteResponse = { data?: unknown; message?: string };
 
+class MailerLiteError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 function getToken() {
   const token = process.env.MAILERLITE_API_TOKEN;
   if (!token) throw new Error("MAILERLITE_API_TOKEN non configurata.");
@@ -14,7 +20,7 @@ async function request(path: string, options: RequestInit = {}) {
     headers: { Accept: "application/json", Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json", ...options.headers },
   });
   const body = (await response.json().catch(() => ({}))) as MailerLiteResponse;
-  if (!response.ok) throw new Error(typeof body.message === "string" ? body.message : `MailerLite ha restituito ${response.status}.`);
+  if (!response.ok) throw new MailerLiteError(typeof body.message === "string" ? body.message : `MailerLite ha restituito ${response.status}.`, response.status);
   return body;
 }
 
@@ -32,9 +38,13 @@ export async function upsertMailerLiteSubscriber(input: { id?: string | null; em
 }
 
 export async function findMailerLiteSubscriber(email: string) {
-  const body = await request(`/subscribers?filter[email]=${encodeURIComponent(email)}&limit=1`);
-  const subscribers = Array.isArray(body.data) ? body.data as { id: string }[] : [];
-  return subscribers[0] ?? null;
+  try {
+    const body = await request(`/subscribers/${encodeURIComponent(email)}`);
+    return body.data as { id: string };
+  } catch (error) {
+    if (error instanceof MailerLiteError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export async function addSubscriberToGroup(subscriberId: string, groupId: string) {
