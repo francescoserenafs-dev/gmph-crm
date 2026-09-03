@@ -13,6 +13,7 @@ const navigationItems = [
   { href: "/payments", label: "Pagamenti" },
   { href: "/vouchers", label: "Buoni" },
   { href: "/config", label: "Configurazione" },
+  { href: "/mailerlite", label: "MailerLite" },
 ];
 
 const mobileTabs = [
@@ -25,6 +26,7 @@ const mobileTabs = [
 const moreLinks = [
   { href: "/vouchers", label: "Buoni regalo" },
   { href: "/config", label: "Configurazione" },
+  { href: "/mailerlite", label: "MailerLite" },
 ];
 
 export function AppNavigation() {

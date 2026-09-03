@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

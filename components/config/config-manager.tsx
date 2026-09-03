@@ -4,8 +4,6 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number };
 type Config = { services: Item[]; methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
-type MailerLiteGroup = { id: string; name: string };
-type SyncItem = { id: string; first_name: string; last_name: string; email: string; action: "create" | "update" | "retry"; group: "marketing" | "transactional" };
 
 const entityLabels = { services: "Tipi di servizio", methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
 type EntityKey = keyof typeof entityLabels;
@@ -21,12 +19,6 @@ export function ConfigManager() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [dragItem, setDragItem] = useState<{ entity: EntityKey; index: number } | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [groups, setGroups] = useState<MailerLiteGroup[]>([]);
-  const [transactionalGroupId, setTransactionalGroupId] = useState("");
-  const [marketingGroupId, setMarketingGroupId] = useState("");
-  const [syncPreview, setSyncPreview] = useState<SyncItem[] | null>(null);
-  const [syncForce, setSyncForce] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ synced: number; errors: { name: string; error: string }[] } | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/config");
@@ -44,8 +36,6 @@ export function ConfigManager() {
         setConfig(body);
         setMonths(String(body.voucherValidityMonths));
         setBudgetEuros(String(body.annualBudgetCents / 100));
-        setTransactionalGroupId(body.mailerliteTransactionalGroupId);
-        setMarketingGroupId(body.mailerliteMarketingGroupId);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
       } finally {
@@ -130,42 +120,6 @@ export function ConfigManager() {
     void run(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ annualBudgetEuros: Number(budgetEuros) }) }));
   }
 
-  async function loadGroups() {
-    setBusy(true); setError(null);
-    try {
-      const response = await fetch("/api/mailerlite/groups");
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setGroups(body.groups ?? []);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Impossibile caricare i gruppi MailerLite."); } finally { setBusy(false); }
-  }
-
-  async function saveMailerLiteGroups(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await run(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mailerliteTransactionalGroupId: transactionalGroupId, mailerliteMarketingGroupId: marketingGroupId }) }));
-  }
-
-  async function previewMailerLiteSync(force = false) {
-    setBusy(true); setError(null); setSyncResult(null);
-    try {
-      setSyncForce(force);
-      const response = await fetch("/api/mailerlite/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setSyncPreview(body.items ?? []);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Anteprima non riuscita."); } finally { setBusy(false); }
-  }
-
-  async function executeMailerLiteSync() {
-    setBusy(true); setError(null);
-    try {
-      const response = await fetch("/api/mailerlite/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ execute: true, force: syncForce }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setSyncPreview(null); setSyncResult(body); setRefreshKey((key) => key + 1);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Sincronizzazione non riuscita."); } finally { setBusy(false); }
-  }
-
   function renderEntitySection(entity: EntityKey) {
     if (!config) return null;
     const items = config[entity];
@@ -230,40 +184,6 @@ export function ConfigManager() {
                   </label>
                   <button className="h-10 bg-[#9b5d43] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">Salva</button>
                 </form>
-              </section>
-
-              <section className="border border-[#d8d0c5] bg-white p-5">
-                <h2 className="text-lg font-semibold">MailerLite</h2>
-                <p className="mt-2 text-sm text-[#675f57]">La token API resta nell&apos;ambiente tecnico. Qui scegli i gruppi e avvii la sincronizzazione manuale.</p>
-                <button className="mt-4 border border-[#cfc5b8] px-3 py-2 text-sm font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => void loadGroups()} type="button">Carica gruppi MailerLite</button>
-                <form className="mt-4 grid gap-4" onSubmit={saveMailerLiteGroups}>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Solo transazionali
-                    <select className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(e) => setTransactionalGroupId(e.target.value)} required value={transactionalGroupId}><option value="">Seleziona gruppo</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
-                  </label>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Iscritti Newsletter
-                    <select className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(e) => setMarketingGroupId(e.target.value)} required value={marketingGroupId}><option value="">Seleziona gruppo</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
-                  </label>
-                  <button className="h-10 w-fit bg-[#9b5d43] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || !transactionalGroupId || !marketingGroupId} type="submit">Salva gruppi</button>
-                </form>
-                <p className="mt-4 text-xs text-[#675f57]">Ultima sincronizzazione: {config.mailerliteLastSyncAt ? new Date(config.mailerliteLastSyncAt).toLocaleString("it-IT") : "mai eseguita"}</p>
-                <button className="mt-3 border border-[#9b5d43] px-3 py-2 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" disabled={busy || !transactionalGroupId || !marketingGroupId} onClick={() => void previewMailerLiteSync()} type="button">Anteprima sincronizzazione</button>
-                <button className="mt-3 ml-3 border border-[#cfc5b8] px-3 py-2 text-sm font-semibold hover:bg-[#eee8df]" disabled={busy || !transactionalGroupId || !marketingGroupId} onClick={() => void previewMailerLiteSync(true)} type="button">Anteprima completa</button>
-                {syncResult ? (
-                  <div className="mt-3 text-sm">
-                    <p>Sincronizzati: {syncResult.synced}. Errori: {syncResult.errors.length}.</p>
-                    {syncResult.errors.length > 0 ? (
-                      <details className="mt-3 border border-[#e4d8cc] bg-[#fffaf6] p-3">
-                        <summary className="cursor-pointer font-semibold">Mostra dettaglio errori</summary>
-                        <div className="mt-3 max-h-64 space-y-2 overflow-auto pr-2 text-xs">
-                          {syncResult.errors.map((item, index) => (
-                            <p className="border-b border-[#eee8df] pb-2 last:border-b-0" key={`${item.name}-${index}`}><span className="font-semibold">{item.name}</span>: {item.error}</p>
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </div>
-                ) : null}
-                {syncPreview ? <div className="mt-4 border-t border-[#eee8df] pt-4"><p className="text-sm font-semibold">{syncPreview.length} clienti da sincronizzare</p><div className="mt-2 max-h-52 overflow-auto text-xs">{syncPreview.map((item) => <p className="py-1" key={item.id}>{item.first_name} {item.last_name} ({item.email}) - {item.action}, gruppo {item.group === "marketing" ? "newsletter" : "transazionale"}</p>)}</div><div className="mt-4 flex gap-3"><button className="border px-3 py-2 text-sm" disabled={busy} onClick={() => setSyncPreview(null)} type="button">Annulla</button><button className="bg-[#9b5d43] px-3 py-2 text-sm font-semibold text-white" disabled={busy} onClick={() => void executeMailerLiteSync()} type="button">Conferma sincronizzazione</button></div></div> : null}
               </section>
 
               <section className="border border-[#d8d0c5] bg-white p-5">
