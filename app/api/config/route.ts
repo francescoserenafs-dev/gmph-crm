@@ -8,7 +8,7 @@ export async function GET() {
     supabaseAdmin.from("service_types").select("id, name, is_active, is_addon, sort_order").order("sort_order"),
     supabaseAdmin.from("payment_methods").select("id, name, is_active, is_system, sort_order").order("sort_order"),
     supabaseAdmin.from("session_stages").select("id, name, is_active, sort_order").order("sort_order"),
-    supabaseAdmin.from("app_settings").select("voucher_validity_months, annual_budget_cents").eq("id", true).maybeSingle(),
+    supabaseAdmin.from("app_settings").select("voucher_validity_months, annual_budget_cents, mailerlite_transactional_group_id, mailerlite_marketing_group_id, mailerlite_last_sync_at").eq("id", true).maybeSingle(),
   ]);
 
   const error = services.error ?? methods.error ?? stages.error ?? settings.error;
@@ -20,5 +20,8 @@ export async function GET() {
     stages: stages.data,
     voucherValidityMonths: settings.data?.voucher_validity_months ?? 12,
     annualBudgetCents: settings.data?.annual_budget_cents ?? 0,
+    mailerliteTransactionalGroupId: settings.data?.mailerlite_transactional_group_id ?? "",
+    mailerliteMarketingGroupId: settings.data?.mailerlite_marketing_group_id ?? "",
+    mailerliteLastSyncAt: settings.data?.mailerlite_last_sync_at ?? null,
   });
 }

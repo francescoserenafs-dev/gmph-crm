@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
-  const update: Record<string, number> = {};
+  const update: Record<string, number | string | null> = {};
 
   if (body && "voucherValidityMonths" in body) {
     const months = Number(body.voucherValidityMonths);
@@ -21,6 +21,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Il budget deve essere un importo valido." }, { status: 400 });
     }
     update.annual_budget_cents = budgetEuros * 100;
+  }
+
+  for (const [key, column] of [["mailerliteTransactionalGroupId", "mailerlite_transactional_group_id"], ["mailerliteMarketingGroupId", "mailerlite_marketing_group_id"]] as const) {
+    if (body && key in body) {
+      const value = body[key];
+      if (typeof value !== "string" || value.length > 100) return NextResponse.json({ error: "Gruppo MailerLite non valido." }, { status: 400 });
+      update[column] = value || null;
+    }
   }
 
   if (Object.keys(update).length === 0) {
