@@ -223,10 +223,17 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
 
   async function submitVoucher(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const voucher = eligibleVouchers.find((item) => item.id === selectedVoucher);
+    const totalDueCents = (session?.agreed_price_cents ?? 0) + (session?.extras ?? []).reduce((sum, extra) => sum + extra.price_cents, 0);
+    const voucherAmountCents = voucher?.voucher_type === "value" ? voucher.value_cents ?? 0 : voucher?.purchase_price_cents ?? 0;
+    const confirmOverage = voucherAmountCents > totalDueCents
+      ? window.confirm(`Si sta applicando un buono regalo del valore ${euro.format(voucherAmountCents / 100)} a fronte di una sessione da ${euro.format(totalDueCents / 100)}. Vuoi proseguire comunque?`)
+      : false;
+    if (voucherAmountCents > totalDueCents && !confirmOverage) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/redeem`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voucherId: selectedVoucher }) });
+      const response = await fetch(`/api/sessions/${sessionId}/redeem`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voucherId: selectedVoucher, confirmOverage }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setDialog(null);
