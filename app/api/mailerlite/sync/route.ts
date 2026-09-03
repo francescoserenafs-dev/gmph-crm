@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listMailerLiteSubscribers, upsertMailerLiteSubscriber } from "@/lib/mailerlite";
+import { batchUpsertMailerLiteSubscribers, listMailerLiteSubscribers } from "@/lib/mailerlite";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Client = { id: string; first_name: string; last_name: string; email: string; phone: string | null; updated_at: string; privacy_consent_granted_at: string | null; privacy_consent_revoked_at: string | null; mailerlite_subscriber_id: string | null; mailerlite_sync_status: string };
 type SyncItem = Client & { action: "create" | "update" | "retry"; group: "marketing" | "transactional" };
 
-async function loadSyncData() {
+async function loadSyncData(force = false) {
   const [{ data: settings, error: settingsError }, { data: clients, error: clientsError }] = await Promise.all([
     supabaseAdmin.from("app_settings").select("mailerlite_transactional_group_id, mailerlite_marketing_group_id, mailerlite_last_sync_at").eq("id", true).maybeSingle(),
     supabaseAdmin.from("clients").select("id, first_name, last_name, email, phone, updated_at, privacy_consent_granted_at, privacy_consent_revoked_at, mailerlite_subscriber_id, mailerlite_sync_status").order("last_name").order("first_name"),
@@ -15,12 +15,12 @@ async function loadSyncData() {
   if (settingsError || clientsError) throw new Error((settingsError ?? clientsError)?.message ?? "Dati di sincronizzazione non disponibili.");
   if (!settings?.mailerlite_transactional_group_id || !settings.mailerlite_marketing_group_id) throw new Error("Configura prima i due gruppi MailerLite.");
   const lastSync = settings.mailerlite_last_sync_at ? new Date(settings.mailerlite_last_sync_at) : null;
-  const selected = (clients ?? []).filter((client) => !lastSync || new Date(client.updated_at) > lastSync || client.mailerlite_sync_status === "error") as Client[];
+  const selected = (clients ?? []).filter((client) => force || !lastSync || new Date(client.updated_at) > lastSync || client.mailerlite_sync_status === "error") as Client[];
   return { settings, clients: selected };
 }
 
-async function prepareItems() {
-  const { settings, clients } = await loadSyncData();
+async function prepareItems(force = false) {
+  const { settings, clients } = await loadSyncData(force);
   const subscribers = await listMailerLiteSubscribers();
   const subscriberByEmail = new Map(subscribers.map((subscriber) => [subscriber.email.toLowerCase(), subscriber]));
   const items: SyncItem[] = [];
@@ -32,23 +32,34 @@ async function prepareItems() {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => null)) as { execute?: boolean } | null;
+  const body = (await request.json().catch(() => null)) as { execute?: boolean; force?: boolean } | null;
   try {
-    const { settings, items } = await prepareItems();
+    const { settings, items } = await prepareItems(body?.force === true);
     if (!body?.execute) return NextResponse.json({ items, total: items.length });
     const syncedAt = new Date().toISOString();
     let synced = 0;
     const errors: { id: string; name: string; error: string }[] = [];
-    for (const item of items) {
-      try {
-        const targetGroup = item.group === "marketing" ? settings.mailerlite_marketing_group_id : settings.mailerlite_transactional_group_id;
-        const subscriber = await upsertMailerLiteSubscriber({ id: item.mailerlite_subscriber_id, email: item.email, name: item.first_name, lastName: item.last_name, phone: item.phone, groupId: targetGroup });
-        await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: subscriber.id, mailerlite_sync_status: "synced", mailerlite_synced_at: syncedAt, mailerlite_last_error: null }).eq("id", item.id);
-        synced += 1;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Sincronizzazione non riuscita.";
-        errors.push({ id: item.id, name: `${item.first_name} ${item.last_name}`, error: message });
-        await supabaseAdmin.from("clients").update({ mailerlite_sync_status: "error", mailerlite_last_error: message }).eq("id", item.id);
+    for (let start = 0; start < items.length; start += 50) {
+      const batch = items.slice(start, start + 50);
+      const results = await batchUpsertMailerLiteSubscribers(batch.map((item) => ({
+        id: item.mailerlite_subscriber_id,
+        email: item.email,
+        name: item.first_name,
+        lastName: item.last_name,
+        phone: item.phone,
+        groupId: item.group === "marketing" ? settings.mailerlite_marketing_group_id : settings.mailerlite_transactional_group_id,
+      })));
+      for (let index = 0; index < batch.length; index += 1) {
+        const item = batch[index];
+        const result = results[index] ?? { ok: false, id: null, error: "Risposta batch incompleta." };
+        if (result.ok && result.id) {
+          await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: result.id, mailerlite_sync_status: "synced", mailerlite_synced_at: syncedAt, mailerlite_last_error: null }).eq("id", item.id);
+          synced += 1;
+        } else {
+          const message = result.error;
+          errors.push({ id: item.id, name: `${item.first_name} ${item.last_name}`, error: message });
+          await supabaseAdmin.from("clients").update({ mailerlite_sync_status: "error", mailerlite_last_error: message }).eq("id", item.id);
+        }
       }
     }
     await supabaseAdmin.from("app_settings").update({ mailerlite_last_sync_at: syncedAt }).eq("id", true);

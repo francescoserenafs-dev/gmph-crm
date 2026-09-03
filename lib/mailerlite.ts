@@ -43,11 +43,29 @@ export async function listMailerLiteSubscribers() {
 }
 
 export async function upsertMailerLiteSubscriber(input: { id?: string | null; email: string; name: string; lastName: string; phone: string | null; groupId: string }) {
-  const payload = { email: input.email, fields: { $nome: input.name, $cognome: input.lastName, $cellulare: input.phone ?? "" }, groups: [input.groupId] };
+  const payload = { email: input.email, fields: { nome: input.name, cognome: input.lastName, cellulare: input.phone ?? "" }, groups: [input.groupId] };
   const body = input.id
     ? await request(`/subscribers/${encodeURIComponent(input.id)}`, { method: "PUT", body: JSON.stringify(payload) })
     : await request("/subscribers", { method: "POST", body: JSON.stringify(payload) });
   return body.data as { id: string };
+}
+
+export async function batchUpsertMailerLiteSubscribers(inputs: { id?: string | null; email: string; name: string; lastName: string; phone: string | null; groupId: string }[]) {
+  const body = await request("/batch", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: inputs.map((input) => ({
+        method: input.id ? "PUT" : "POST",
+        path: input.id ? `api/subscribers/${encodeURIComponent(input.id)}` : "api/subscribers",
+        body: { email: input.email, fields: { nome: input.name, cognome: input.lastName, cellulare: input.phone ?? "" }, groups: [input.groupId] },
+      })),
+    }),
+  }) as MailerLiteResponse & { responses?: { code: number; body?: { data?: { id: string }; message?: string } }[] };
+  return (body.responses ?? []).map((response) => ({
+    ok: response.code >= 200 && response.code < 300,
+    id: response.body?.data?.id ?? null,
+    error: response.body?.message ?? `MailerLite ha restituito ${response.code}.`,
+  }));
 }
 
 export async function findMailerLiteSubscriber(email: string) {

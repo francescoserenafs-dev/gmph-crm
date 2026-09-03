@@ -25,6 +25,7 @@ export function ConfigManager() {
   const [transactionalGroupId, setTransactionalGroupId] = useState("");
   const [marketingGroupId, setMarketingGroupId] = useState("");
   const [syncPreview, setSyncPreview] = useState<SyncItem[] | null>(null);
+  const [syncForce, setSyncForce] = useState(false);
   const [syncResult, setSyncResult] = useState<{ synced: number; errors: { name: string; error: string }[] } | null>(null);
 
   const load = useCallback(async () => {
@@ -144,10 +145,11 @@ export function ConfigManager() {
     await run(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mailerliteTransactionalGroupId: transactionalGroupId, mailerliteMarketingGroupId: marketingGroupId }) }));
   }
 
-  async function previewMailerLiteSync() {
+  async function previewMailerLiteSync(force = false) {
     setBusy(true); setError(null); setSyncResult(null);
     try {
-      const response = await fetch("/api/mailerlite/sync", { method: "POST" });
+      setSyncForce(force);
+      const response = await fetch("/api/mailerlite/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setSyncPreview(body.items ?? []);
@@ -157,7 +159,7 @@ export function ConfigManager() {
   async function executeMailerLiteSync() {
     setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/mailerlite/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ execute: true }) });
+      const response = await fetch("/api/mailerlite/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ execute: true, force: syncForce }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setSyncPreview(null); setSyncResult(body); setRefreshKey((key) => key + 1);
@@ -245,6 +247,7 @@ export function ConfigManager() {
                 </form>
                 <p className="mt-4 text-xs text-[#675f57]">Ultima sincronizzazione: {config.mailerliteLastSyncAt ? new Date(config.mailerliteLastSyncAt).toLocaleString("it-IT") : "mai eseguita"}</p>
                 <button className="mt-3 border border-[#9b5d43] px-3 py-2 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" disabled={busy || !transactionalGroupId || !marketingGroupId} onClick={() => void previewMailerLiteSync()} type="button">Anteprima sincronizzazione</button>
+                <button className="mt-3 ml-3 border border-[#cfc5b8] px-3 py-2 text-sm font-semibold hover:bg-[#eee8df]" disabled={busy || !transactionalGroupId || !marketingGroupId} onClick={() => void previewMailerLiteSync(true)} type="button">Anteprima completa</button>
                 {syncResult ? (
                   <div className="mt-3 text-sm">
                     <p>Sincronizzati: {syncResult.synced}. Errori: {syncResult.errors.length}.</p>
