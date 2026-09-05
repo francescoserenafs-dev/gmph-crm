@@ -347,15 +347,8 @@ export function SessionDirectory() {
   async function submitInlinePayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!inline) return; setBusy(true); setError(null);
     try {
-      const voucher = eligibleVouchers.find((item) => item.id === voucherId);
-      const totalDueCents = inline.session.agreed_price_cents + inline.session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
-      const voucherAmountCents = voucher?.voucher_type === "value" ? voucher.value_cents ?? 0 : voucher?.purchase_price_cents ?? 0;
-      const confirmOverage = paymentForm.methodId === VOUCHER_METHOD && voucherAmountCents > totalDueCents
-        ? window.confirm(`Si sta applicando un buono regalo del valore ${euro.format(voucherAmountCents / 100)} a fronte di una sessione da ${euro.format(totalDueCents / 100)}. Vuoi proseguire comunque?`)
-        : false;
-      if (paymentForm.methodId === VOUCHER_METHOD && voucherAmountCents > totalDueCents && !confirmOverage) { setBusy(false); return; }
       const response = paymentForm.methodId === VOUCHER_METHOD
-        ? await fetch(`/api/sessions/${inline.session.id}/redeem`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voucherId, confirmOverage }) })
+        ? await fetch(`/api/sessions/${inline.session.id}/redeem`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voucherId }) })
         : await fetch(`/api/sessions/${inline.session.id}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(paymentForm) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);

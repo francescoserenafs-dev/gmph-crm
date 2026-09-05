@@ -14,6 +14,7 @@ const navigationItems = [
   { href: "/vouchers", label: "Buoni" },
   { href: "/config", label: "Configurazione" },
   { href: "/mailerlite", label: "MailerLite" },
+  { href: "/calendly", label: "Calendly" },
 ];
 
 const mobileTabs = [
@@ -27,6 +28,7 @@ const moreLinks = [
   { href: "/vouchers", label: "Buoni regalo" },
   { href: "/config", label: "Configurazione" },
   { href: "/mailerlite", label: "MailerLite" },
+  { href: "/calendly", label: "Calendly" },
 ];
 
 export function AppNavigation() {
