@@ -260,7 +260,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(paymentForm) });
+      const response = await fetch(`/api/sessions/${sessionId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentForm, paidAt: paymentForm.paidDate }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setDialog(null);
