@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { deleteIcloudEvent, upsertIcloudEvent } from "@/lib/icloud-calendar";
+import { parseLocalDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
 
   if (body.action === "updateStage") {
     const stageId = typeof body.stageId === "string" ? body.stageId : "";
-    const changedAt = typeof body.changedAt === "string" ? new Date(body.changedAt) : new Date();
+    const changedAt = typeof body.changedAt === "string" ? parseLocalDateTime(body.changedAt) : new Date();
     const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
 
     if (!stageId || Number.isNaN(changedAt.valueOf())) {
@@ -95,7 +96,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
     return NextResponse.json({ session: data });
   }
 
-  const scheduledAt = typeof body.scheduledAt === "string" ? new Date(body.scheduledAt) : null;
+  const scheduledAt = typeof body.scheduledAt === "string" ? parseLocalDateTime(body.scheduledAt) : null;
   const durationMinutes = Number(body.durationMinutes);
   const priceEuros = Number(body.priceEuros);
   const location = typeof body.location === "string" && body.location.trim() ? body.location.trim() : null;

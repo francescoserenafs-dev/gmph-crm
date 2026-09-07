@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
+import { parseLocalDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   const clientId = typeof body.clientId === "string" ? body.clientId : "";
   const serviceTypeId = typeof body.serviceTypeId === "string" ? body.serviceTypeId : "";
-  const scheduledAt = typeof body.scheduledAt === "string" ? new Date(body.scheduledAt) : null;
+  const scheduledAt = typeof body.scheduledAt === "string" ? parseLocalDateTime(body.scheduledAt) : null;
   const durationMinutes = Number(body.durationMinutes);
   const priceEuros = Number(body.priceEuros);
   const location = typeof body.location === "string" && body.location.trim() ? body.location.trim() : null;

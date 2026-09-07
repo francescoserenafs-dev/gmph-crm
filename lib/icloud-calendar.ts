@@ -38,6 +38,10 @@ async function getCalendarUrl() {
       const match = calendars.find((calendar) => String(calendar.displayName ?? "").trim().toLowerCase() === targetName);
       return match?.url ?? null;
     })();
+    // Don't cache a failed lookup: a misconfigured name shouldn't stay broken until the process restarts.
+    calendarUrlPromise.then((url) => {
+      if (!url) calendarUrlPromise = null;
+    });
   }
   return calendarUrlPromise;
 }
@@ -53,7 +57,6 @@ function escapeIcsText(value: string) {
 function buildIcsEvent(event: IcloudSessionEvent) {
   const start = new Date(event.scheduledAt);
   const end = new Date(start.getTime() + event.durationMinutes * 60_000);
-  const descriptionParts = [event.notes ? `Note: ${event.notes}` : null].filter(Boolean) as string[];
 
   return [
     "BEGIN:VCALENDAR",
@@ -66,7 +69,7 @@ function buildIcsEvent(event: IcloudSessionEvent) {
     `DTEND:${formatIcsDate(end)}`,
     `SUMMARY:${escapeIcsText(`${event.serviceName} - ${event.clientName}`)}`,
     ...(event.location ? [`LOCATION:${escapeIcsText(event.location)}`] : []),
-    ...(descriptionParts.length ? [`DESCRIPTION:${escapeIcsText(descriptionParts.join("\n"))}`] : []),
+    ...(event.notes ? [`DESCRIPTION:${escapeIcsText(event.notes)}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
