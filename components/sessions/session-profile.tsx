@@ -35,7 +35,7 @@ type Session = {
   agreed_price_cents: number;
   is_settled: boolean;
   current_stage: { id: string; name: string; code: string } | null;
-  client: { id: string; first_name: string; last_name: string } | null;
+  client: { id: string; first_name: string; last_name: string; privacy_consent_granted_at: string | null; privacy_consent_revoked_at: string | null } | null;
   payments: Payment[];
   stage_history: StageEvent[];
   extras: Extra[];
@@ -127,6 +127,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
+  const privacyConsentActive = session?.client?.privacy_consent_granted_at != null && session.client.privacy_consent_revoked_at == null;
 
   function openExtraDialog() {
     setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
@@ -162,6 +163,17 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setSession(body.session as Session);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento del consenso non riuscito."); } finally { setBusy(false); }
+  }
+
+  async function togglePrivacyConsent(granted: boolean) {
+    if (!session?.client) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/clients/${session.client.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updatePrivacyConsent", granted }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setRefreshKey((key) => key + 1);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento del consenso non riuscito."); } finally { setBusy(false); }
   }
 
@@ -374,6 +386,16 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           </div>
           <button className="h-10 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] disabled:opacity-60" disabled={busy} onClick={() => toggleImageConsent(!imageConsentActive)} type="button">
             {imageConsentActive ? "Revoca consenso" : "Concedi consenso"}
+          </button>
+        </section>
+
+        <section className="mt-4 flex items-center justify-between border border-[#d8d0c5] bg-white px-4 py-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Consenso privacy cliente</p>
+            <p className="mt-1 text-sm font-medium">{privacyConsentActive ? "Concesso" : "Non concesso"}</p>
+          </div>
+          <button className="h-10 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] disabled:opacity-60" disabled={busy || !session.client} onClick={() => togglePrivacyConsent(!privacyConsentActive)} type="button">
+            {privacyConsentActive ? "Revoca consenso" : "Concedi consenso"}
           </button>
         </section>
 

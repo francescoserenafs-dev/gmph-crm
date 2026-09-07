@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { upsertIcloudEvent } from "@/lib/icloud-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,13 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
   if (error) return NextResponse.json({ error: error.message.includes("overlaps") ? "Questa sessione si sovrappone a un appuntamento esistente." : error.message }, { status: error.message.includes("overlaps") ? 409 : 500 });
+
+  const created = data as unknown as SessionRow & { service_name: string; location: string | null; notes: string | null; client: { first_name: string; last_name: string } | null };
+  const icloudEventUrl = await upsertIcloudEvent(
+    { id: created.id, scheduledAt: created.scheduled_at, durationMinutes: durationMinutes, location: created.location, notes: created.notes, serviceName: created.service_name, clientName: created.client ? `${created.client.first_name} ${created.client.last_name}` : "" },
+    null,
+  );
+  if (icloudEventUrl) await supabaseAdmin.from("sessions").update({ icloud_event_url: icloudEventUrl }).eq("id", created.id);
 
   return NextResponse.json({ session: data }, { status: 201 });
 }

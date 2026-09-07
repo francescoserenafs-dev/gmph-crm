@@ -33,6 +33,32 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/cl
   if (body && typeof body === "object" && "action" in body) {
     const action = (body as { action?: unknown }).action;
 
+    if (action === "updatePrivacyConsent") {
+      const granted = (body as { granted?: unknown }).granted === true;
+
+      const { data: current, error: currentError } = await getClient(id);
+      if (currentError) return NextResponse.json({ error: "Non e stato possibile aggiornare il cliente." }, { status: 500 });
+      if (!current) return NextResponse.json({ error: "Cliente non trovato." }, { status: 404 });
+
+      const isActive = current.privacy_consent_granted_at !== null && current.privacy_consent_revoked_at === null;
+      const now = new Date().toISOString();
+
+      const { data, error } = await supabaseAdmin
+        .from("clients")
+        .update({
+          privacy_consent_granted_at: granted ? (isActive ? current.privacy_consent_granted_at : now) : current.privacy_consent_granted_at,
+          privacy_consent_revoked_at: granted ? null : isActive ? now : current.privacy_consent_revoked_at,
+        })
+        .eq("id", id)
+        .select(clientFields)
+        .maybeSingle();
+
+      if (error) return NextResponse.json({ error: "Non e stato possibile aggiornare il cliente." }, { status: 500 });
+      if (!data) return NextResponse.json({ error: "Cliente non trovato." }, { status: 404 });
+
+      return NextResponse.json({ client: data });
+    }
+
     if (action !== "archive" && action !== "restore") {
       return NextResponse.json({ error: "Azione non valida." }, { status: 400 });
     }

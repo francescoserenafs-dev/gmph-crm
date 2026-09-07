@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { deleteIcloudEvent, upsertIcloudEvent } from "@/lib/icloud-calendar";
 
 export const dynamic = "force-dynamic";
 
 const sessionFields =
-  "id, scheduled_at, duration_minutes, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(id,amount_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,notes,created_at)";
+  "id, scheduled_at, duration_minutes, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, icloud_event_url, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name,privacy_consent_granted_at,privacy_consent_revoked_at), payments(id,amount_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,notes,created_at)";
 
 async function loadSession(id: string) {
   return supabaseAdmin.from("sessions").select(sessionFields).eq("id", id).maybeSingle();
@@ -34,7 +35,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       return NextResponse.json({ error: "Avanzamento non valido." }, { status: 400 });
     }
 
-    const { data: stage } = await supabaseAdmin.from("session_stages").select("id,name").eq("id", stageId).eq("is_active", true).maybeSingle();
+    const { data: stage } = await supabaseAdmin.from("session_stages").select("id,name,code").eq("id", stageId).eq("is_active", true).maybeSingle();
     if (!stage) return NextResponse.json({ error: "Avanzamento non disponibile." }, { status: 400 });
 
     const { error: updateError } = await supabaseAdmin.from("sessions").update({ current_stage_id: stageId }).eq("id", id);
@@ -51,6 +52,23 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       .limit(1);
 
     const { data } = await loadSession(id);
+    const loaded = data as unknown as { id: string; scheduled_at: string; duration_minutes: number; location: string | null; notes: string | null; service_name: string; icloud_event_url: string | null; client: { first_name: string; last_name: string } | null } | null;
+
+    if (loaded?.icloud_event_url && stage.code === "cancelled") {
+      await deleteIcloudEvent(loaded.icloud_event_url);
+      await supabaseAdmin.from("sessions").update({ icloud_event_url: null }).eq("id", id);
+      loaded.icloud_event_url = null;
+    } else if (loaded && !loaded.icloud_event_url && stage.code !== "cancelled") {
+      const icloudEventUrl = await upsertIcloudEvent(
+        { id: loaded.id, scheduledAt: loaded.scheduled_at, durationMinutes: loaded.duration_minutes, location: loaded.location, notes: loaded.notes, serviceName: loaded.service_name, clientName: loaded.client ? `${loaded.client.first_name} ${loaded.client.last_name}` : "" },
+        null,
+      );
+      if (icloudEventUrl) {
+        await supabaseAdmin.from("sessions").update({ icloud_event_url: icloudEventUrl }).eq("id", id);
+        loaded.icloud_event_url = icloudEventUrl;
+      }
+    }
+
     return NextResponse.json({ session: data });
   }
 
@@ -99,6 +117,19 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
   }
 
   const { data } = await loadSession(id);
+  const loaded = data as unknown as { id: string; scheduled_at: string; duration_minutes: number; location: string | null; notes: string | null; service_name: string; icloud_event_url: string | null; current_stage: { code: string } | null; client: { first_name: string; last_name: string } | null } | null;
+
+  if (loaded && loaded.current_stage?.code !== "cancelled") {
+    const icloudEventUrl = await upsertIcloudEvent(
+      { id: loaded.id, scheduledAt: loaded.scheduled_at, durationMinutes: loaded.duration_minutes, location: loaded.location, notes: loaded.notes, serviceName: loaded.service_name, clientName: loaded.client ? `${loaded.client.first_name} ${loaded.client.last_name}` : "" },
+      loaded.icloud_event_url,
+    );
+    if (icloudEventUrl && icloudEventUrl !== loaded.icloud_event_url) {
+      await supabaseAdmin.from("sessions").update({ icloud_event_url: icloudEventUrl }).eq("id", id);
+      loaded.icloud_event_url = icloudEventUrl;
+    }
+  }
+
   return NextResponse.json({ session: data });
 }
 
@@ -110,8 +141,12 @@ export async function DELETE(_request: NextRequest, context: RouteContext<"/api/
     return NextResponse.json({ error: "La sessione ha pagamenti collegati e non puo essere eliminata." }, { status: 409 });
   }
 
+  const { data: current } = await supabaseAdmin.from("sessions").select("icloud_event_url").eq("id", id).maybeSingle();
+
   const { error } = await supabaseAdmin.from("sessions").delete().eq("id", id);
   if (error) return NextResponse.json({ error: "Eliminazione non riuscita." }, { status: 500 });
+
+  await deleteIcloudEvent(current?.icloud_event_url ?? null);
 
   return NextResponse.json({ ok: true });
 }
