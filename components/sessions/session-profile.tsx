@@ -41,6 +41,7 @@ type Session = {
   extras: Extra[];
   image_consent_granted_at: string | null;
   image_consent_revoked_at: string | null;
+  booked_online_at: string | null;
 };
 
 type Stage = { id: string; name: string; code: string };
@@ -333,6 +334,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#9b5d43]">Scheda sessione</p>
             <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{session.service_name}{session.service_detail ? ` - ${session.service_detail}` : ""}</h1>
             <p className="mt-2 text-sm text-[#675f57]">{session.client ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/clients/${session.client.id}`}>{session.client.first_name} {session.client.last_name}</Link> : "Cliente non disponibile"}</p>
+            {session.booked_online_at ? <span className="mt-3 inline-flex items-center gap-1.5 bg-[#eef3e3] px-2.5 py-1 text-xs font-semibold text-[#4f6b33]">Prenotata online · {dateOnly.format(new Date(session.booked_online_at))}</span> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!isCancelled ? <button className="h-11 bg-[#9b5d43] px-4 text-sm font-semibold text-white" onClick={openPaymentDialog} type="button">Aggiungi pagamento</button> : null}

@@ -1,0 +1,200 @@
+import { NextResponse } from "next/server";
+import { type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BusyInterval, computeAvailableDays } from "@/lib/booking";
+import { addDaysToDateKey, parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+export const EVENT_TYPE_COLUMNS =
+  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, is_active, created_at, updated_at";
+
+export type ParsedEventType = {
+  row: Record<string, unknown>;
+  rules: Array<{ weekday: number; start_time: string; end_time: string }>;
+  exceptions: Array<{ exception_date: string; is_closed: boolean; start_time: string | null; end_time: string | null; note: string | null }>;
+};
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^\d{2}:\d{2}$/;
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function optionalPositiveInt(value: unknown): number | null | undefined {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function parseEventTypePayload(body: Record<string, unknown> | null): ParsedEventType | string {
+  if (!body) return "Payload non valido.";
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const slug = typeof body.slug === "string" ? body.slug.trim().toLowerCase() : "";
+  const serviceTypeId = typeof body.serviceTypeId === "string" ? body.serviceTypeId : "";
+  const durationMinutes = Number(body.durationMinutes);
+  const bufferMinutes = Number(body.bufferMinutes ?? 30);
+  const minNoticeHours = Number(body.minNoticeHours ?? 24);
+  const weekdayPriceEuros = Number(body.weekdayPriceEuros ?? 0);
+  const weekendPriceEuros = Number(body.weekendPriceEuros ?? 0);
+  const windowStartDate = typeof body.windowStartDate === "string" ? body.windowStartDate : "";
+  const windowEndDate = typeof body.windowEndDate === "string" ? body.windowEndDate : "";
+
+  if (!name) return "Il nome dell'evento è obbligatorio.";
+  if (!SLUG_PATTERN.test(slug)) return "Lo slug può contenere solo lettere minuscole, numeri e trattini.";
+  if (!serviceTypeId) return "Seleziona un tipo di servizio.";
+  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) return "La durata deve essere un numero di minuti positivo.";
+  if (!Number.isInteger(bufferMinutes) || bufferMinutes < 0) return "Il buffer deve essere un numero di minuti non negativo.";
+  if (!Number.isInteger(minNoticeHours) || minNoticeHours < 0) return "Il preavviso minimo deve essere un numero di ore non negativo.";
+  if (!Number.isInteger(weekdayPriceEuros) || weekdayPriceEuros < 0 || !Number.isInteger(weekendPriceEuros) || weekendPriceEuros < 0) return "I prezzi devono essere interi non negativi.";
+  if (!DATE_PATTERN.test(windowStartDate) || !DATE_PATTERN.test(windowEndDate)) return "Indica un periodo di apertura valido.";
+  if (windowEndDate < windowStartDate) return "La data di fine non può precedere quella di inizio.";
+
+  const maxBookingsPerDay = optionalPositiveInt(body.maxBookingsPerDay);
+  const maxBookingsTotal = optionalPositiveInt(body.maxBookingsTotal);
+  if (maxBookingsPerDay === undefined) return "Il massimo di prenotazioni al giorno deve essere un intero positivo.";
+  if (maxBookingsTotal === undefined) return "Il massimo di prenotazioni totali deve essere un intero positivo.";
+
+  const rules: ParsedEventType["rules"] = [];
+  for (const raw of Array.isArray(body.rules) ? body.rules : []) {
+    const item = raw as Record<string, unknown>;
+    const weekday = Number(item.weekday);
+    const startTime = typeof item.startTime === "string" ? item.startTime : "";
+    const endTime = typeof item.endTime === "string" ? item.endTime : "";
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return "Giorno della settimana non valido.";
+    if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) return "Orari di disponibilità non validi.";
+    if (endTime <= startTime) return "L'orario di fine deve essere successivo a quello di inizio.";
+    if (rules.some((rule) => rule.weekday === weekday && rule.start_time === startTime && rule.end_time === endTime)) continue;
+    rules.push({ weekday, start_time: startTime, end_time: endTime });
+  }
+  if (rules.length === 0) return "Definisci almeno una fascia di disponibilità settimanale.";
+
+  const exceptions: ParsedEventType["exceptions"] = [];
+  for (const raw of Array.isArray(body.exceptions) ? body.exceptions : []) {
+    const item = raw as Record<string, unknown>;
+    const date = typeof item.date === "string" ? item.date : "";
+    const isClosed = item.isClosed === true;
+    const startTime = typeof item.startTime === "string" ? item.startTime : "";
+    const endTime = typeof item.endTime === "string" ? item.endTime : "";
+    const note = typeof item.note === "string" && item.note.trim() ? item.note.trim() : null;
+    if (!DATE_PATTERN.test(date)) return "Data di eccezione non valida.";
+    if (isClosed) {
+      if (exceptions.some((entry) => entry.exception_date === date && entry.is_closed)) continue;
+      exceptions.push({ exception_date: date, is_closed: true, start_time: null, end_time: null, note });
+      continue;
+    }
+    if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) return "Orari dell'eccezione non validi.";
+    if (endTime <= startTime) return "L'orario di fine dell'eccezione deve essere successivo a quello di inizio.";
+    exceptions.push({ exception_date: date, is_closed: false, start_time: startTime, end_time: endTime, note });
+  }
+  for (const entry of exceptions) {
+    if (entry.is_closed && exceptions.some((other) => other.exception_date === entry.exception_date && !other.is_closed)) {
+      return "Una data non può essere chiusa e avere orari personalizzati allo stesso tempo.";
+    }
+  }
+
+  return {
+    row: {
+      slug,
+      name,
+      description: typeof body.description === "string" && body.description.trim() ? body.description.trim() : null,
+      service_type_id: serviceTypeId,
+      duration_minutes: durationMinutes,
+      buffer_minutes: bufferMinutes,
+      location: typeof body.location === "string" && body.location.trim() ? body.location.trim() : null,
+      weekday_price_cents: weekdayPriceEuros * 100,
+      weekend_price_cents: weekendPriceEuros * 100,
+      show_price: body.showPrice !== false,
+      window_start_date: windowStartDate,
+      window_end_date: windowEndDate,
+      min_notice_hours: minNoticeHours,
+      max_bookings_per_day: maxBookingsPerDay,
+      max_bookings_total: maxBookingsTotal,
+      ask_image_consent: body.askImageConsent !== false,
+      is_active: body.isActive === true,
+    },
+    rules,
+    exceptions,
+  };
+}
+
+export async function replaceAvailability(eventTypeId: string, parsed: ParsedEventType): Promise<NextResponse | null> {
+  const deleteRules = await supabaseAdmin.from("booking_availability_rules").delete().eq("event_type_id", eventTypeId);
+  if (deleteRules.error) return NextResponse.json({ error: deleteRules.error.message }, { status: 500 });
+
+  const deleteExceptions = await supabaseAdmin.from("booking_availability_exceptions").delete().eq("event_type_id", eventTypeId);
+  if (deleteExceptions.error) return NextResponse.json({ error: deleteExceptions.error.message }, { status: 500 });
+
+  if (parsed.rules.length > 0) {
+    const { error } = await supabaseAdmin.from("booking_availability_rules").insert(parsed.rules.map((rule) => ({ ...rule, event_type_id: eventTypeId })));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (parsed.exceptions.length > 0) {
+    const { error } = await supabaseAdmin.from("booking_availability_exceptions").insert(parsed.exceptions.map((entry) => ({ ...entry, event_type_id: eventTypeId })));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return null;
+}
+
+async function countEventTypeBookings(eventTypeId: string): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_event_type_id", eventTypeId);
+  return count ?? 0;
+}
+
+export async function loadActiveEventTypeBySlug(slug: string): Promise<BookingEventType | null> {
+  const { data } = await supabaseAdmin.from("booking_event_types").select(EVENT_TYPE_COLUMNS).eq("slug", slug).eq("is_active", true).maybeSingle();
+  return (data as BookingEventType | null) ?? null;
+}
+
+/**
+ * Calcola gli slot liberi per un evento sottraendo alle fasce configurate tutte le sessioni
+ * gia' a calendario (create da CRM, import o sync Calendly), escluse quelle annullate.
+ */
+export async function resolveAvailableDays(eventType: BookingEventType, rangeStart: string, rangeEnd: string): Promise<BookingDay[] | string> {
+  const [rules, exceptions] = await Promise.all([
+    supabaseAdmin.from("booking_availability_rules").select("id, event_type_id, weekday, start_time, end_time").eq("event_type_id", eventType.id),
+    supabaseAdmin.from("booking_availability_exceptions").select("id, event_type_id, exception_date, is_closed, start_time, end_time, note").eq("event_type_id", eventType.id),
+  ]);
+  if (rules.error ?? exceptions.error) return (rules.error ?? exceptions.error)!.message;
+
+  const busyFrom = parseLocalDateTime(`${addDaysToDateKey(rangeStart, -1)}T00:00`).toISOString();
+  const busyTo = parseLocalDateTime(`${addDaysToDateKey(rangeEnd, 2)}T00:00`).toISOString();
+
+  const sessions = await supabaseAdmin
+    .from("sessions")
+    .select("scheduled_at, duration_minutes, booking_event_type_id, current_stage:session_stages!sessions_current_stage_id_fkey(code)")
+    .gte("scheduled_at", busyFrom)
+    .lt("scheduled_at", busyTo);
+  if (sessions.error) return sessions.error.message;
+
+  const active = (sessions.data ?? []).filter((row) => {
+    const stage = row.current_stage as unknown as { code: string } | null;
+    return stage?.code !== "cancelled";
+  });
+
+  const busy: BusyInterval[] = active.map((row) => {
+    const start = new Date(row.scheduled_at as string);
+    return { start, end: new Date(start.getTime() + (row.duration_minutes as number) * 60_000) };
+  });
+
+  const bookingsPerDay: Record<string, number> = {};
+  for (const row of active) {
+    if (row.booking_event_type_id !== eventType.id) continue;
+    const key = toLocalDateKey(new Date(row.scheduled_at as string));
+    bookingsPerDay[key] = (bookingsPerDay[key] ?? 0) + 1;
+  }
+
+  const totalBookings = eventType.max_bookings_total === null ? 0 : await countEventTypeBookings(eventType.id);
+
+  return computeAvailableDays({
+    eventType,
+    rules: (rules.data ?? []) as BookingAvailabilityRule[],
+    exceptions: (exceptions.data ?? []) as BookingAvailabilityException[],
+    busy,
+    bookingsPerDay,
+    totalBookings,
+    rangeStart,
+    rangeEnd,
+  });
+}

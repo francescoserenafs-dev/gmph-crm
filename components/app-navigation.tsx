@@ -12,6 +12,7 @@ const navigationItems = [
   { href: "/sessions", label: "Sessioni" },
   { href: "/payments", label: "Pagamenti" },
   { href: "/vouchers", label: "Buoni" },
+  { href: "/prenotazioni", label: "Prenotazioni" },
   { href: "/config", label: "Configurazione" },
   { href: "/mailerlite", label: "MailerLite" },
   { href: "/calendly", label: "Calendly" },
@@ -26,6 +27,7 @@ const mobileTabs = [
 
 const moreLinks = [
   { href: "/vouchers", label: "Buoni regalo" },
+  { href: "/prenotazioni", label: "Prenotazioni" },
   { href: "/config", label: "Configurazione" },
   { href: "/mailerlite", label: "MailerLite" },
   { href: "/calendly", label: "Calendly" },
@@ -36,7 +38,7 @@ export function AppNavigation() {
   const router = useRouter();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname.startsWith("/prenota/")) return null;
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });

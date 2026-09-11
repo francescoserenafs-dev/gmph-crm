@@ -23,6 +23,7 @@ type Session = {
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
   extras: { price_cents: number }[];
+  booked_online_at: string | null;
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
@@ -498,7 +499,7 @@ export function SessionDirectory() {
                       <PaymentStatusFlag status={paymentStatus} />
                       {isLate ? <LateBadge /> : null}
                       <Link className="min-w-0 flex-1 hover:underline" href={`/sessions/${session.id}`}>
-                        <p className="text-sm font-semibold">{dateTime.format(new Date(session.scheduled_at))}</p>
+                        <p className="text-sm font-semibold">{dateTime.format(new Date(session.scheduled_at))}{session.booked_online_at ? <span className="ml-2 align-middle text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-[#4f6b33]">online</span> : null}</p>
                         <p className="mt-1 text-xs text-[#675f57]">{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"} - {session.service_name} - {session.current_stage?.name ?? "-"} - {status}</p>
                       </Link>
                     </div>
