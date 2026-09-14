@@ -9,7 +9,7 @@ class MailerLiteError extends Error {
 }
 
 function getToken() {
-  const token = process.env.MAILERLITE_API_TOKEN;
+  const token = process.env.MAILERLITE_API_TOKEN?.trim();
   if (!token) throw new Error("MAILERLITE_API_TOKEN non configurata.");
   return token;
 }
