@@ -1,5 +1,19 @@
 import { addDaysToDateKey, isWeekendDateKey, localWeekday, parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
 
+export const BOOKING_FORM_FIELD_KEYS = ["firstName", "lastName", "email", "phone", "birthDate", "participantsCount", "notes"] as const;
+export type BookingFormFieldKey = (typeof BOOKING_FORM_FIELD_KEYS)[number];
+export type BookingFormFieldConfig = Record<BookingFormFieldKey, { enabled: boolean; required: boolean }>;
+
+export const DEFAULT_BOOKING_FORM_FIELDS: BookingFormFieldConfig = {
+  firstName: { enabled: true, required: true },
+  lastName: { enabled: true, required: true },
+  email: { enabled: true, required: true },
+  phone: { enabled: false, required: false },
+  birthDate: { enabled: false, required: false },
+  participantsCount: { enabled: false, required: false },
+  notes: { enabled: false, required: false },
+};
+
 export type BookingEventType = {
   id: string;
   slug: string;
@@ -18,6 +32,7 @@ export type BookingEventType = {
   max_bookings_per_day: number | null;
   max_bookings_total: number | null;
   ask_image_consent: boolean;
+  form_fields: BookingFormFieldConfig;
   is_active: boolean;
   created_at: string;
   updated_at: string;

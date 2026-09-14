@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { EVENT_TYPE_COLUMNS, parseEventTypePayload, replaceAvailability } from "@/lib/booking-server";
+import { EVENT_TYPE_COLUMNS, parseEventTypePayload, replaceAvailability, sanitizeBookingDescription } from "@/lib/booking-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/boo
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!eventType.data) return NextResponse.json({ error: "Evento non trovato." }, { status: 404 });
 
-  return NextResponse.json({ eventType: eventType.data, rules: rules.data ?? [], exceptions: exceptions.data ?? [] });
+  return NextResponse.json({ eventType: { ...eventType.data, description: sanitizeBookingDescription(eventType.data.description) }, rules: rules.data ?? [], exceptions: exceptions.data ?? [] });
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext<"/api/booking/event-types/[id]">) {

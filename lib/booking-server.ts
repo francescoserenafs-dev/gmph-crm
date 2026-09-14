@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BusyInterval, computeAvailableDays } from "@/lib/booking";
+import sanitizeHtml from "sanitize-html";
+import { BOOKING_FORM_FIELD_KEYS, DEFAULT_BOOKING_FORM_FIELDS, type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BusyInterval, computeAvailableDays } from "@/lib/booking";
 import { addDaysToDateKey, parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const EVENT_TYPE_COLUMNS =
-  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, is_active, created_at, updated_at";
+  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, form_fields, is_active, created_at, updated_at";
 
 export type ParsedEventType = {
   row: Record<string, unknown>;
@@ -15,6 +16,26 @@ export type ParsedEventType = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const LOCKED_FORM_FIELDS = new Set(["firstName", "lastName", "email"]);
+
+function parseFormFields(value: unknown): BookingFormFieldConfig {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return Object.fromEntries(BOOKING_FORM_FIELD_KEYS.map((key) => {
+    const item = input[key] && typeof input[key] === "object" ? input[key] as Record<string, unknown> : {};
+    const locked = LOCKED_FORM_FIELDS.has(key);
+    const enabled = locked || item.enabled === true;
+    return [key, { enabled, required: locked || (enabled && item.required === true) }];
+  })) as BookingFormFieldConfig;
+}
+
+export function sanitizeBookingDescription(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  return sanitizeHtml(value, {
+    allowedTags: ["p", "div", "br", "strong", "b", "em", "i", "ul", "ol", "li", "font"],
+    allowedAttributes: { font: ["color", "face", "size"] },
+    allowedSchemes: [],
+  }).trim() || null;
+}
 
 function optionalPositiveInt(value: unknown): number | null | undefined {
   if (value === null || value === undefined || value === "") return null;
@@ -93,7 +114,7 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
     row: {
       slug,
       name,
-      description: typeof body.description === "string" && body.description.trim() ? body.description.trim() : null,
+      description: sanitizeBookingDescription(body.description),
       service_type_id: serviceTypeId,
       duration_minutes: durationMinutes,
       buffer_minutes: bufferMinutes,
@@ -107,6 +128,7 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
       max_bookings_per_day: maxBookingsPerDay,
       max_bookings_total: maxBookingsTotal,
       ask_image_consent: body.askImageConsent !== false,
+      form_fields: parseFormFields(body.formFields ?? DEFAULT_BOOKING_FORM_FIELDS),
       is_active: body.isActive === true,
     },
     rules,

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { CalendarDays, Check, Clock, MapPin } from "lucide-react";
-import type { BookingDay } from "@/lib/booking";
+import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingFormFieldConfig, type BookingFormFieldKey } from "@/lib/booking";
+import { ItalianDateInput } from "@/components/shared/italian-date-input";
 
 type PublicEventType = {
   slug: string;
@@ -15,22 +16,17 @@ type PublicEventType = {
   weekdayPriceCents: number;
   weekendPriceCents: number;
   askImageConsent: boolean;
+  formFields: BookingFormFieldConfig;
 };
 
 type Confirmation = { startsAt: string; durationMinutes: number; location: string | null };
+type BookingStep = "calendar" | "time" | "details";
 
 const TIME_ZONE = "Europe/Rome";
+const WEEK_DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
 function formatFullDate(dateKey: string): string {
   return new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${dateKey}T12:00:00`));
-}
-
-function formatShortDate(dateKey: string): string {
-  return new Intl.DateTimeFormat("it-IT", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${dateKey}T12:00:00`));
-}
-
-function formatMonth(dateKey: string): string {
-  return new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(new Date(`${dateKey}T12:00:00`));
 }
 
 function formatTime(iso: string): string {
@@ -50,16 +46,24 @@ function isWeekend(dateKey: string): boolean {
   return day === 0 || day === 6;
 }
 
+function shiftMonth(monthKey: string, offset: number): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  const shifted = new Date(year, month - 1 + offset, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnstileSiteKey: string | null }) {
   const [eventType, setEventType] = useState<PublicEventType | null>(null);
   const [days, setDays] = useState<BookingDay[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [step, setStep] = useState<BookingStep>("calendar");
+  const [visibleMonth, setVisibleMonth] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", notes: "", privacyConsent: false, imageConsent: false });
+  const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", birthDate: "", participantsCount: "", notes: "", privacyConsent: false, imageConsent: false });
   const captchaRef = useRef<HTMLDivElement | null>(null);
 
   async function loadAvailability() {
@@ -84,15 +88,24 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  const months = useMemo(() => {
-    const grouped = new Map<string, BookingDay[]>();
-    for (const day of days) {
-      const key = day.date.slice(0, 7);
-      grouped.set(key, [...(grouped.get(key) ?? []), day]);
-    }
-    return [...grouped.entries()];
-  }, [days]);
-
+  const availableDays = useMemo(() => new Map(days.map((day) => [day.date, day])), [days]);
+  const firstAvailableMonth = days[0]?.date.slice(0, 7) ?? "";
+  const lastAvailableMonth = days.at(-1)?.date.slice(0, 7) ?? "";
+  const activeMonth = visibleMonth ?? firstAvailableMonth;
+  const calendarCells = useMemo(() => {
+    if (!activeMonth) return [];
+    const [year, month] = activeMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells: Array<number | null> = Array.from({ length: startOffset }, () => null);
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+    while (cells.length < 42) cells.push(null);
+    return cells;
+  }, [activeMonth]);
+  const calendarTitle = activeMonth
+    ? new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(new Date(`${activeMonth}-01T12:00:00`))
+    : "";
   const activeDay = days.find((day) => day.date === selectedDate) ?? null;
   const priceCents = selectedDate && eventType ? (isWeekend(selectedDate) ? eventType.weekendPriceCents : eventType.weekdayPriceCents) : null;
 
@@ -112,7 +125,11 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
         if (response.status === 409) {
           const refreshed = await loadAvailability();
           setSelectedSlot(null);
-          if (selectedDate && !refreshed.some((day) => day.date === selectedDate)) setSelectedDate(null);
+          setStep("time");
+          if (selectedDate && !refreshed.some((day) => day.date === selectedDate)) {
+            setSelectedDate(null);
+            setStep("calendar");
+          }
         }
         throw new Error(body.error);
       }
@@ -124,7 +141,18 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     }
   }
 
-  const canSubmit = Boolean(selectedSlot && fields.firstName.trim() && fields.lastName.trim() && fields.email.trim() && fields.phone.trim() && fields.privacyConsent);
+  const formFields = eventType?.formFields ?? DEFAULT_BOOKING_FORM_FIELDS;
+  const hasValue: Record<BookingFormFieldKey, boolean> = {
+    firstName: Boolean(fields.firstName.trim()),
+    lastName: Boolean(fields.lastName.trim()),
+    email: Boolean(fields.email.trim()),
+    phone: Boolean(fields.phone.trim()),
+    birthDate: Boolean(fields.birthDate),
+    participantsCount: Boolean(fields.participantsCount),
+    notes: Boolean(fields.notes.trim()),
+  };
+  const canSubmit = Boolean(selectedSlot && fields.privacyConsent && Object.entries(formFields).every(([key, config]) => !config.enabled || !config.required || hasValue[key as BookingFormFieldKey]));
+  const requiredMark = <span className="text-[#a53e31]"> *</span>;
 
   return (
     <main className="min-h-screen bg-[#fdfbf8] px-4 py-10 text-[#27231f] sm:px-8 lg:px-12">
@@ -155,7 +183,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
           <div className="mt-8 grid gap-px overflow-hidden border border-[#e2d9cd] bg-[#e2d9cd] md:grid-cols-[20rem_1fr]">
             <aside className="bg-white p-7">
               <h1 className="font-serif text-3xl leading-tight">{eventType.name}</h1>
-              {eventType.description ? <p className="mt-4 text-sm leading-relaxed text-[#675f57] whitespace-pre-line">{eventType.description}</p> : null}
+              {eventType.description ? <div className="mt-4 text-sm leading-relaxed text-[#675f57] [&_font]:leading-relaxed [&_ol]:list-decimal [&_ol]:pl-5 [&_p+p]:mt-2 [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: eventType.description }} /> : null}
 
               <dl className="mt-7 space-y-3 border-t border-[#eee7dd] pt-6 text-sm text-[#4a443e]">
                 <div className="flex items-center gap-3"><Clock className="size-4 shrink-0 text-[#9b5d43]" strokeWidth={1.6} /><span>{eventType.durationMinutes} minuti</span></div>
@@ -188,7 +216,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                   <h2 className="mt-5 font-serif text-2xl">Prenotazione confermata</h2>
                   <p className="mt-3 text-sm capitalize text-[#4a443e]">{formatFullDateFromIso(confirmation.startsAt)} · ore {formatTime(confirmation.startsAt)}</p>
                   {confirmation.location ? <p className="mt-1 text-sm text-[#675f57]">{confirmation.location}</p> : null}
-                  <p className="mx-auto mt-6 max-w-sm text-sm leading-relaxed text-[#675f57]">Grazie! L&apos;appuntamento è stato registrato. Per qualsiasi modifica o disdetta scrivi direttamente a Giulia.</p>
+                  <p className="mx-auto mt-6 max-w-sm text-sm leading-relaxed text-[#675f57]">Grazie! L&apos;appuntamento è stato registrato</p>
                 </div>
               ) : (
                 <>
@@ -201,38 +229,51 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                     </div>
                   ) : null}
 
-                  {days.length > 0 ? (
-                    <>
+                  {days.length > 0 && step === "calendar" ? (
+                    <div>
                       <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">1 · Scegli il giorno</h2>
-                      <div className="mt-4 space-y-5">
-                        {months.map(([month, monthDays]) => (
-                          <div key={month}>
-                            <p className="text-xs font-medium capitalize text-[#8a8177]">{formatMonth(monthDays[0].date)}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {monthDays.map((day) => (
-                                <button
-                                  className={`border px-3 py-2 text-sm capitalize transition-colors ${selectedDate === day.date ? "border-[#9b5d43] bg-[#9b5d43] text-white" : "border-[#ddd4c8] hover:border-[#9b5d43]"}`}
-                                  key={day.date}
-                                  onClick={() => { setSelectedDate(day.date); setSelectedSlot(null); }}
-                                  type="button"
-                                >
-                                  {formatShortDate(day.date)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="mx-auto mt-5 max-w-lg">
+                        <div className="flex items-center justify-between gap-3">
+                          <button aria-label="Mese precedente" className="grid size-10 place-items-center border border-[#ddd4c8] transition-colors hover:border-[#9b5d43] disabled:opacity-30" disabled={activeMonth <= firstAvailableMonth} onClick={() => setVisibleMonth(shiftMonth(activeMonth, -1))} title="Mese precedente" type="button"><ChevronLeft className="size-4" /></button>
+                          <h3 className="font-serif text-xl capitalize">{calendarTitle}</h3>
+                          <button aria-label="Mese successivo" className="grid size-10 place-items-center border border-[#ddd4c8] transition-colors hover:border-[#9b5d43] disabled:opacity-30" disabled={activeMonth >= lastAvailableMonth} onClick={() => setVisibleMonth(shiftMonth(activeMonth, 1))} title="Mese successivo" type="button"><ChevronRight className="size-4" /></button>
+                        </div>
+                        <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-semibold uppercase text-[#8a8177]">
+                          {WEEK_DAYS.map((day) => <span className="py-1" key={day}>{day}</span>)}
+                        </div>
+                        <div className="mt-1 grid grid-cols-7 gap-1">
+                          {calendarCells.map((day, index) => {
+                            if (!day) return <span className="aspect-square" key={`empty-${index}`} />;
+                            const dateKey = `${activeMonth}-${String(day).padStart(2, "0")}`;
+                            const available = availableDays.has(dateKey);
+                            return (
+                              <button
+                                aria-label={available ? `Scegli ${formatFullDate(dateKey)}` : `${formatFullDate(dateKey)} non disponibile`}
+                                className={`aspect-square border text-sm tabular-nums transition-colors ${available ? "border-[#9b5d43] bg-[#f8eee8] font-semibold hover:bg-[#ead8ce]" : "border-[#eee8df] text-[#c1b8ad]"}`}
+                                disabled={!available}
+                                key={dateKey}
+                                onClick={() => { setSelectedDate(dateKey); setSelectedSlot(null); setStep("time"); }}
+                                type="button"
+                              >
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-4 text-center text-xs text-[#8a8177]">I giorni evidenziati hanno orari disponibili.</p>
                       </div>
-                    </>
+                    </div>
                   ) : null}
 
-                  {activeDay ? (
-                    <div className="mt-8 border-t border-[#eee7dd] pt-6">
-                      <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">2 · Scegli l&apos;orario</h2>
-                      <div className="mt-4 flex flex-wrap gap-2">
+                  {days.length > 0 && step === "time" && activeDay ? (
+                    <div>
+                      <button className="flex items-center gap-2 text-xs font-semibold text-[#675f57] hover:text-[#9b5d43]" onClick={() => { setStep("calendar"); setSelectedSlot(null); }} type="button"><ArrowLeft className="size-4" />Torna al calendario</button>
+                      <h2 className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">2 · Scegli l&apos;orario</h2>
+                      <p className="mt-2 font-serif text-2xl capitalize">{formatFullDate(activeDay.date)}</p>
+                      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {activeDay.slots.map((slot) => (
                           <button
-                            className={`border px-4 py-2 text-sm tabular-nums transition-colors ${selectedSlot === slot.startsAt ? "border-[#9b5d43] bg-[#9b5d43] text-white" : "border-[#ddd4c8] hover:border-[#9b5d43]"}`}
+                            className={`border px-4 py-3 text-sm font-semibold tabular-nums transition-colors ${selectedSlot === slot.startsAt ? "border-[#9b5d43] bg-[#9b5d43] text-white" : "border-[#ddd4c8] hover:border-[#9b5d43]"}`}
                             key={slot.startsAt}
                             onClick={() => setSelectedSlot(slot.startsAt)}
                             type="button"
@@ -241,33 +282,43 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                           </button>
                         ))}
                       </div>
+                      <button className="mt-6 w-full bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white disabled:opacity-50 sm:w-auto" disabled={!selectedSlot} onClick={() => setStep("details")} type="button">Continua</button>
                     </div>
                   ) : null}
 
-                  {selectedSlot ? (
-                    <div className="mt-8 border-t border-[#eee7dd] pt-6">
-                      <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">3 · I tuoi dati</h2>
+                  {step === "details" && selectedSlot ? (
+                    <div>
+                      <button className="flex items-center gap-2 text-xs font-semibold text-[#675f57] hover:text-[#9b5d43]" onClick={() => setStep("time")} type="button"><ArrowLeft className="size-4" />Torna agli orari</button>
+                      <h2 className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">3 · I tuoi dati</h2>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Nome</span>
+                        {formFields.firstName.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Nome{formFields.firstName.required ? requiredMark : null}</span>
                           <input autoComplete="given-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, firstName: event.target.value }))} value={fields.firstName} />
-                        </label>
-                        <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Cognome</span>
+                        </label> : null}
+                        {formFields.lastName.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Cognome{formFields.lastName.required ? requiredMark : null}</span>
                           <input autoComplete="family-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, lastName: event.target.value }))} value={fields.lastName} />
-                        </label>
-                        <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Email</span>
+                        </label> : null}
+                        {formFields.email.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Email{formFields.email.required ? requiredMark : null}</span>
                           <input autoComplete="email" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, email: event.target.value }))} type="email" value={fields.email} />
-                        </label>
-                        <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Telefono</span>
+                        </label> : null}
+                        {formFields.phone.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Cellulare{formFields.phone.required ? requiredMark : null}</span>
                           <input autoComplete="tel" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, phone: event.target.value }))} type="tel" value={fields.phone} />
-                        </label>
-                        <label className="text-sm sm:col-span-2">
-                          <span className="text-xs text-[#675f57]">Qualcosa che vuoi raccontarmi (facoltativo)</span>
+                        </label> : null}
+                        {formFields.birthDate.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Data di nascita{formFields.birthDate.required ? requiredMark : null}</span>
+                          <ItalianDateInput className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(birthDate) => setFields((current) => ({ ...current, birthDate }))} required={formFields.birthDate.required} value={fields.birthDate} />
+                        </label> : null}
+                        {formFields.participantsCount.enabled ? <label className="text-sm">
+                          <span className="text-xs text-[#675f57]">Numero di persone che partecipano alla sessione{formFields.participantsCount.required ? requiredMark : null}</span>
+                          <input className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" min="1" onChange={(event) => setFields((current) => ({ ...current, participantsCount: event.target.value }))} step="1" type="number" value={fields.participantsCount} />
+                        </label> : null}
+                        {formFields.notes.enabled ? <label className="text-sm sm:col-span-2">
+                          <span className="text-xs text-[#675f57]">Note{formFields.notes.required ? requiredMark : null}</span>
                           <textarea className="mt-1 w-full border border-[#ddd4c8] bg-white px-3 py-2 text-sm" onChange={(event) => setFields((current) => ({ ...current, notes: event.target.value }))} rows={3} value={fields.notes} />
-                        </label>
+                        </label> : null}
                       </div>
 
                       <div className="mt-5 space-y-3 text-sm text-[#4a443e]">

@@ -99,7 +99,7 @@ export function PaymentDirectory() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    if (dialog !== "new" || !form.sessionId) { setEligibleVouchers([]); return; }
+    if (dialog !== "new" || !form.sessionId) return;
     let active = true;
     fetch(`/api/sessions/${form.sessionId}/eligible-vouchers`)
       .then((response) => response.json())
@@ -110,6 +110,7 @@ export function PaymentDirectory() {
 
   function openNew() {
     setForm({ sessionId: "", amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "", category: "balance", notes: "" });
+    setEligibleVouchers([]);
     setVoucherId("");
     setError(null);
     setDialog("new");
@@ -261,7 +262,7 @@ export function PaymentDirectory() {
                 </label>
               ) : (
                 <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Sessione di riferimento
-                  <select className="h-11 border border-[#cfc5b8] bg-white px-3 disabled:bg-[#eee8df]" disabled={dialog === "edit"} onChange={(e) => setForm({ ...form, sessionId: e.target.value })} required value={form.sessionId}>
+                  <select className="h-11 border border-[#cfc5b8] bg-white px-3 disabled:bg-[#eee8df]" disabled={dialog === "edit"} onChange={(e) => { setForm({ ...form, sessionId: e.target.value }); setEligibleVouchers([]); }} required value={form.sessionId}>
                     <option value="">Seleziona</option>
                     {sessions.map((session) => <option key={session.id} value={session.id}>{dateOnly.format(new Date(session.scheduled_at))} - {session.service_name}{session.client ? ` - ${session.client.first_name} ${session.client.last_name}` : ""}</option>)}
                   </select>

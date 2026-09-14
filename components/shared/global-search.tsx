@@ -35,9 +35,8 @@ export function GlobalSearch() {
   }, []);
 
   useEffect(() => {
-    if (term.trim().length < 2) { setResults({ clients: [], sessions: [], vouchers: [], payments: [] }); return; }
+    if (term.trim().length < 2) return;
     let active = true;
-    setLoading(true);
     const timeout = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(term.trim())}`)
         .then((response) => response.json())
@@ -56,7 +55,17 @@ export function GlobalSearch() {
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[#9b5d43]" />
         <input
           className="h-12 w-full border-2 border-[#9b5d43] bg-white pl-10 pr-3 text-sm font-medium placeholder:font-normal placeholder:text-[#675f57] focus:outline-2 focus:outline-offset-2 focus:outline-[#9b5d43]"
-          onChange={(event) => { setTerm(event.target.value); setOpen(true); }}
+          onChange={(event) => {
+            const nextTerm = event.target.value;
+            setTerm(nextTerm);
+            setOpen(true);
+            if (nextTerm.trim().length < 2) {
+              setLoading(false);
+              setResults({ clients: [], sessions: [], vouchers: [], payments: [] });
+            } else {
+              setLoading(true);
+            }
+          }}
           onFocus={() => setOpen(true)}
           placeholder="Cerca cliente, sessione, buono..."
           type="search"

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Copy, Plus, Trash2 } from "lucide-react";
-import { type BookingDay, type BookingEventType, WEEKDAY_LABELS, normalizeTime, slugify } from "@/lib/booking";
+import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BookingFormFieldKey, WEEKDAY_LABELS, normalizeTime, slugify } from "@/lib/booking";
+import { ItalianDateInput } from "@/components/shared/italian-date-input";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 
 type Service = { id: string; name: string; suggested_price_cents: number };
 type EventTypeRow = BookingEventType & { bookings_count: number };
@@ -28,6 +30,7 @@ type FormState = {
   maxBookingsPerDay: string;
   maxBookingsTotal: string;
   askImageConsent: boolean;
+  formFields: BookingFormFieldConfig;
   isActive: boolean;
   rules: RuleDraft[];
   exceptions: ExceptionDraft[];
@@ -55,6 +58,7 @@ function emptyForm(): FormState {
     maxBookingsPerDay: "",
     maxBookingsTotal: "",
     askImageConsent: true,
+    formFields: structuredClone(DEFAULT_BOOKING_FORM_FIELDS),
     isActive: false,
     rules: [],
     exceptions: [],
@@ -66,7 +70,7 @@ function formatEuros(cents: number): string {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T12:00:00`));
+  return new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T12:00:00`));
 }
 
 function formatSlotTime(value: string): string {
@@ -142,6 +146,7 @@ export function BookingManager() {
         maxBookingsPerDay: eventType.max_bookings_per_day === null ? "" : String(eventType.max_bookings_per_day),
         maxBookingsTotal: eventType.max_bookings_total === null ? "" : String(eventType.max_bookings_total),
         askImageConsent: eventType.ask_image_consent,
+        formFields: eventType.form_fields ?? structuredClone(DEFAULT_BOOKING_FORM_FIELDS),
         isActive: eventType.is_active,
         rules: (body.rules ?? []).map((rule: { weekday: number; start_time: string; end_time: string }) => ({ weekday: rule.weekday, startTime: normalizeTime(rule.start_time), endTime: normalizeTime(rule.end_time) })),
         exceptions: (body.exceptions ?? []).map((entry: { exception_date: string; is_closed: boolean; start_time: string | null; end_time: string | null; note: string | null }) => ({
@@ -177,6 +182,7 @@ export function BookingManager() {
       maxBookingsPerDay: state.maxBookingsPerDay === "" ? null : Number(state.maxBookingsPerDay),
       maxBookingsTotal: state.maxBookingsTotal === "" ? null : Number(state.maxBookingsTotal),
       askImageConsent: state.askImageConsent,
+      formFields: state.formFields,
       isActive: state.isActive,
       rules: state.rules,
       exceptions: state.exceptions.map((entry) => ({ date: entry.date, isClosed: entry.isClosed, startTime: entry.startTime, endTime: entry.endTime, note: entry.note })),
@@ -276,10 +282,10 @@ export function BookingManager() {
                 <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ slug: slugify(event.target.value), slugTouched: true })} value={form.slug} />
                 <span className="mt-1 block text-xs text-[#8a8177]">{publicOrigin}/prenota/{form.slug || "..."}</span>
               </label>
-              <label className="text-sm sm:col-span-2">
+              <div className="text-sm sm:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Descrizione mostrata al cliente</span>
-                <textarea className="mt-1 w-full border border-[#cfc5b8] bg-white px-3 py-2 text-sm" onChange={(event) => update({ description: event.target.value })} rows={3} value={form.description} />
-              </label>
+                <RichTextEditor onChange={(description) => update({ description })} value={form.description} />
+              </div>
               <label className="text-sm">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Tipo di servizio CRM</span>
                 <select className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ serviceTypeId: event.target.value })} value={form.serviceTypeId}>
@@ -309,11 +315,11 @@ export function BookingManager() {
               </label>
               <label className="text-sm">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Apertura prenotazioni dal</span>
-                <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ windowStartDate: event.target.value })} type="date" value={form.windowStartDate} />
+                <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(windowStartDate) => update({ windowStartDate })} required value={form.windowStartDate} />
               </label>
               <label className="text-sm">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Fino al</span>
-                <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ windowEndDate: event.target.value })} type="date" value={form.windowEndDate} />
+                <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(windowEndDate) => update({ windowEndDate })} required value={form.windowEndDate} />
               </label>
               <label className="text-sm">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Preavviso minimo (ore)</span>
@@ -327,6 +333,29 @@ export function BookingManager() {
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Max prenotazioni totali</span>
                 <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" min={1} onChange={(event) => update({ maxBookingsTotal: event.target.value })} placeholder="Illimitate" type="number" value={form.maxBookingsTotal} />
               </label>
+            </div>
+
+            <div className="mt-7 border-t border-[#e5ddd2] pt-5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#675f57]">Campi del form pubblico</h3>
+              <p className="mt-1 text-xs text-[#8a8177]">Scegli quali dati chiedere e quali rendere obbligatori durante la prenotazione.</p>
+              <div className="mt-4 divide-y divide-[#eee8df] border border-[#e5ddd2]">
+                {([
+                  ["firstName", "Nome"], ["lastName", "Cognome"], ["email", "Email"], ["phone", "Cellulare"],
+                  ["birthDate", "Data di nascita"], ["participantsCount", "Numero di persone che partecipano alla sessione"], ["notes", "Note"],
+                ] as Array<[BookingFormFieldKey, string]>).map(([key, label]) => {
+                  const locked = key === "firstName" || key === "lastName" || key === "email";
+                  const field = form.formFields[key];
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3" key={key}>
+                      <span className="text-sm font-medium">{label}</span>
+                      <div className="flex items-center gap-5 text-xs">
+                        <label className="flex items-center gap-2"><input checked={field.enabled} disabled={locked} onChange={(event) => update({ formFields: { ...form.formFields, [key]: { enabled: event.target.checked, required: event.target.checked && field.required } } })} type="checkbox" />Mostra</label>
+                        <label className="flex items-center gap-2"><input checked={field.required} disabled={locked || !field.enabled} onChange={(event) => update({ formFields: { ...form.formFields, [key]: { ...field, required: event.target.checked } } })} type="checkbox" />Obbligatorio</label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-5 text-sm">
@@ -372,7 +401,7 @@ export function BookingManager() {
               <div className="mt-3 space-y-2">
                 {form.exceptions.map((entry, index) => (
                   <div className="grid gap-2 sm:grid-cols-[10rem_9rem_8rem_8rem_1fr_auto]" key={index}>
-                    <input className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ exceptions: form.exceptions.map((item, position) => (position === index ? { ...item, date: event.target.value } : item)) })} type="date" value={entry.date} />
+                    <ItalianDateInput className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(date) => update({ exceptions: form.exceptions.map((item, position) => (position === index ? { ...item, date } : item)) })} required value={entry.date} />
                     <select className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ exceptions: form.exceptions.map((item, position) => (position === index ? { ...item, isClosed: event.target.value === "closed" } : item)) })} value={entry.isClosed ? "closed" : "custom"}>
                       <option value="closed">Chiuso</option>
                       <option value="custom">Orari dedicati</option>

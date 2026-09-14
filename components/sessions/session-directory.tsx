@@ -36,7 +36,6 @@ type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "va
 const VOUCHER_METHOD = "__voucher__";
 
 const emptySession: SessionForm = { clientId: "", serviceTypeId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "", imageConsentGranted: false };
-const emptyFilters: Filters = { clientId: "", serviceTypeIds: [], stageIds: [], paymentStatuses: [], day: "" };
 const paymentStatusOptions = [
   { id: "unpaid", name: "Da saldare" },
   { id: "partial", name: "Parzialmente pagata" },
@@ -90,6 +89,7 @@ export function SessionDirectory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => { const now = new Date(); return { year: now.getFullYear(), month: now.getMonth() }; });
+  const [currentDate] = useState(() => new Date());
 
   const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient } : emptySession);
   const [quickClientOpen, setQuickClientOpen] = useState(false);
@@ -152,6 +152,7 @@ export function SessionDirectory() {
         if (!response.ok) throw new Error(body.error);
         setSessions(body.sessions as Session[]);
         setTotal(body.total as number);
+        setSelectedIds(new Set());
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
       } finally {
@@ -160,10 +161,6 @@ export function SessionDirectory() {
     })();
     return () => { active = false; };
   }, [query, refreshKey]);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [sessions]);
 
   useEffect(() => {
     let active = true;
@@ -230,23 +227,22 @@ export function SessionDirectory() {
   }, [calendarSessions, month]);
 
   const soonExpiringVouchers = useMemo(() => {
-    const soonIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    const nowIso = new Date().toISOString();
+    const soonIso = new Date(currentDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const nowIso = currentDate.toISOString();
     return expiringVouchers
       .filter((voucher) => voucher.expires_at <= soonIso && voucher.expires_at >= nowIso)
       .sort((a, b) => a.expires_at.localeCompare(b.expires_at))
       .slice(0, 5);
-  }, [expiringVouchers]);
+  }, [currentDate, expiringVouchers]);
 
   function openNewSession() { setSessionForm(emptySession); setQuickClientOpen(false); setError(null); setDialog("new"); }
 
-  async function openDuplicateSession(id: string) {
-    try {
-      const response = await fetch(`/api/sessions/${id}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      const source = body.session;
-      setSessionForm({
+  async function loadDuplicateSession(id: string): Promise<SessionForm> {
+    const response = await fetch(`/api/sessions/${id}`);
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error);
+    const source = body.session;
+    return {
         clientId: source.client?.id ?? "",
         serviceTypeId: source.service_type_id ?? "",
         scheduledAt: "",
@@ -256,7 +252,12 @@ export function SessionDirectory() {
         serviceDetail: source.service_detail ?? "",
         notes: source.notes ?? "",
         imageConsentGranted: false,
-      });
+    };
+  }
+
+  async function openDuplicateSession(id: string) {
+    try {
+      setSessionForm(await loadDuplicateSession(id));
       setQuickClientOpen(false);
       setError(null);
       setDialog("new");
@@ -267,9 +268,19 @@ export function SessionDirectory() {
 
   useEffect(() => {
     const duplicateId = searchParams.get("duplicate");
-    if (duplicateId) void openDuplicateSession(duplicateId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!duplicateId) return;
+    let active = true;
+    loadDuplicateSession(duplicateId)
+      .then((duplicateForm) => {
+        if (!active) return;
+        setSessionForm(duplicateForm);
+        setQuickClientOpen(false);
+        setError(null);
+        setDialog("new");
+      })
+      .catch(() => { if (active) setError("Non e stato possibile duplicare la sessione."); });
+    return () => { active = false; };
+  }, [searchParams]);
 
   async function submitSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null);

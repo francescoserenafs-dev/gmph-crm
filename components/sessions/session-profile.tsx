@@ -28,6 +28,7 @@ type Session = {
   id: string;
   scheduled_at: string;
   duration_minutes: number;
+  participants_count: number | null;
   location: string | null;
   service_name: string;
   service_detail: string | null;
@@ -103,7 +104,14 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
-        if (stagesRes.ok) { setStages(stagesBody.stages); setAddonServices(stagesBody.addonServices ?? []); }
+        if (stagesRes.ok) {
+          const loadedAddonServices = stagesBody.addonServices ?? [];
+          setStages(stagesBody.stages);
+          setAddonServices(loadedAddonServices);
+          if (openExtrasDialogOnMount && loadedAddonServices.length > 0) {
+            setExtraForm({ serviceTypeId: loadedAddonServices[0].id, priceEuros: "", notes: "" });
+          }
+        }
         if (methodsRes.ok) setMethods(methodsBody.methods);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
@@ -112,14 +120,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
       }
     })();
     return () => { active = false; };
-  }, [sessionId, refreshKey]);
-
-  // Auto-open extras dialog if query param is set
-  useEffect(() => {
-    if (openExtrasDialogOnMount && session && addonServices.length > 0 && dialog === "extra") {
-      setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
-    }
-  }, [openExtrasDialogOnMount, session, addonServices, dialog]);
+  }, [sessionId, refreshKey, openExtrasDialogOnMount]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
   const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;
@@ -377,6 +378,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           <Card label="Luogo">{session.location ?? "-"}</Card>
           <Card label="Incassato">{euro.format(paid / 100)}</Card>
           <Card label="Stato pagamento">{due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata"}</Card>
+          {session.participants_count ? <Card label="Numero di persone">{session.participants_count}</Card> : null}
         </div>
 
         {session.notes ? <p className="mt-6 border-l-2 border-[#d8d0c5] bg-white px-4 py-3 text-sm text-[#514a43]">{session.notes}</p> : null}

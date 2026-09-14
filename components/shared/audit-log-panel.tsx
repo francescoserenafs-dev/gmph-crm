@@ -69,7 +69,6 @@ export function AuditLogPanel({ table, recordId }: { table: string; recordId: st
   useEffect(() => {
     if (!open) return;
     let active = true;
-    setLoading(true);
     fetch(`/api/audit-log?table=${table}&id=${recordId}`)
       .then((response) => response.json())
       .then((body) => { if (active) setEntries(body.entries ?? []); })
@@ -82,7 +81,10 @@ export function AuditLogPanel({ table, recordId }: { table: string; recordId: st
     <div className="mt-6 border border-[#d8d0c5] bg-white">
       <button
         className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-semibold"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open) setLoading(true);
+          setOpen((value) => !value);
+        }}
         type="button"
       >
         Storico modifiche

@@ -102,6 +102,7 @@ export function ClientDirectory() {
         }
 
         setClients(body.clients ?? []);
+        setSelectedIds(new Set());
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           setLoadError(
@@ -120,10 +121,6 @@ export function ClientDirectory() {
     void loadClients();
     return () => controller.abort();
   }, [reloadKey, search, sort]);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [clients]);
 
   const visibleClients = onlyWithBalance ? clients.filter((client) => client.balance_cents > 0) : clients;
 

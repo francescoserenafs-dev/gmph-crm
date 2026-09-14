@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { loadActiveEventTypeBySlug, resolveAvailableDays } from "@/lib/booking-server";
+import { loadActiveEventTypeBySlug, resolveAvailableDays, sanitizeBookingDescription } from "@/lib/booking-server";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/datetime";
 import { clientIpFrom, isRateLimited } from "@/lib/rate-limit";
 
@@ -22,13 +22,14 @@ export async function GET(request: NextRequest, context: RouteContext<"/api/publ
     eventType: {
       slug: eventType.slug,
       name: eventType.name,
-      description: eventType.description,
+      description: sanitizeBookingDescription(eventType.description),
       durationMinutes: eventType.duration_minutes,
       location: eventType.location,
       showPrice: eventType.show_price,
       weekdayPriceCents: eventType.weekday_price_cents,
       weekendPriceCents: eventType.weekend_price_cents,
       askImageConsent: eventType.ask_image_consent,
+      formFields: eventType.form_fields,
     },
     days,
   });

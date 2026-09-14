@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type ClientOption = { id: string; first_name: string; last_name: string; email: string };
 
@@ -22,13 +22,10 @@ export function ClientCombobox({
   required?: boolean;
 }) {
   const selected = clients.find((client) => client.id === value) ?? null;
-  const [query, setQuery] = useState(selected ? `${selected.last_name} ${selected.first_name}` : "");
+  const selectedLabel = selected ? `${selected.last_name} ${selected.first_name}` : "";
+  const [inputState, setInputState] = useState<{ value: string; query: string } | null>(null);
+  const query = inputState?.value === value ? inputState.query : selectedLabel;
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const current = clients.find((client) => client.id === value) ?? null;
-    setQuery(current ? `${current.last_name} ${current.first_name}` : "");
-  }, [value, clients]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -44,7 +41,8 @@ export function ClientCombobox({
       <input
         className="h-11 border border-[#cfc5b8] bg-white px-3"
         onChange={(event) => {
-          setQuery(event.target.value);
+          const nextValue = value ? "" : value;
+          setInputState({ value: nextValue, query: event.target.value });
           setOpen(true);
           if (value) onChange("");
         }}
@@ -60,7 +58,7 @@ export function ClientCombobox({
             <li>
               <button
                 className="block w-full px-3 py-2 text-left text-sm text-[#675f57] hover:bg-[#eee8df]"
-                onClick={() => { onChange(""); setQuery(""); setOpen(false); }}
+                onClick={() => { onChange(""); setInputState({ value: "", query: "" }); setOpen(false); }}
                 onMouseDown={(event) => event.preventDefault()}
                 type="button"
               >
@@ -74,7 +72,7 @@ export function ClientCombobox({
                 className="block w-full px-3 py-2 text-left text-sm hover:bg-[#eee8df]"
                 onClick={() => {
                   onChange(client.id);
-                  setQuery(`${client.last_name} ${client.first_name}`);
+                  setInputState({ value: client.id, query: `${client.last_name} ${client.first_name}` });
                   setOpen(false);
                 }}
                 onMouseDown={(event) => event.preventDefault()}
