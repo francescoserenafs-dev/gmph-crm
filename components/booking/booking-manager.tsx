@@ -88,11 +88,20 @@ export function BookingManager() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/booking/event-types");
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error);
-    setEventTypes(body.eventTypes ?? []);
-    setServices(body.services ?? []);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch("/api/booking/event-types");
+      const body = await response.json().catch(() => null) as { eventTypes?: EventTypeRow[]; services?: Service[]; error?: string } | null;
+      if (response.ok && body) {
+        setEventTypes(body.eventTypes ?? []);
+        setServices(body.services ?? []);
+        return;
+      }
+      if (attempt === 0 && [502, 503, 504].includes(response.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        continue;
+      }
+      throw new Error(body?.error ?? "Caricamento non riuscito.");
+    }
   }, []);
 
   useEffect(() => {

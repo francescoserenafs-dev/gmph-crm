@@ -4,29 +4,38 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const [eventTypes, services] = await Promise.all([
-    supabaseAdmin.from("booking_event_types").select(EVENT_TYPE_COLUMNS).order("created_at", { ascending: false }),
+async function queryConfiguration() {
+  return Promise.all([
+    supabaseAdmin.from("booking_event_types").select(`${EVENT_TYPE_COLUMNS}, sessions(count)`).order("created_at", { ascending: false }),
     supabaseAdmin.from("service_types").select("id, name, suggested_price_cents").eq("is_active", true).eq("is_addon", false).order("sort_order"),
   ]);
+}
+
+function isTransientFailure(status: number, message: string): boolean {
+  return [502, 503, 504].includes(status) || /gateway|timeout|temporar|fetch failed|connection/i.test(message);
+}
+
+export async function GET() {
+  let [eventTypes, services] = await queryConfiguration();
+  const firstError = eventTypes.error ?? services.error;
+  const firstStatus = eventTypes.error ? eventTypes.status : services.status;
+
+  if (firstError && isTransientFailure(firstStatus, firstError.message)) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    [eventTypes, services] = await queryConfiguration();
+  }
 
   const error = eventTypes.error ?? services.error;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const ids = (eventTypes.data ?? []).map((item) => item.id);
-  const bookings = ids.length
-    ? await supabaseAdmin.from("sessions").select("booking_event_type_id").in("booking_event_type_id", ids)
-    : { data: [], error: null };
-  if (bookings.error) return NextResponse.json({ error: bookings.error.message }, { status: 500 });
-
-  const counts = (bookings.data ?? []).reduce<Record<string, number>>((acc, row) => {
-    const key = row.booking_event_type_id as string;
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
+  if (error) {
+    const status = eventTypes.error ? eventTypes.status : services.status;
+    return NextResponse.json(
+      { error: isTransientFailure(status, error.message) ? "Il servizio dati non risponde. Riprova tra qualche istante." : error.message },
+      { status: isTransientFailure(status, error.message) ? 503 : 500 },
+    );
+  }
 
   return NextResponse.json({
-    eventTypes: (eventTypes.data ?? []).map((item) => ({ ...item, bookings_count: counts[item.id] ?? 0 })),
+    eventTypes: (eventTypes.data ?? []).map(({ sessions, ...item }) => ({ ...item, bookings_count: sessions[0]?.count ?? 0 })),
     services: services.data ?? [],
   });
 }
