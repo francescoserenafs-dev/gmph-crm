@@ -13,6 +13,7 @@ export type SessionClient = {
 export type SessionPayment = {
   id: string;
   amount_cents: number;
+  voucher_unused_cents: number;
   paid_at: string | null;
   paid_date: string | null;
   category: string;
@@ -98,6 +99,16 @@ export function calculateSessionDue(session: Session): number {
  */
 export function calculateSessionPaid(session: Session): number {
   return session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+}
+
+export function calculateRemainingBalance(totalDueCents: number, totalPaidCents: number): number {
+  return Math.max(totalDueCents - totalPaidCents, 0);
+}
+
+export function calculateVoucherApplication(voucherCreditCents: number, totalDueCents: number, totalPaidCents: number) {
+  const remainingCents = calculateRemainingBalance(totalDueCents, totalPaidCents);
+  const amountCents = Math.min(voucherCreditCents, remainingCents);
+  return { amountCents, unusedCents: voucherCreditCents - amountCents, remainingCents };
 }
 
 /**

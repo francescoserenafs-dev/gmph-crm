@@ -33,6 +33,7 @@ const fieldLabels: Record<string, string> = {
   current_stage_id: "Avanzamento",
   notes: "Note",
   amount_cents: "Importo",
+  voucher_unused_cents: "Importo buono non utilizzato",
   paid_at: "Data pagamento",
   category: "Causale",
   payment_method_id: "Metodo di pagamento",

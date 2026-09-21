@@ -7,10 +7,12 @@ import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
+import { calculateRemainingBalance } from "@/lib/sessions";
 
 type Payment = {
   id: string;
   amount_cents: number;
+  voucher_unused_cents: number;
   paid_at: string | null;
   paid_date: string | null;
   category: string;
@@ -28,7 +30,6 @@ type Session = {
   id: string;
   scheduled_at: string;
   duration_minutes: number;
-  participants_count: number | null;
   location: string | null;
   service_name: string;
   service_detail: string | null;
@@ -36,13 +37,12 @@ type Session = {
   agreed_price_cents: number;
   is_settled: boolean;
   current_stage: { id: string; name: string; code: string } | null;
-  client: { id: string; first_name: string; last_name: string; privacy_consent_granted_at: string | null; privacy_consent_revoked_at: string | null } | null;
+  client: { id: string; first_name: string; last_name: string } | null;
   payments: Payment[];
   stage_history: StageEvent[];
   extras: Extra[];
   image_consent_granted_at: string | null;
   image_consent_revoked_at: string | null;
-  booked_online_at: string | null;
 };
 
 type Stage = { id: string; name: string; code: string };
@@ -104,14 +104,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
-        if (stagesRes.ok) {
-          const loadedAddonServices = stagesBody.addonServices ?? [];
-          setStages(stagesBody.stages);
-          setAddonServices(loadedAddonServices);
-          if (openExtrasDialogOnMount && loadedAddonServices.length > 0) {
-            setExtraForm({ serviceTypeId: loadedAddonServices[0].id, priceEuros: "", notes: "" });
-          }
-        }
+        if (stagesRes.ok) { setStages(stagesBody.stages); setAddonServices(stagesBody.addonServices ?? []); }
         if (methodsRes.ok) setMethods(methodsBody.methods);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
@@ -120,16 +113,22 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
       }
     })();
     return () => { active = false; };
-  }, [sessionId, refreshKey, openExtrasDialogOnMount]);
+  }, [sessionId, refreshKey]);
+
+  // Auto-open extras dialog if query param is set
+  useEffect(() => {
+    if (openExtrasDialogOnMount && session && addonServices.length > 0 && dialog === "extra") {
+      setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
+    }
+  }, [openExtrasDialogOnMount, session, addonServices, dialog]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
   const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;
   const due = (session?.agreed_price_cents ?? 0) + extrasTotal;
-  const balance = due - paid;
+  const balance = calculateRemainingBalance(due, paid);
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
-  const privacyConsentActive = session?.client?.privacy_consent_granted_at != null && session.client.privacy_consent_revoked_at == null;
 
   function openExtraDialog() {
     setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
@@ -165,17 +164,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setSession(body.session as Session);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento del consenso non riuscito."); } finally { setBusy(false); }
-  }
-
-  async function togglePrivacyConsent(granted: boolean) {
-    if (!session?.client) return;
-    setBusy(true); setError(null);
-    try {
-      const response = await fetch(`/api/clients/${session.client.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updatePrivacyConsent", granted }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setRefreshKey((key) => key + 1);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento del consenso non riuscito."); } finally { setBusy(false); }
   }
 
@@ -274,7 +262,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentForm, paidAt: paymentForm.paidDate }) });
+      const response = await fetch(`/api/sessions/${sessionId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(paymentForm) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setDialog(null);
@@ -335,7 +323,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#9b5d43]">Scheda sessione</p>
             <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{session.service_name}{session.service_detail ? ` - ${session.service_detail}` : ""}</h1>
             <p className="mt-2 text-sm text-[#675f57]">{session.client ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/clients/${session.client.id}`}>{session.client.first_name} {session.client.last_name}</Link> : "Cliente non disponibile"}</p>
-            {session.booked_online_at ? <span className="mt-3 inline-flex items-center gap-1.5 bg-[#eef3e3] px-2.5 py-1 text-xs font-semibold text-[#4f6b33]">Prenotata online · {dateOnly.format(new Date(session.booked_online_at))}</span> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!isCancelled ? <button className="h-11 bg-[#9b5d43] px-4 text-sm font-semibold text-white" onClick={openPaymentDialog} type="button">Aggiungi pagamento</button> : null}
@@ -378,7 +365,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           <Card label="Luogo">{session.location ?? "-"}</Card>
           <Card label="Incassato">{euro.format(paid / 100)}</Card>
           <Card label="Stato pagamento">{due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata"}</Card>
-          {session.participants_count ? <Card label="Numero di persone">{session.participants_count}</Card> : null}
         </div>
 
         {session.notes ? <p className="mt-6 border-l-2 border-[#d8d0c5] bg-white px-4 py-3 text-sm text-[#514a43]">{session.notes}</p> : null}
@@ -390,16 +376,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           </div>
           <button className="h-10 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] disabled:opacity-60" disabled={busy} onClick={() => toggleImageConsent(!imageConsentActive)} type="button">
             {imageConsentActive ? "Revoca consenso" : "Concedi consenso"}
-          </button>
-        </section>
-
-        <section className="mt-4 flex items-center justify-between border border-[#d8d0c5] bg-white px-4 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Consenso privacy cliente</p>
-            <p className="mt-1 text-sm font-medium">{privacyConsentActive ? "Concesso" : "Non concesso"}</p>
-          </div>
-          <button className="h-10 border border-[#9b5d43] px-4 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db] disabled:opacity-60" disabled={busy || !session.client} onClick={() => togglePrivacyConsent(!privacyConsentActive)} type="button">
-            {privacyConsentActive ? "Revoca consenso" : "Concedi consenso"}
           </button>
         </section>
 
@@ -436,6 +412,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
                 <div>
                   <p className="text-sm font-semibold">{euro.format(payment.amount_cents / 100)} - {categoryLabels[payment.category] ?? payment.category}</p>
                   <p className="mt-1 text-xs text-[#675f57]">{payment.paid_date ? dateOnly.format(new Date(payment.paid_date + "T00:00:00")) : dateOnly.format(new Date(payment.paid_at!))} - {payment.payment_method_name}</p>
+                  {payment.voucher_unused_cents > 0 ? <p className="mt-1 text-xs text-[#675f57]">{euro.format(payment.voucher_unused_cents / 100)} non utilizzati</p> : null}
                 </div>
                 <button className="text-sm font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => deletePayment(payment.id, Boolean(payment.applied_voucher_id))} type="button">Elimina</button>
               </article>
@@ -557,7 +534,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
                 </select>
               </label>
             )}
-            <p className="mt-3 text-xs text-[#675f57]">Un buono a valore copre il suo importo; un buono a sessione copre l&apos;intero prezzo concordato. L&apos;eventuale differenza va saldata con altri pagamenti.</p>
+            <p className="mt-3 text-xs text-[#675f57]">Il buono viene riscattato per intero. Se supera il saldo della sessione, l&apos;eccedenza non viene utilizzata e non da diritto a resto; l&apos;eventuale importo ancora dovuto va saldato con altri pagamenti.</p>
             {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
             <div className="mt-6 flex justify-end gap-3">
               <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
