@@ -76,6 +76,161 @@ Dopo il 26 ottobre, alternare backstage, immagini delle sessioni, testimonianze 
 
 ---
 
+## 2A. Recap contenuti
+
+Questo e il calendario sintetico da usare come lista di pubblicazione. Per ogni contenuto trovi solo data, titolo, tipo, piattaforma e il rimando al testo completo.
+
+| Data | Titolo | Tipo | Piattaforma | Approfondimento |
+|---|---|---|---|---|
+| 29 settembre | Il set che nasce | Reel BTS | IG | [Testo e istruzioni](#29-settembre---reel-bts-il-set-che-nasce) |
+| 30 settembre | Il ricordo che vorresti avere | Storia sondaggio | IG Stories | [Testo e istruzioni](#30-settembre---storia-sondaggio) |
+| 1 ottobre | Un ricordo di questo Natale | Storia box domande | IG Stories | [Testo e istruzioni](#1-ottobre---storia-box-domande) |
+| 2 ottobre | Entra nella lista Christmas | Sequenza Stories | IG Stories | [Testo e istruzioni](#2-ottobre---storia-lista) |
+| 3 ottobre | La luce del Natale sta arrivando | Carosello mood | IG | [Testo e istruzioni](#3-ottobre---carosello-mood) |
+| 4 ottobre | Christmas Mini Session in arrivo | Reel + automazione | IG + ManyChat | [Testo e istruzioni](#4-ottobre---reel-manychat-keyword-natale) |
+| 5 ottobre | Domani vi raccontero tutto | Sequenza Stories | IG Stories | [Testo e istruzioni](#5-ottobre---storie-faq-e-attesa) |
+| 6 ottobre | Sta arrivando qualcosa di speciale | Email teaser | MailerLite | [Testo e istruzioni](#6-ottobre---email-teaser-alla-lista) |
+| 7 ottobre | Il Natale da vivere insieme | Reel reveal | IG | [Testo e istruzioni](#7-ottobre---reel-reveal) |
+| 8 ottobre | Tutto quello che desideri sapere | Carosello informativo | IG | [Testo e istruzioni](#8-ottobre---carosello-informativo) |
+| 9 ottobre | Domani si apre l'anteprima | Sequenza Stories | IG Stories | [Testo e istruzioni](#9-ottobre---storie-reminder) |
+| 10 ottobre | Le prenotazioni sono aperte | Email + Reel + Stories | MailerLite + IG | [Testo e istruzioni](#10-ottobre---apertura-pubblica) |
+| 11-19 ottobre | Le date disponibili | Stories disponibilita | IG Stories | [Testo e istruzioni](#11-19-ottobre---prova-sociale-e-scelta) |
+| 17 ottobre | Un ricordo da riguardare negli anni | Carosello emozionale | IG | [Testo e istruzioni](#11-19-ottobre---prova-sociale-e-scelta) |
+| 20 ottobre | Il set e pronto: ci vediamo prima delle feste? | Email | MailerLite | [Testo e istruzioni](#20-ottobre---email-prime-date) |
+| 21 ottobre | Il set e pronto | Reel | IG | [Testo e istruzioni](#21-ottobre---reel-il-set-e-pronto) |
+| 22 ottobre | Mancano 4 giorni | Storia countdown | IG Stories | [Testo e istruzioni](#22-25-ottobre---countdown) |
+| 23 ottobre | Mancano 3 giorni | Storia countdown | IG Stories | [Testo e istruzioni](#22-25-ottobre---countdown) |
+| 24 ottobre | Manca 1 giorno | Storia countdown | IG Stories | [Testo e istruzioni](#22-25-ottobre---countdown) |
+| 25 ottobre | Domani si comincia | Storia countdown | IG Stories | [Testo e istruzioni](#22-25-ottobre---countdown) |
+| Dal 26 ottobre | Oggi sul set | Stories BTS | IG Stories | [Testo e istruzioni](#dal-26-ottobre---dopo-ogni-sessione) |
+| Dal 26 ottobre | Date ancora disponibili | Stories disponibilita | IG Stories | [Testo e istruzioni](#dal-26-ottobre---dopo-ogni-sessione) |
+| Dal 26 ottobre | Un ricordo da custodire | Testimonianza | IG | [Testo e istruzioni](#dal-26-ottobre---dopo-ogni-sessione) |
+| Dal 26 ottobre | Il set e pronto per voi | Ads conversione | Meta Ads | [Varianti e impostazioni](#campagna-2---prenotazione) |
+| Dopo ogni sessione | Le vostre fotografie sono pronte | Email consegna | Email/DM | [Sequenza upsell](#consegna-fotografie) |
+| 2-3 giorni dopo consegna | Un piccolo promemoria | Follow-up stampa | Email/DM | [Sequenza upsell](#follow-up-dopo-2-3-giorni) |
+| Meta novembre | Gli ultimi weekend per le vostre fotografie di Natale | Email closing | MailerLite | [Testo e istruzioni](#dal-26-ottobre---dopo-ogni-sessione) |
+
+### Contenuti ricorrenti da aggiornare
+
+| Frequenza | Titolo | Tipo | Piattaforma | Approfondimento |
+|---|---|---|---|---|
+| 2-3 volte a settimana | Date ancora disponibili | Stories calendario | IG Stories | [Date reali e CTA](#dal-26-ottobre---dopo-ogni-sessione) |
+| Dopo ogni sessione | Un dettaglio della giornata | Stories BTS | IG Stories | [BTS e consenso](#dal-26-ottobre---dopo-ogni-sessione) |
+| 1 volta a settimana dal 27 ottobre | Le prime sessioni | Reel BTS | IG | [Copy vendita continua](#dal-26-ottobre---dopo-ogni-sessione) |
+| Quando disponibile | Un ricordo semplice e prezioso | Testimonianza | IG Stories/Feed | [Copy testimonianza](#dal-26-ottobre---dopo-ogni-sessione) |
+| Quando una data e realmente quasi piena | Il [data] sta iniziando a riempirsi | Storia urgenza reale | IG Stories | [Copy e regole](#11-19-ottobre---prova-sociale-e-scelta) |
+| Quando una data e piena | [Data] SOLD OUT | Grafica disponibilita | IG Stories/Feed | [Testi Canva](#disponibilita-reale) |
+
+---
+
+## 2B. Recap configurazioni e attivazioni
+
+Completa queste attivita prima di pubblicare il contenuto indicato. Le voci con `[DA CONFIGURARE]` richiedono un dato o un account reale.
+
+| Priorita | Configurazione | Quando deve essere pronta | Approfondimento |
+|---|---|---|---|
+| 1 | Definizione date, orari, durata e numero massimo di slot | Prima del 29 settembre | [Offerta e scarsita reale](#offerta) |
+| 2 | Creazione evento di prenotazione Christmas Mini Session | Prima del 7 ottobre | [Offerta e calendario](#2-timeline-aggiornata) |
+| 3 | Configurazione prezzo feriale 125 euro e sabato 145 euro | Prima dell'apertura lista | [Offerta](#offerta) |
+| 4 | Inserimento domanda su numero persone, bambini, eta e preferenze | Prima di aprire le prenotazioni | [Offerta e form](#offerta) |
+| 5 | Creazione landing page Christmas Mini Session | Prima del 2 ottobre | [Struttura landing](#landing-page---contenuti-da-inserire) |
+| 6 | Creazione form MailerLite Lista Christmas | Prima del 2 ottobre | [Lead generation](#4-lead-generation) |
+| 7 | Configurazione automazione email di benvenuto lista | Prima del 4 ottobre | [Automazione lista](#automazione-mailerlite) |
+| 8 | Preparazione mini-guida PDF abbigliamento | Prima del 4 ottobre | [Lead magnet](#lead-magnet) |
+| 9 | Collegamento form alla landing e al link in bio | Prima del 4 ottobre | [Landing e lead generation](#landing-page---contenuti-da-inserire) |
+| 10 | Creazione flow ManyChat keyword NATALE | Prima del Reel del 4 ottobre | [Flow completo](#12-automazioni-manychat-complete) |
+| 11 | Configurazione pulsanti ManyChat e link prenotazione | Prima del Reel del 4 ottobre | [Pulsanti](#pulsanti) |
+| 12 | Configurazione follow-up ManyChat dopo 24 e 48 ore | Prima del Reel del 4 ottobre | [Follow-up](#follow-up-non-prenotazione-dopo-24-ore) |
+| 13 | Preparazione template Canva teaser, reveal e Stories | Prima del 29 settembre | [Testi Canva](#15-testi-per-grafiche-canva) |
+| 14 | Preparazione template calendario disponibilita | Prima del 10 ottobre | [Disponibilita](#disponibilita-reale) |
+| 15 | Preparazione template quasi pieno e SOLD OUT | Prima del 10 ottobre | [Disponibilita](#disponibilita-reale) |
+| 16 | Configurazione Meta Pixel/CAPI sulla landing e prenotazione | Prima di attivare ads conversione | [Ads conversione](#campagna-2---prenotazione) |
+| 17 | Creazione campagna Meta Ads lead | Dal 29 settembre | [Ads lead](#campagna-1---lista-e-messaggi) |
+| 18 | Creazione campagna Meta Ads conversione | Dal 10 ottobre | [Ads prenotazione](#campagna-2---prenotazione) |
+| 19 | Creazione pubblico retargeting Instagram e landing | Prima del 10 ottobre | [Ads conversione](#campagna-2---prenotazione) |
+| 20 | Creazione pubblico lista MailerLite, se disponibile | Prima del 10 ottobre | [Ads conversione](#campagna-2---prenotazione) |
+| 21 | Preparazione 3 creativita ads verticali | Prima dell'attivazione lead | [Varianti Meta](#campagna-1---lista-e-messaggi) |
+| 22 | Definizione processo consenso immagini | Prima delle prime sessioni | [BTS e consenso](#dal-26-ottobre---dopo-ogni-sessione) |
+| 23 | Preparazione campioni e prezzi stampe | Prima del 26 ottobre | [Upsell stampe](#14-upsell-stampe-sequenza-esatta) |
+| 24 | Preparazione email consegna e follow-up stampa | Prima della prima consegna | [Sequenza upsell](#consegna-fotografie) |
+| 25 | Creazione tabella KPI giornaliera | Prima del 29 settembre | [KPI](#16-kpi-e-aggiornamento-operativo) |
+
+### Landing page - contenuti da inserire
+
+La landing deve essere una pagina unica, collegata dal link in bio e dagli annunci.
+
+1. **Titolo:** `Il Natale da vivere insieme`.
+2. **Sottotitolo:** `Christmas Mini Session per raccontare la vostra famiglia con immagini naturali, autentiche e piene di emozione.`
+3. **Immagine:** una fotografia di famiglia coerente con la luce del set; se il set non e ancora pronto, usa una fotografia di atmosfera senza promettere dettagli non realizzati.
+4. **Cosa comprende:** mini-sessione di 15-20 minuti, fotografie digitali incluse, sessioni dal 26 ottobre.
+5. **Prezzo:** `125 euro feriali / 145 euro sabato`.
+6. **Date:** elenco delle date e degli orari realmente disponibili.
+7. **Stampe:** `Se vorrai, potrai aggiungere una stampa fine-art dopo aver visto le fotografie.`
+8. **CTA principale:** `Scegli la tua data` -> `[LINK PRENOTAZIONE]`.
+9. **CTA secondaria:** `Ricevi l'accesso alle prossime aperture` -> `[LINK FORM]`.
+10. **FAQ:** durata, partecipanti, abbigliamento, consegna entro Natale, stampe e contatti.
+11. **Tracking:** Meta Pixel/CAPI, evento PageView e evento Lead sul form; evento ViewContent e, se disponibile, evento CompleteRegistration sulla conferma prenotazione.
+
+### Automazione MailerLite
+
+1. Crea il gruppo `Lista Christmas`.
+2. Collega il form alla landing e applica il tag `christmas-2026`.
+3. Invia una mail di conferma con la mini-guida e il messaggio: `Grazie per esserti iscritta. Il 7 ottobre riceverai il link per scegliere in anteprima.`
+4. Il 6 ottobre invia il teaser agli iscritti.
+5. Il 7 ottobre invia il link di prenotazione solo al gruppo Lista Christmas.
+6. Il 9 ottobre reinvia il reminder solo ai non-openers.
+7. Il 10 ottobre invia l'apertura pubblica a tutta la lista, escludendo chi ha gia prenotato se il sistema lo consente.
+8. Aggiungi UTM distinti ai link: `utm_source=mailerLite`, `utm_campaign=christmas_2026`, `utm_content=early_access` o `public_opening`.
+
+### Meta Ads lead
+
+1. Obiettivo: Lead oppure Messaggi, in base al flow ManyChat effettivamente configurato.
+2. Pubblico: area entro `[RAGGIO]` km da Maser, eta indicativa 28-45, interessi famiglia, bambini, maternita e fotografia.
+3. Budget iniziale: 5-8 euro al giorno.
+4. Creativita: usa le varianti A, B e C della [campagna lead](#campagna-1---lista-e-messaggi).
+5. Destinazione: landing Lista Christmas oppure messaggio Instagram con keyword NATALE.
+6. UTM: `utm_source=meta`, `utm_campaign=christmas_lead_2026`, `utm_content=hook_a` o `hook_b` o `hook_c`.
+7. Controllo: verifica ogni 2-3 giorni costo per lead, qualita dei messaggi e iscrizioni effettive.
+
+### Meta Ads conversione
+
+1. Attivazione: dal 10 ottobre, quando la prenotazione pubblica e realmente disponibile.
+2. Obiettivo: Sales/Conversions se il tracking e attivo; in alternativa Traffic verso la pagina di prenotazione.
+3. Pubblici: interazioni Instagram, visitatori landing, lista MailerLite e lookalike solo se la dimensione lo consente.
+4. Creativita: usa le varianti A, B e C della [campagna prenotazione](#campagna-2---prenotazione).
+5. Destinazione: `[LINK PRENOTAZIONE]` con UTM `utm_source=meta`, `utm_campaign=christmas_conversion_2026`.
+6. Esclusioni: escludi chi ha gia prenotato, se il CRM o il pixel permette di farlo.
+7. Controllo: costo per prenotazione, slot riempiti per data, frequenza e qualita delle richieste.
+
+### Configurazione prenotazione
+
+Prima di condividere il link, fai una prenotazione di prova da smartphone e verifica:
+
+- date e orari visibili;
+- prezzi corretti per feriale e sabato;
+- durata e buffer tra gli slot;
+- raccolta nome, email, telefono, numero persone e note;
+- consenso privacy e consenso immagini;
+- pagina di conferma;
+- registrazione della prenotazione nel CRM;
+- aggiornamento della disponibilita dopo una prenotazione;
+- link alla pagina corretto da Instagram, email, ManyChat e ads.
+
+### Sequenza di attivazione
+
+1. **29 settembre:** pubblica il primo Reel e attiva la campagna Meta lead.
+2. **2 ottobre:** pubblica la landing, il form e la mini-guida.
+3. **4 ottobre:** attiva il flow ManyChat e verifica i tre pulsanti.
+4. **6 ottobre:** invia il teaser MailerLite.
+5. **7 ottobre:** apri il link solo alla Lista Christmas e controlla le prime prenotazioni.
+6. **9 ottobre:** invia il reminder ai non-openers.
+7. **10 ottobre:** pubblica landing e link pubblico, attiva la campagna conversione e sospendi o riduci la campagna lead.
+8. **Dal 10 ottobre:** aggiorna ogni giorno le disponibilita comunicate nelle Stories.
+9. **26 ottobre:** avvia la pubblicazione di BTS e testimonianze con consenso.
+10. **Dalla prima consegna:** attiva la sequenza stampe e registra il tasso di acquisto.
+
+---
+
 ## 3. Tono di voce
 
 La voce deve essere:
