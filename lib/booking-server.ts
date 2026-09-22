@@ -5,7 +5,7 @@ import { addDaysToDateKey, parseLocalDateTime, toLocalDateKey } from "@/lib/date
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const EVENT_TYPE_COLUMNS =
-  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, form_fields, is_active, created_at, updated_at";
+  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, visibility_start_date, visibility_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, form_fields, is_active, created_at, updated_at";
 
 export type ParsedEventType = {
   row: Record<string, unknown>;
@@ -56,6 +56,8 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
   const weekendPriceEuros = Number(body.weekendPriceEuros ?? 0);
   const windowStartDate = typeof body.windowStartDate === "string" ? body.windowStartDate : "";
   const windowEndDate = typeof body.windowEndDate === "string" ? body.windowEndDate : "";
+  const visibilityStartDate = typeof body.visibilityStartDate === "string" ? body.visibilityStartDate : "";
+  const visibilityEndDate = typeof body.visibilityEndDate === "string" ? body.visibilityEndDate : "";
 
   if (!name) return "Il nome dell'evento è obbligatorio.";
   if (!SLUG_PATTERN.test(slug)) return "Lo slug può contenere solo lettere minuscole, numeri e trattini.";
@@ -66,6 +68,8 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
   if (!Number.isInteger(weekdayPriceEuros) || weekdayPriceEuros < 0 || !Number.isInteger(weekendPriceEuros) || weekendPriceEuros < 0) return "I prezzi devono essere interi non negativi.";
   if (!DATE_PATTERN.test(windowStartDate) || !DATE_PATTERN.test(windowEndDate)) return "Indica un periodo di apertura valido.";
   if (windowEndDate < windowStartDate) return "La data di fine non può precedere quella di inizio.";
+  if (!DATE_PATTERN.test(visibilityStartDate) || !DATE_PATTERN.test(visibilityEndDate)) return "Indica un periodo di visibilità pubblico valido.";
+  if (visibilityEndDate < visibilityStartDate) return "La fine della visibilità pubblica non può precedere l'inizio.";
 
   const maxBookingsPerDay = optionalPositiveInt(body.maxBookingsPerDay);
   const maxBookingsTotal = optionalPositiveInt(body.maxBookingsTotal);
@@ -124,6 +128,8 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
       show_price: body.showPrice !== false,
       window_start_date: windowStartDate,
       window_end_date: windowEndDate,
+      visibility_start_date: visibilityStartDate,
+      visibility_end_date: visibilityEndDate,
       min_notice_hours: minNoticeHours,
       max_bookings_per_day: maxBookingsPerDay,
       max_bookings_total: maxBookingsTotal,
@@ -166,7 +172,11 @@ async function countEventTypeBookings(eventTypeId: string): Promise<number> {
 
 export async function loadActiveEventTypeBySlug(slug: string): Promise<BookingEventType | null> {
   const { data } = await supabaseAdmin.from("booking_event_types").select(EVENT_TYPE_COLUMNS).eq("slug", slug).eq("is_active", true).maybeSingle();
-  return (data as BookingEventType | null) ?? null;
+  const eventType = (data as BookingEventType | null) ?? null;
+  if (!eventType) return null;
+  const today = toLocalDateKey(new Date());
+  if (today < eventType.visibility_start_date || today > eventType.visibility_end_date) return null;
+  return eventType;
 }
 
 /**
@@ -201,10 +211,12 @@ export async function resolveAvailableDays(eventType: BookingEventType, rangeSta
   });
 
   const bookingsPerDay: Record<string, number> = {};
+  const bookedStartsByDay: Record<string, string[]> = {};
   for (const row of active) {
     if (row.booking_event_type_id !== eventType.id) continue;
     const key = toLocalDateKey(new Date(row.scheduled_at as string));
     bookingsPerDay[key] = (bookingsPerDay[key] ?? 0) + 1;
+    bookedStartsByDay[key] = [...(bookedStartsByDay[key] ?? []), new Date(row.scheduled_at as string).toISOString()];
   }
 
   const totalBookings = eventType.max_bookings_total === null ? 0 : await countEventTypeBookings(eventType.id);
@@ -215,6 +227,7 @@ export async function resolveAvailableDays(eventType: BookingEventType, rangeSta
     exceptions: (exceptions.data ?? []) as BookingAvailabilityException[],
     busy,
     bookingsPerDay,
+    bookedStartsByDay,
     totalBookings,
     rangeStart,
     rangeEnd,

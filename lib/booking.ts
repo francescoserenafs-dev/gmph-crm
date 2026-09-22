@@ -28,6 +28,8 @@ export type BookingEventType = {
   show_price: boolean;
   window_start_date: string;
   window_end_date: string;
+  visibility_start_date: string;
+  visibility_end_date: string;
   min_notice_hours: number;
   max_bookings_per_day: number | null;
   max_bookings_total: number | null;
@@ -116,6 +118,8 @@ export type ComputeSlotsInput = {
   busy: BusyInterval[];
   /** Numero di prenotazioni gia' esistenti per questo evento, per data (chiave "YYYY-MM-DD"). */
   bookingsPerDay: Record<string, number>;
+  /** Orari di inizio delle prenotazioni gia' esistenti per questo evento, per data. */
+  bookedStartsByDay: Record<string, string[]>;
   totalBookings: number;
   rangeStart: string;
   rangeEnd: string;
@@ -128,6 +132,7 @@ export function computeAvailableDays({
   exceptions,
   busy,
   bookingsPerDay,
+  bookedStartsByDay,
   totalBookings,
   rangeStart,
   rangeEnd,
@@ -162,6 +167,18 @@ export function computeAvailableDays({
 
     if (slots.length > 0) {
       slots.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+      if (eventType.max_bookings_per_day !== null && (bookedStartsByDay[dateKey]?.length ?? 0) > 0) {
+        const stepMs = step * 60_000;
+        const bookedStarts = (bookedStartsByDay[dateKey] ?? []).map((startsAt) => new Date(startsAt).getTime());
+        slots.splice(0, slots.length, ...slots.filter((slot) => {
+          const starts = [...bookedStarts, new Date(slot.startsAt).getTime()].sort((a, b) => a - b);
+          if (starts.length > eventType.max_bookings_per_day!) return false;
+          return starts.every((start, index) => index === 0 || start - starts[index - 1] === stepMs);
+        }));
+      }
+
+      if (slots.length === 0) continue;
       days.push({ date: dateKey, slots });
     }
   }

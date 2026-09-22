@@ -26,6 +26,8 @@ type FormState = {
   showPrice: boolean;
   windowStartDate: string;
   windowEndDate: string;
+  visibilityStartDate: string;
+  visibilityEndDate: string;
   minNoticeHours: string;
   maxBookingsPerDay: string;
   maxBookingsTotal: string;
@@ -54,6 +56,8 @@ function emptyForm(): FormState {
     showPrice: true,
     windowStartDate: today,
     windowEndDate: today,
+    visibilityStartDate: today,
+    visibilityEndDate: today,
     minNoticeHours: "24",
     maxBookingsPerDay: "",
     maxBookingsTotal: "",
@@ -151,6 +155,8 @@ export function BookingManager() {
         showPrice: eventType.show_price,
         windowStartDate: eventType.window_start_date,
         windowEndDate: eventType.window_end_date,
+        visibilityStartDate: eventType.visibility_start_date,
+        visibilityEndDate: eventType.visibility_end_date,
         minNoticeHours: String(eventType.min_notice_hours),
         maxBookingsPerDay: eventType.max_bookings_per_day === null ? "" : String(eventType.max_bookings_per_day),
         maxBookingsTotal: eventType.max_bookings_total === null ? "" : String(eventType.max_bookings_total),
@@ -187,6 +193,8 @@ export function BookingManager() {
       showPrice: state.showPrice,
       windowStartDate: state.windowStartDate,
       windowEndDate: state.windowEndDate,
+      visibilityStartDate: state.visibilityStartDate,
+      visibilityEndDate: state.visibilityEndDate,
       minNoticeHours: Number(state.minNoticeHours),
       maxBookingsPerDay: state.maxBookingsPerDay === "" ? null : Number(state.maxBookingsPerDay),
       maxBookingsTotal: state.maxBookingsTotal === "" ? null : Number(state.maxBookingsTotal),
@@ -323,12 +331,24 @@ export function BookingManager() {
                 <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" min={0} onChange={(event) => update({ weekendPriceEuros: event.target.value })} type="number" value={form.weekendPriceEuros} />
               </label>
               <label className="text-sm">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Apertura prenotazioni dal</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Disponibilità sessioni dal</span>
                 <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(windowStartDate) => update({ windowStartDate })} required value={form.windowStartDate} />
               </label>
               <label className="text-sm">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Fino al</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Disponibilità sessioni fino al</span>
                 <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(windowEndDate) => update({ windowEndDate })} required value={form.windowEndDate} />
+              </label>
+              <div className="sm:col-span-2 border-t border-[#e5ddd2] pt-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#675f57]">Visibilità pagina pubblica</h3>
+                <p className="mt-1 text-xs text-[#8a8177]">La pagina sarà raggiungibile solo tra queste due date, indipendentemente dal periodo in cui le sessioni sono prenotabili.</p>
+              </div>
+              <label className="text-sm">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Pagina pubblica visibile dal</span>
+                <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(visibilityStartDate) => update({ visibilityStartDate })} required value={form.visibilityStartDate} />
+              </label>
+              <label className="text-sm">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Pagina pubblica visibile fino al</span>
+                <ItalianDateInput className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(visibilityEndDate) => update({ visibilityEndDate })} required value={form.visibilityEndDate} />
               </label>
               <label className="text-sm">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Preavviso minimo (ore)</span>
@@ -459,7 +479,7 @@ export function BookingManager() {
                       <span className={`px-2 py-1 text-xs font-semibold ${eventType.is_active ? "bg-[#eef3e3] text-[#4f6b33]" : "bg-[#f0ece6] text-[#8a8177]"}`}>{eventType.is_active ? "Attivo" : "Disattivo"}</span>
                     </div>
                     <p className="mt-2 text-sm text-[#675f57]">{eventType.duration_minutes} min · pausa {eventType.buffer_minutes} min · {formatEuros(eventType.weekday_price_cents)} feriale / {formatEuros(eventType.weekend_price_cents)} weekend</p>
-                    <p className="mt-1 text-sm text-[#675f57]">Dal {formatDate(eventType.window_start_date)} al {formatDate(eventType.window_end_date)} · {eventType.bookings_count} prenotazioni</p>
+                    <p className="mt-1 text-sm text-[#675f57]">Sessioni dal {formatDate(eventType.window_start_date)} al {formatDate(eventType.window_end_date)} · pagina visibile dal {formatDate(eventType.visibility_start_date)} al {formatDate(eventType.visibility_end_date)} · {eventType.bookings_count} prenotazioni</p>
                     <p className="mt-1 text-xs text-[#8a8177]">{publicOrigin}/prenota/{eventType.slug}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
