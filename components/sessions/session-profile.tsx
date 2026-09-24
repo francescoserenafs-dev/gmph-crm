@@ -115,13 +115,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
     return () => { active = false; };
   }, [sessionId, refreshKey]);
 
-  // Auto-open extras dialog if query param is set
-  useEffect(() => {
-    if (openExtrasDialogOnMount && session && addonServices.length > 0 && dialog === "extra") {
-      setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
-    }
-  }, [openExtrasDialogOnMount, session, addonServices, dialog]);
-
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
   const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;
   const due = (session?.agreed_price_cents ?? 0) + extrasTotal;
@@ -129,6 +122,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
+  const extraServiceTypeId = extraForm.serviceTypeId || addonServices[0]?.id || "";
 
   function openExtraDialog() {
     setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
@@ -139,7 +133,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   async function submitExtra(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/extras`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(extraForm) });
+      const response = await fetch(`/api/sessions/${sessionId}/extras`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...extraForm, serviceTypeId: extraServiceTypeId }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setDialog(null); setRefreshKey((key) => key + 1);
@@ -552,7 +546,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             ) : (
               <>
                 <label className="flex flex-col gap-2 text-sm font-medium">Servizio extra
-                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, serviceTypeId: e.target.value })} required value={extraForm.serviceTypeId}>
+                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, serviceTypeId: e.target.value })} required value={extraServiceTypeId}>
                     <option value="">Seleziona</option>
                     {addonServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                   </select>

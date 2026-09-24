@@ -35,7 +35,6 @@ type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "va
 const VOUCHER_METHOD = "__voucher__";
 
 const emptySession: SessionForm = { clientId: "", serviceTypeId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "", imageConsentGranted: false };
-const emptyFilters: Filters = { clientId: "", serviceTypeIds: [], stageIds: [], paymentStatuses: [], day: "" };
 const paymentStatusOptions = [
   { id: "unpaid", name: "Da saldare" },
   { id: "partial", name: "Parzialmente pagata" },
@@ -89,6 +88,7 @@ export function SessionDirectory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(() => { const now = new Date(); return { year: now.getFullYear(), month: now.getMonth() }; });
+  const [nowTimestamp] = useState(() => Date.now());
 
   const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient } : emptySession);
   const [quickClientOpen, setQuickClientOpen] = useState(false);
@@ -149,6 +149,7 @@ export function SessionDirectory() {
         const body = await response.json();
         if (!active) return;
         if (!response.ok) throw new Error(body.error);
+        setSelectedIds(new Set());
         setSessions(body.sessions as Session[]);
         setTotal(body.total as number);
       } catch (reason) {
@@ -159,10 +160,6 @@ export function SessionDirectory() {
     })();
     return () => { active = false; };
   }, [query, refreshKey]);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [sessions]);
 
   useEffect(() => {
     let active = true;
@@ -229,13 +226,13 @@ export function SessionDirectory() {
   }, [calendarSessions, month]);
 
   const soonExpiringVouchers = useMemo(() => {
-    const soonIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    const nowIso = new Date().toISOString();
+    const soonIso = new Date(nowTimestamp + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const nowIso = new Date(nowTimestamp).toISOString();
     return expiringVouchers
       .filter((voucher) => voucher.expires_at <= soonIso && voucher.expires_at >= nowIso)
       .sort((a, b) => a.expires_at.localeCompare(b.expires_at))
       .slice(0, 5);
-  }, [expiringVouchers]);
+  }, [expiringVouchers, nowTimestamp]);
 
   function openNewSession() { setSessionForm(emptySession); setQuickClientOpen(false); setError(null); setDialog("new"); }
 
@@ -266,7 +263,31 @@ export function SessionDirectory() {
 
   useEffect(() => {
     const duplicateId = searchParams.get("duplicate");
-    if (duplicateId) void openDuplicateSession(duplicateId);
+    if (!duplicateId) return;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/sessions/${duplicateId}`);
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        const source = body.session;
+        setSessionForm({
+          clientId: source.client?.id ?? "",
+          serviceTypeId: source.service_type_id ?? "",
+          scheduledAt: "",
+          durationMinutes: String(source.duration_minutes),
+          priceEuros: String(source.agreed_price_cents / 100),
+          location: source.location ?? "",
+          serviceDetail: source.service_detail ?? "",
+          notes: source.notes ?? "",
+          imageConsentGranted: false,
+        });
+        setQuickClientOpen(false);
+        setError(null);
+        setDialog("new");
+      } catch {
+        setError("Non e stato possibile duplicare la sessione.");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
