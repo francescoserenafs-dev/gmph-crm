@@ -11,16 +11,17 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/ses
   if (!body) return NextResponse.json({ error: "Dati pagamento non validi." }, { status: 400 });
 
   const amountEuros = Number(body.amountEuros);
-  const paidAt = typeof body.paidAt === "string" ? new Date(body.paidAt) : null;
+  const paidAt = typeof body.paidAt === "string" && body.paidAt.trim() ? new Date(body.paidAt) : null;
+  const paidDate = typeof body.paidDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.paidDate) ? body.paidDate : null;
   const methodId = typeof body.methodId === "string" ? body.methodId : "";
   const category = typeof body.category === "string" ? body.category : "";
   const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
 
-  if (!Number.isInteger(amountEuros) || amountEuros <= 0 || !paidAt || Number.isNaN(paidAt.valueOf()) || !methodId || !allowedCategories.includes(category)) {
+  if (!Number.isInteger(amountEuros) || amountEuros <= 0 || (!paidAt && !paidDate) || (paidAt && Number.isNaN(paidAt.valueOf())) || !methodId || !allowedCategories.includes(category)) {
     return NextResponse.json({ error: "Compila importo, data, metodo e causale con valori validi." }, { status: 400 });
   }
 
-  if (paidAt.getTime() > Date.now()) {
+  if ((paidAt && paidAt.getTime() > Date.now()) || (paidDate && paidDate > new Date().toISOString().slice(0, 10))) {
     return NextResponse.json({ error: "La data del pagamento non puo essere futura." }, { status: 400 });
   }
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/ses
 
   const { data, error } = await supabaseAdmin
     .from("payments")
-    .insert({ session_id: id, payment_method_id: methodId, category, amount_cents: amountEuros * 100, paid_at: paidAt.toISOString(), notes })
+    .insert({ session_id: id, payment_method_id: methodId, category, amount_cents: amountEuros * 100, paid_at: paidAt?.toISOString() ?? null, paid_date: paidDate, notes })
     .select("id, amount_cents, paid_at, category, payment_method_name, notes")
     .single();
 
