@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { deleteIcloudEvent, upsertIcloudEvent } from "@/lib/icloud-calendar";
+import { promotePastBookedSessions } from "@/lib/sessions-server";
 import { parseLocalDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ async function loadSession(id: string) {
 }
 
 export async function GET(_request: NextRequest, context: RouteContext<"/api/sessions/[id]">) {
+  await promotePastBookedSessions();
+
   const { id } = await context.params;
   const { data, error } = await loadSession(id);
 

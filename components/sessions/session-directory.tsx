@@ -51,6 +51,36 @@ const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR"
 const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
+type BallOwner = "you" | "client";
+// Colonne del pipeline mostrate nella board (esclude "Foto consegnate" e "Annullata").
+const PIPELINE_STAGES: { code: string; label: string; owner: BallOwner }[] = [
+  { code: "booked", label: "Prenotata", owner: "you" },
+  { code: "completed", label: "Sessione svolta", owner: "you" },
+  { code: "proofs_sent", label: "Provini inviati", owner: "client" },
+  { code: "selection_received", label: "Selezione ricevuta", owner: "you" },
+];
+const stageColors: Record<string, { text: string; bg: string; border: string }> = {
+  booked: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
+  completed: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
+  proofs_sent: { text: "#35608a", bg: "#e0e8f1", border: "#a9c1de" },
+  selection_received: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
+  delivered: { text: "#367e4a", bg: "#e2efe5", border: "#a9d3b5" },
+  cancelled: { text: "#6b6b6b", bg: "#ececec", border: "#cfcfcf" },
+};
+const ballMeta: Record<BallOwner, { label: string; color: string; bg: string }> = {
+  you: { label: "Palla a te", color: "#9b5d43", bg: "#f1e3db" },
+  client: { label: "Palla al cliente", color: "#3f6f9b", bg: "#e0e8f1" },
+};
+type ColumnOwner = BallOwner | "done";
+const columnStyles: Record<ColumnOwner, { color: string; bg: string }> = {
+  you: { color: "#9b5d43", bg: "#f1e3db" },
+  client: { color: "#3f6f9b", bg: "#e0e8f1" },
+  done: { color: "#367e4a", bg: "#e2efe5" },
+};
+function stageOwner(code: string | undefined | null): BallOwner | null {
+  return PIPELINE_STAGES.find((stage) => stage.code === code)?.owner ?? null;
+}
+
 function localDayKey(iso: string) {
   const date = new Date(iso);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -106,6 +136,11 @@ export function SessionDirectory() {
   const [expiringVouchers, setExpiringVouchers] = useState<ExpiringVoucher[]>([]);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
   const [voucherId, setVoucherId] = useState("");
+  const [view, setView] = useState<"list" | "board">(() => (searchParams.get("view") === "board" ? "board" : "list"));
+  const [pipelineSessions, setPipelineSessions] = useState<Session[]>([]);
+  const [ballFilter, setBallFilter] = useState<BallOwner | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -125,8 +160,9 @@ export function SessionDirectory() {
     if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
     if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
     if (filters.day) params.set("day", filters.day);
+    if (view === "board") params.set("view", "board");
     router.replace(`/sessions?${params.toString()}`, { scroll: false });
-  }, [page, pageSize, filters, router]);
+  }, [page, pageSize, filters, view, router]);
 
   useEffect(() => {
     let active = true;
@@ -181,11 +217,57 @@ export function SessionDirectory() {
     return () => { active = false; };
   }, [refreshKey]);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const params = new URLSearchParams({ pageSize: "100" });
+      if (filters.clientId) params.set("clientId", filters.clientId);
+      if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
+      if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
+      const collected: Session[] = [];
+      for (let pageIndex = 1; pageIndex <= 20; pageIndex += 1) {
+        params.set("page", String(pageIndex));
+        const response = await fetch(`/api/sessions?${params.toString()}`);
+        const body = await response.json();
+        if (!response.ok) break;
+        collected.push(...(body.sessions as Session[]));
+        if (collected.length >= (body.total as number) || (body.sessions as Session[]).length === 0) break;
+      }
+      if (active) setPipelineSessions(collected.filter((session) => session.current_stage?.code !== "delivered"));
+    })().catch(() => {});
+    return () => { active = false; };
+  }, [filters.clientId, filters.serviceTypeIds, filters.paymentStatuses, refreshKey]);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedService = services.find((service) => service.id === sessionForm.serviceTypeId);
   const endTime = sessionForm.scheduledAt && Number(sessionForm.durationMinutes) > 0 ? new Date(new Date(sessionForm.scheduledAt).getTime() + Number(sessionForm.durationMinutes) * 60_000) : null;
 
   const visibleSessions = filters.day ? sessions.filter((session) => localDayKey(session.scheduled_at) === filters.day) : sessions;
+
+  const stageIdByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const stage of stages) map.set(stage.code, stage.id);
+    return map;
+  }, [stages]);
+
+  const boardColumns = useMemo<BoardColumn[]>(() => {
+    const openColumns: BoardColumn[] = PIPELINE_STAGES
+      .filter((column) => !ballFilter || column.owner === ballFilter)
+      .map((column) => ({ code: column.code, label: column.label, owner: column.owner as ColumnOwner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
+    const deliveredColumn: BoardColumn = { code: "delivered", label: "Foto consegnate", owner: "done", sessions: pipelineSessions.filter((session) => session.current_stage?.code === "delivered") };
+    return [...openColumns, deliveredColumn];
+  }, [pipelineSessions, ballFilter]);
+
+  const ballCounts = useMemo(() => {
+    let you = 0;
+    let client = 0;
+    for (const session of pipelineSessions) {
+      const owner = stageOwner(session.current_stage?.code);
+      if (owner === "you") you += 1;
+      else if (owner === "client") client += 1;
+    }
+    return { you, client, total: you + client };
+  }, [pipelineSessions]);
 
   const calendarByDay = useMemo(() => {
     const map = new Map<string, number>();
@@ -423,15 +505,46 @@ export function SessionDirectory() {
     }
   }
 
+  async function moveSessionToStage(sessionId: string, targetCode: string) {
+    const stageId = stageIdByCode.get(targetCode);
+    const session = pipelineSessions.find((item) => item.id === sessionId);
+    if (!stageId || !session || session.current_stage?.code === targetCode) return;
+    const previous = pipelineSessions;
+    const targetStage = stages.find((item) => item.id === stageId) ?? null;
+    setMovingId(sessionId);
+    setError(null);
+    setPipelineSessions((current) => current.map((item) => (item.id === sessionId ? { ...item, current_stage: targetStage } : item)));
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updateStage", stageId }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setRefreshKey((key) => key + 1);
+    } catch (reason) {
+      setPipelineSessions(previous);
+      setError(reason instanceof Error ? reason.message : "Aggiornamento non riuscito.");
+    } finally {
+      setMovingId(null);
+    }
+  }
+
+  function selectBall(owner: BallOwner | null) {
+    setBallFilter((current) => (current === owner ? null : owner));
+    setView("board");
+  }
+
   return (
     <main className="min-h-screen bg-[#f5f1eb] px-4 py-6 text-[#27231f] sm:px-8 lg:px-12">
-      <section className="mx-auto max-w-6xl">
+      <section className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-5 border-b border-[#d8d0c5] pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold sm:text-4xl">Sessioni</h1>
             <p className="mt-2 text-sm text-[#675f57]">Agenda, lavorazioni e stato degli incassi.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex h-11 overflow-hidden border border-[#cfc5b8]">
+              <button className={`px-4 text-sm font-semibold ${view === "list" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("list")} type="button">Lista</button>
+              <button className={`px-4 text-sm font-semibold ${view === "board" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("board")} type="button">Pipeline</button>
+            </div>
             {selectedIds.size > 0 ? (
               <button className="grid h-11 place-items-center border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef] disabled:cursor-wait disabled:opacity-60" disabled={isDeleting} onClick={handleDeleteSelected} type="button">
                 {isDeleting ? "Eliminazione..." : `Elimina selezionate (${selectedIds.size})`}
@@ -474,6 +587,8 @@ export function SessionDirectory() {
           </div>
         </header>
 
+        <KpiStrip active={ballFilter} counts={ballCounts} onSelect={selectBall} />
+
         <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ClientCombobox clients={clients} emptyLabel="Tutti" onChange={(value) => { setFilters({ ...filters, clientId: value }); setPage(1); }} required={false} value={filters.clientId} />
           <MultiSelectFilter label="Servizio" onChange={(ids) => { setFilters({ ...filters, serviceTypeIds: ids }); setPage(1); }} options={services} selected={filters.serviceTypeIds} />
@@ -481,6 +596,10 @@ export function SessionDirectory() {
           <MultiSelectFilter label="Pagamento" onChange={(ids) => { setFilters({ ...filters, paymentStatuses: ids }); setPage(1); }} options={paymentStatusOptions} selected={filters.paymentStatuses} />
         </div>
 
+        {view === "board" ? (
+          <PipelineBoard columns={boardColumns} draggingId={draggingId} movingId={movingId} onMove={moveSessionToStage} setDraggingId={setDraggingId} />
+        ) : (
+        <>
         <div className="mt-4 flex items-center justify-between text-sm">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2">
@@ -504,7 +623,6 @@ export function SessionDirectory() {
                 const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
                 const due = totalDue(session);
                 const paymentStatus: PaymentStatus = due === 0 ? "paid" : paid === 0 ? "unpaid" : paid < due ? "partial" : "paid";
-                const status = paymentStatusLabels[paymentStatus];
                 const isLate = session.current_stage?.code === "booked" && new Date(session.scheduled_at) < new Date();
                 return (
                   <article className="flex flex-col gap-3 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between" key={session.id}>
@@ -520,7 +638,10 @@ export function SessionDirectory() {
                       {isLate ? <LateBadge /> : null}
                       <Link className="min-w-0 flex-1 hover:underline" href={`/sessions/${session.id}`}>
                         <p className="text-sm font-semibold">{dateTime.format(new Date(session.scheduled_at))}</p>
-                        <p className="mt-1 text-xs text-[#675f57]">{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"} - {session.service_name} - {session.current_stage?.name ?? "-"} - {status}</p>
+                        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#675f57]">
+                          <span>{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"} - {session.service_name}</span>
+                          <StageChip stage={session.current_stage} />
+                        </p>
                       </Link>
                     </div>
                     <div className="flex gap-2">
@@ -617,6 +738,8 @@ export function SessionDirectory() {
             </div>
           </aside>
         </div>
+        </>
+        )}
       </section>
 
       {dialog === "new" ? (
@@ -772,5 +895,97 @@ function ModalActions({ busy, onCancel, submitLabel }: { busy: boolean; onCancel
       <button className="h-11 px-4 text-sm font-semibold" onClick={onCancel} type="button">Annulla</button>
       <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">{busy ? "Salvataggio..." : submitLabel}</button>
     </div>
+  );
+}
+
+function StageChip({ stage }: { stage: { name: string; code: string } | null }) {
+  if (!stage) return null;
+  const color = stageColors[stage.code] ?? { text: "#675f57", bg: "#eee8df", border: "#d8d0c5" };
+  return <span className="rounded-full border px-2 py-0.5 text-[11px] font-semibold" style={{ color: color.text, backgroundColor: color.bg, borderColor: color.border }}>{stage.name}</span>;
+}
+
+function KpiStrip({ counts, active, onSelect }: { counts: { you: number; client: number; total: number }; active: BallOwner | null; onSelect: (owner: BallOwner | null) => void }) {
+  return (
+    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <KpiCard active={active === null} color="#675f57" label="Totale aperte" onClick={() => onSelect(null)} sub="Sessioni ancora in lavorazione" value={counts.total} />
+      <KpiCard active={active === "you"} color={ballMeta.you.color} label={ballMeta.you.label} onClick={() => onSelect("you")} sub="Sessioni che aspettano un'azione tua" value={counts.you} />
+      <KpiCard active={active === "client"} color={ballMeta.client.color} label={ballMeta.client.label} onClick={() => onSelect("client")} sub="In attesa che il cliente selezioni" value={counts.client} />
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color, active, onClick }: { label: string; value: number; sub: string; color: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={`flex flex-col items-start border bg-white p-4 text-left transition-colors ${active ? "ring-2 ring-offset-1" : "hover:bg-[#faf7f2]"}`}
+      onClick={onClick}
+      style={active ? { borderColor: color, boxShadow: `0 0 0 2px ${color}33` } : { borderColor: "#d8d0c5" }}
+      type="button"
+    >
+      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#675f57]">
+        <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: color }} />
+        {label}
+      </span>
+      <span className="mt-2 text-3xl font-semibold" style={{ color }}>{value}</span>
+      <span className="mt-1 text-xs text-[#8a8178]">{sub}</span>
+    </button>
+  );
+}
+
+type BoardColumn = { code: string; label: string; owner: ColumnOwner; sessions: Session[] };
+
+function PipelineBoard({ columns, onMove, draggingId, setDraggingId, movingId }: { columns: BoardColumn[]; onMove: (sessionId: string, targetCode: string) => void; draggingId: string | null; setDraggingId: (id: string | null) => void; movingId: string | null }) {
+  return (
+    <div className="mt-4 flex gap-3 pb-4">
+      {columns.map((column) => (
+        <section
+          className="flex min-w-0 flex-1 flex-col"
+          key={column.code}
+          onDragOver={(event) => { if (draggingId) event.preventDefault(); }}
+          onDrop={(event) => {
+            event.preventDefault();
+            const id = event.dataTransfer.getData("text/plain") || draggingId;
+            if (id) onMove(id, column.code);
+            setDraggingId(null);
+          }}
+        >
+          <div className="flex items-center justify-between border-b-2 px-1 pb-2" style={{ borderColor: columnStyles[column.owner].color }}>
+            <span className="text-sm font-semibold">{column.label}</span>
+            <span className="grid size-6 place-items-center rounded-full text-xs font-semibold" style={{ backgroundColor: columnStyles[column.owner].bg, color: columnStyles[column.owner].color }}>{column.sessions.length}</span>
+          </div>
+          <div className="mt-3 flex min-h-24 flex-1 flex-col gap-2 rounded bg-[#efe9e0]/50 p-2">
+            {column.sessions.length === 0 ? (
+              <p className="px-1 py-6 text-center text-xs text-[#a49a8d]">{column.owner === "done" ? "Trascina qui per completare" : "Nessuna sessione"}</p>
+            ) : column.sessions.map((session) => (
+              <BoardCard dragging={draggingId === session.id} key={session.id} moving={movingId === session.id} owner={column.owner} session={session} setDraggingId={setDraggingId} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function BoardCard({ session, owner, dragging, moving, setDraggingId }: { session: Session; owner: ColumnOwner; dragging: boolean; moving: boolean; setDraggingId: (id: string | null) => void }) {
+  const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+  const due = totalDue(session);
+  const paymentStatus: PaymentStatus = due === 0 ? "paid" : paid === 0 ? "unpaid" : paid < due ? "partial" : "paid";
+  return (
+    <article
+      className={`cursor-grab border-l-4 border border-[#e2dace] bg-white p-3 shadow-sm transition-opacity active:cursor-grabbing ${dragging ? "opacity-40" : ""} ${moving ? "animate-pulse" : ""}`}
+      draggable
+      onDragEnd={() => setDraggingId(null)}
+      onDragStart={(event) => { event.dataTransfer.setData("text/plain", session.id); event.dataTransfer.effectAllowed = "move"; setDraggingId(session.id); }}
+      style={{ borderLeftColor: columnStyles[owner].color }}
+    >
+      <Link className="block hover:underline" href={`/sessions/${session.id}`}>
+        <p className="text-sm font-semibold leading-tight">{session.client ? `${session.client.first_name} ${session.client.last_name}` : "-"}</p>
+      </Link>
+      <p className="mt-1 text-xs text-[#675f57]">{session.service_name}</p>
+      <div className="mt-2 flex items-center justify-between text-xs text-[#8a8178]">
+        <span>{dateTime.format(new Date(session.scheduled_at))}</span>
+        <PaymentStatusFlag status={paymentStatus} />
+      </div>
+    </article>
   );
 }

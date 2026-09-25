@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { expireOverdueVouchers } from "@/lib/vouchers";
+import { promotePastBookedSessions } from "@/lib/sessions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ function periodStart(period: string): string | null {
 
 export async function GET(request: NextRequest) {
   await expireOverdueVouchers();
+  await promotePastBookedSessions();
 
   const period = request.nextUrl.searchParams.get("period") ?? "month";
   const start = periodStart(period);

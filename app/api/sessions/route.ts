@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
+import { promotePastBookedSessions } from "@/lib/sessions-server";
 import { parseLocalDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ type SessionRow = {
 };
 
 export async function GET(request: NextRequest) {
+  await promotePastBookedSessions();
+
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1);
   const pageSize = [10, 25, 50, 100].includes(Number(request.nextUrl.searchParams.get("pageSize"))) ? Number(request.nextUrl.searchParams.get("pageSize")) : 25;
   const clientId = request.nextUrl.searchParams.get("clientId");
