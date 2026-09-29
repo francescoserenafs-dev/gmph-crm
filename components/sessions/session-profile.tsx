@@ -24,7 +24,7 @@ type Payment = {
 
 type StageEvent = { id: string; stage_name: string; changed_at: string; notes: string | null };
 
-type Extra = { id: string; service_type_id: string; service_name: string; price_cents: number; notes: string | null; created_at: string };
+type Extra = { id: string; service_type_id: string | null; service_name: string; price_cents: number; quantity: number; notes: string | null; created_at: string };
 
 type Session = {
   id: string;
@@ -116,7 +116,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   }, [sessionId, refreshKey]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
-  const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents, 0) ?? 0;
+  const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0) ?? 0;
   const due = (session?.agreed_price_cents ?? 0) + extrasTotal;
   const balance = calculateRemainingBalance(due, paid);
   const isCancelled = session?.current_stage?.code === "cancelled";
@@ -389,7 +389,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             {session.extras.length === 0 ? <p className="p-6 text-sm text-[#675f57]">Nessun extra collegato a questa sessione.</p> : session.extras.map((extra) => (
               <article className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0" key={extra.id}>
                 <div>
-                  <p className="text-sm font-semibold">{extra.service_name} - {euro.format(extra.price_cents / 100)}</p>
+                  <p className="text-sm font-semibold">{extra.service_name}{extra.quantity > 1 ? ` × ${extra.quantity}` : ""} - {euro.format((extra.price_cents * extra.quantity) / 100)}</p>
                   {extra.notes ? <p className="mt-1 text-xs text-[#675f57]">{extra.notes}</p> : null}
                 </div>
                 <button className="text-sm font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => deleteExtra(extra.id)} type="button">Elimina</button>

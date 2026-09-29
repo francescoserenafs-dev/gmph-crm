@@ -8,7 +8,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/ses
 
   const { data, error } = await supabaseAdmin
     .from("session_extras")
-    .select("id, service_type_id, service_name, price_cents, notes, created_at")
+    .select("id, service_type_id, service_name, price_cents, quantity, notes, created_at")
     .eq("session_id", id)
     .order("created_at", { ascending: true });
 

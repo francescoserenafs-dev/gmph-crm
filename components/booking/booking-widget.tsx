@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, MapPi
 import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingFormFieldConfig, type BookingFormFieldKey } from "@/lib/booking";
 import { ItalianDateInput } from "@/components/shared/italian-date-input";
 
+type PublicAddon = { id: string; category: "digital" | "print"; name: string; priceCents: number; maxQuantity: number | null };
 type PublicEventType = {
   slug: string;
   name: string;
@@ -17,10 +18,14 @@ type PublicEventType = {
   weekendPriceCents: number;
   askImageConsent: boolean;
   formFields: BookingFormFieldConfig;
+  addonsDigitalMode: "single" | "multiple";
+  addonsPrintMode: "single" | "multiple";
+  depositCents: number;
+  addons: PublicAddon[];
 };
 
 type Confirmation = { startsAt: string; durationMinutes: number; location: string | null };
-type BookingStep = "calendar" | "time" | "details";
+type BookingStep = "calendar" | "time" | "details" | "extras";
 
 const TIME_ZONE = "Europe/Rome";
 const WEEK_DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -64,6 +69,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", birthDate: "", participantsCount: "", notes: "", privacyConsent: false, imageConsent: false });
+  const [addonQty, setAddonQty] = useState<Record<string, number>>({});
   const captchaRef = useRef<HTMLDivElement | null>(null);
 
   async function loadAvailability() {
@@ -118,7 +124,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
       const response = await fetch(`/api/public/booking/${slug}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...fields, slotStart: selectedSlot, captchaToken }),
+        body: JSON.stringify({ ...fields, slotStart: selectedSlot, captchaToken, addons: Object.entries(addonQty).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ id, quantity })) }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -153,6 +159,38 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
   };
   const canSubmit = Boolean(selectedSlot && fields.privacyConsent && Object.entries(formFields).every(([key, config]) => !config.enabled || !config.required || hasValue[key as BookingFormFieldKey]));
   const requiredMark = <span className="text-[#a53e31]"> *</span>;
+
+  const hasAddons = (eventType?.addons.length ?? 0) > 0;
+  const sessionPriceCents = priceCents ?? 0;
+  const addonLines = (eventType?.addons ?? []).filter((addon) => (addonQty[addon.id] ?? 0) > 0).map((addon) => ({ addon, quantity: addonQty[addon.id], lineCents: addon.priceCents * addonQty[addon.id] }));
+  const addonsTotalCents = addonLines.reduce((sum, line) => sum + line.lineCents, 0);
+  const orderTotalCents = sessionPriceCents + addonsTotalCents;
+  const depositCents = eventType ? Math.min(eventType.depositCents, orderTotalCents) : 0;
+  const balanceCents = orderTotalCents - depositCents;
+
+  function selectSingle(category: "digital" | "print", addonId: string) {
+    const ids = new Set((eventType?.addons ?? []).filter((addon) => addon.category === category).map((addon) => addon.id));
+    setAddonQty((current) => {
+      const next: Record<string, number> = {};
+      for (const [id, quantity] of Object.entries(current)) if (!ids.has(id)) next[id] = quantity;
+      next[addonId] = current[addonId] ?? 1;
+      return next;
+    });
+  }
+
+  function toggleAddon(addonId: string, on: boolean) {
+    setAddonQty((current) => {
+      const next = { ...current };
+      if (on) next[addonId] = current[addonId] ?? 1;
+      else delete next[addonId];
+      return next;
+    });
+  }
+
+  function changeQty(addon: PublicAddon, quantity: number) {
+    const capped = Math.max(1, addon.maxQuantity ? Math.min(quantity, addon.maxQuantity) : quantity);
+    setAddonQty((current) => ({ ...current, [addon.id]: capped }));
+  }
 
   return (
     <main className="min-h-screen bg-[#fdfbf8] px-4 py-10 text-[#27231f] sm:px-8 lg:px-12">
@@ -334,11 +372,75 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                         ) : null}
                       </div>
 
+                      {turnstileSiteKey && !hasAddons ? <div className="cf-turnstile mt-5" data-sitekey={turnstileSiteKey} ref={captchaRef} /> : null}
+
+                      <button className="mt-6 w-full bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-opacity disabled:opacity-50 sm:w-auto" disabled={!canSubmit || submitting} onClick={() => (hasAddons ? setStep("extras") : void submit())} type="button">
+                        {hasAddons ? "Continua" : submitting ? "Invio in corso..." : "Conferma prenotazione"}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {step === "extras" && selectedSlot ? (
+                    <div>
+                      <button className="flex items-center gap-2 text-xs font-semibold text-[#675f57] hover:text-[#9b5d43]" onClick={() => setStep("details")} type="button"><ArrowLeft className="size-4" />Torna ai dati</button>
+                      <h2 className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">4 · Aggiungi foto e stampe</h2>
+                      <p className="mt-2 text-sm text-[#675f57]">Puoi aggiungere ora, a un prezzo dedicato, foto digitali e stampe. È facoltativo.</p>
+
+                      {([["digital", "Foto digitali", eventType.addonsDigitalMode], ["print", "Stampe", eventType.addonsPrintMode]] as const).map(([category, title, mode]) => {
+                        const items = eventType.addons.filter((addon) => addon.category === category);
+                        if (items.length === 0) return null;
+                        return (
+                          <div className="mt-6" key={category}>
+                            <h3 className="text-sm font-semibold">{title}{mode === "single" ? <span className="ml-2 text-xs font-normal text-[#8a8177]">(scegli un&apos;opzione)</span> : null}</h3>
+                            <div className="mt-3 space-y-2">
+                              {items.map((addon) => {
+                                const selected = (addonQty[addon.id] ?? 0) > 0;
+                                return (
+                                  <div className={`flex flex-wrap items-center justify-between gap-3 border px-4 py-3 ${selected ? "border-[#9b5d43] bg-[#f8eee8]" : "border-[#ddd4c8]"}`} key={addon.id}>
+                                    <label className="flex items-center gap-3 text-sm">
+                                      <input checked={selected} name={mode === "single" ? `addon-${category}` : undefined} onChange={(event) => (mode === "single" ? selectSingle(category, addon.id) : toggleAddon(addon.id, event.target.checked))} type={mode === "single" ? "radio" : "checkbox"} />
+                                      <span><span className="font-medium">{addon.name}</span> · {formatPrice(addon.priceCents)}</span>
+                                    </label>
+                                    {selected ? (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className="text-xs text-[#675f57]">Quantità</span>
+                                        <input className="h-9 w-16 border border-[#ddd4c8] bg-white px-2 text-sm" min={1} max={addon.maxQuantity ?? undefined} onChange={(event) => changeQty(addon, Number(event.target.value))} type="number" value={addonQty[addon.id]} />
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className="mt-7 border-t border-[#eee7dd] pt-5">
+                        <h3 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">Riepilogo ordine</h3>
+                        <dl className="mt-3 space-y-2 text-sm">
+                          <div className="flex items-center justify-between gap-4"><dt>Sessione{selectedDate ? ` · ${formatFullDate(selectedDate)}` : ""}</dt><dd className="tabular-nums">{formatPrice(sessionPriceCents)}</dd></div>
+                          {addonLines.map((line) => (
+                            <div className="flex items-center justify-between gap-4 text-[#675f57]" key={line.addon.id}><dt>{line.addon.name}{line.quantity > 1 ? ` × ${line.quantity}` : ""}</dt><dd className="tabular-nums">{formatPrice(line.lineCents)}</dd></div>
+                          ))}
+                          <div className="flex items-center justify-between gap-4 border-t border-[#eee7dd] pt-2 text-base font-semibold"><dt>Totale ordine</dt><dd className="tabular-nums">{formatPrice(orderTotalCents)}</dd></div>
+                          {depositCents > 0 ? (
+                            <>
+                              <div className="flex items-center justify-between gap-4"><dt>Caparra (ora)</dt><dd className="tabular-nums">{formatPrice(depositCents)}</dd></div>
+                              <div className="flex items-center justify-between gap-4 text-[#675f57]"><dt>Saldo (in seguito)</dt><dd className="tabular-nums">{formatPrice(balanceCents)}</dd></div>
+                            </>
+                          ) : null}
+                        </dl>
+                        <p className="mt-3 text-xs text-[#8a8177]">Nessun pagamento online: riceverai a breve le istruzioni per saldare caparra e importo residuo.</p>
+                      </div>
+
                       {turnstileSiteKey ? <div className="cf-turnstile mt-5" data-sitekey={turnstileSiteKey} ref={captchaRef} /> : null}
 
-                      <button className="mt-6 w-full bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-opacity disabled:opacity-50 sm:w-auto" disabled={!canSubmit || submitting} onClick={() => void submit()} type="button">
-                        {submitting ? "Invio in corso..." : "Conferma prenotazione"}
-                      </button>
+                      <div className="mt-6 flex flex-wrap items-center gap-4">
+                        <button className="w-full bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-opacity disabled:opacity-50 sm:w-auto" disabled={submitting} onClick={() => void submit()} type="button">
+                          {submitting ? "Invio in corso..." : "Conferma prenotazione"}
+                        </button>
+                        <button className="text-sm font-semibold text-[#675f57] hover:text-[#9b5d43] disabled:opacity-50" disabled={submitting} onClick={() => { setAddonQty({}); void submit(); }} type="button">Salta senza extra</button>
+                      </div>
                     </div>
                   ) : null}
                 </>

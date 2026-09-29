@@ -6,7 +6,7 @@ import { parseLocalDateTime } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(price_cents)";
+const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(price_cents,quantity)";
 
 type SessionRow = {
   id: string;
@@ -17,7 +17,7 @@ type SessionRow = {
   client: { id: string } | null;
   current_stage: { id: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { price_cents: number }[];
+  extras: { price_cents: number; quantity: number }[];
 };
 
 export async function GET(request: NextRequest) {
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     if (serviceTypeIds.length > 0 && !serviceTypeIds.includes(session.service_type_id)) return false;
     if (stageIds.length > 0 && !(session.current_stage && stageIds.includes(session.current_stage.id))) return false;
     const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
+    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0);
     const status = totalDue === 0 ? "paid" : paid === 0 ? "unpaid" : paid < totalDue ? "partial" : "paid";
     return paymentStatuses.length === 0 || paymentStatuses.includes(status);
   }).sort((first, second) => {

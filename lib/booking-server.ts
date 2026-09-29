@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import sanitizeHtml from "sanitize-html";
-import { BOOKING_FORM_FIELD_KEYS, DEFAULT_BOOKING_FORM_FIELDS, type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BusyInterval, computeAvailableDays } from "@/lib/booking";
+import { BOOKING_FORM_FIELD_KEYS, DEFAULT_BOOKING_FORM_FIELDS, type BookingAddon, type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BusyInterval, computeAvailableDays } from "@/lib/booking";
 import { addDaysToDateKey, parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const EVENT_TYPE_COLUMNS =
-  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, visibility_start_date, visibility_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, form_fields, is_active, created_at, updated_at";
+  "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, visibility_start_date, visibility_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, addons_digital_mode, addons_print_mode, deposit_cents, form_fields, is_active, created_at, updated_at";
+
+export type ParsedAddon = { category: "digital" | "print"; name: string; price_cents: number; max_quantity: number | null; is_active: boolean; sort_order: number };
 
 export type ParsedEventType = {
   row: Record<string, unknown>;
   rules: Array<{ weekday: number; start_time: string; end_time: string }>;
   exceptions: Array<{ exception_date: string; is_closed: boolean; start_time: string | null; end_time: string | null; note: string | null }>;
+  addons: ParsedAddon[];
 };
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -114,6 +117,28 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
     }
   }
 
+  const modeOf = (value: unknown, fallback: "single" | "multiple") => (value === "single" || value === "multiple" ? value : fallback);
+  const addonsDigitalMode = modeOf(body.addonsDigitalMode, "single");
+  const addonsPrintMode = modeOf(body.addonsPrintMode, "multiple");
+
+  const depositEuros = Number(body.depositEuros ?? 0);
+  if (!Number.isInteger(depositEuros) || depositEuros < 0) return "La caparra deve essere un importo intero non negativo.";
+
+  const addons: ParsedAddon[] = [];
+  for (const raw of Array.isArray(body.addons) ? body.addons : []) {
+    const item = raw as Record<string, unknown>;
+    const category = item.category === "digital" || item.category === "print" ? item.category : null;
+    const addonName = typeof item.name === "string" ? item.name.trim() : "";
+    const priceEuros = Number(item.priceEuros);
+    if (!category) return "Categoria pacchetto non valida.";
+    if (!addonName) return "Ogni pacchetto aggiuntivo deve avere un nome.";
+    if (!Number.isInteger(priceEuros) || priceEuros < 0) return "Il prezzo di ogni pacchetto deve essere un intero non negativo.";
+    const rawMax = item.maxQuantity;
+    const maxQuantity = rawMax === null || rawMax === undefined || rawMax === "" ? null : Number(rawMax);
+    if (maxQuantity !== null && (!Number.isInteger(maxQuantity) || maxQuantity <= 0)) return "La quantità massima di un pacchetto deve essere un intero positivo.";
+    addons.push({ category, name: addonName, price_cents: priceEuros * 100, max_quantity: maxQuantity, is_active: item.isActive !== false, sort_order: addons.length });
+  }
+
   return {
     row: {
       slug,
@@ -134,11 +159,15 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
       max_bookings_per_day: maxBookingsPerDay,
       max_bookings_total: maxBookingsTotal,
       ask_image_consent: body.askImageConsent !== false,
+      addons_digital_mode: addonsDigitalMode,
+      addons_print_mode: addonsPrintMode,
+      deposit_cents: depositEuros * 100,
       form_fields: parseFormFields(body.formFields ?? DEFAULT_BOOKING_FORM_FIELDS),
       is_active: body.isActive === true,
     },
     rules,
     exceptions,
+    addons,
   };
 }
 
@@ -154,8 +183,25 @@ export async function replaceAvailability(eventTypeId: string, parsed: ParsedEve
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (parsed.exceptions.length > 0) {
-    const { error } = await supabaseAdmin.from("booking_availability_exceptions").insert(parsed.exceptions.map((entry) => ({ ...entry, event_type_id: eventTypeId })));
+  return null;
+}
+
+const ADDON_COLUMNS = "id, event_type_id, category, name, price_cents, max_quantity, is_active, sort_order";
+
+export async function loadEventTypeAddons(eventTypeId: string, activeOnly = false): Promise<BookingAddon[]> {
+  let query = supabaseAdmin.from("booking_addons").select(ADDON_COLUMNS).eq("event_type_id", eventTypeId);
+  if (activeOnly) query = query.eq("is_active", true);
+  const { data } = await query.order("category", { ascending: true }).order("sort_order", { ascending: true });
+  return (data as BookingAddon[] | null) ?? [];
+}
+
+// Sostituisce interamente i pacchetti dell'evento (delete + reinsert, come per le regole di disponibilita').
+export async function replaceAddons(eventTypeId: string, addons: ParsedAddon[]): Promise<NextResponse | null> {
+  const del = await supabaseAdmin.from("booking_addons").delete().eq("event_type_id", eventTypeId);
+  if (del.error) return NextResponse.json({ error: del.error.message }, { status: 500 });
+
+  if (addons.length > 0) {
+    const { error } = await supabaseAdmin.from("booking_addons").insert(addons.map((addon) => ({ ...addon, event_type_id: eventTypeId })));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { DEFAULT_BOOKING_FORM_FIELDS, type BookingFormFieldKey, priceForDate } from "@/lib/booking";
-import { loadActiveEventTypeBySlug, resolveAvailableDays } from "@/lib/booking-server";
+import { loadActiveEventTypeBySlug, loadEventTypeAddons, resolveAvailableDays } from "@/lib/booking-server";
 import { toLocalDateKey } from "@/lib/datetime";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
 import { clientIpFrom, isRateLimited } from "@/lib/rate-limit";
@@ -68,6 +68,28 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
   const stillFree = days.some((day) => day.slots.some((slot) => slot.startsAt === startsAt.toISOString()));
   if (!stillFree) return NextResponse.json({ error: "Questo orario non è più disponibile. Scegline un altro." }, { status: 409 });
 
+  const addonCatalog = await loadEventTypeAddons(eventType.id, true);
+  const addonById = new Map(addonCatalog.map((addon) => [addon.id, addon]));
+  const selectedAddons: { addon: (typeof addonCatalog)[number]; quantity: number }[] = [];
+  for (const raw of Array.isArray(body.addons) ? body.addons : []) {
+    const item = raw as Record<string, unknown>;
+    const addon = typeof item.id === "string" ? addonById.get(item.id) : undefined;
+    if (!addon) return NextResponse.json({ error: "Un'opzione selezionata non è più disponibile. Ricarica la pagina." }, { status: 400 });
+    if (selectedAddons.some((entry) => entry.addon.id === addon.id)) return NextResponse.json({ error: "Hai selezionato la stessa opzione più volte." }, { status: 400 });
+    const quantity = Number(item.quantity ?? 1);
+    if (!Number.isInteger(quantity) || quantity < 1) return NextResponse.json({ error: "Quantità non valida." }, { status: 400 });
+    if (addon.max_quantity !== null && quantity > addon.max_quantity) return NextResponse.json({ error: "Quantità superiore al massimo consentito." }, { status: 400 });
+    selectedAddons.push({ addon, quantity });
+  }
+  const digitalCount = selectedAddons.filter((entry) => entry.addon.category === "digital").length;
+  const printCount = selectedAddons.filter((entry) => entry.addon.category === "print").length;
+  if (eventType.addons_digital_mode === "single" && digitalCount > 1) return NextResponse.json({ error: "Puoi scegliere una sola opzione tra le foto digitali." }, { status: 400 });
+  if (eventType.addons_print_mode === "single" && printCount > 1) return NextResponse.json({ error: "Puoi scegliere una sola opzione tra le stampe." }, { status: 400 });
+
+  const sessionPriceCents = priceForDate(eventType, dateKey);
+  const addonsTotalCents = selectedAddons.reduce((sum, entry) => sum + entry.addon.price_cents * entry.quantity, 0);
+  const depositCents = Math.min(eventType.deposit_cents, sessionPriceCents + addonsTotalCents);
+
   const [{ data: service }, { data: stage }] = await Promise.all([
     supabaseAdmin.from("service_types").select("id, name").eq("id", eventType.service_type_id).maybeSingle(),
     supabaseAdmin.from("session_stages").select("id").eq("code", "booked").maybeSingle(),
@@ -112,7 +134,8 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
       location: eventType.location,
       notes,
       participants_count: formFields.participantsCount.enabled ? participantsCount : null,
-      agreed_price_cents: priceForDate(eventType, dateKey),
+      agreed_price_cents: sessionPriceCents,
+      deposit_cents: depositCents,
       current_stage_id: stage.id,
       image_consent_granted_at: eventType.ask_image_consent && imageConsent ? now : null,
       booking_event_type_id: eventType.id,
@@ -126,6 +149,19 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
     return NextResponse.json(
       { error: overlapping ? "Questo orario è appena stato occupato. Scegline un altro." : "Prenotazione non riuscita. Riprova." },
       { status: overlapping ? 409 : 500 },
+    );
+  }
+
+  if (selectedAddons.length > 0) {
+    await supabaseAdmin.from("session_extras").insert(
+      selectedAddons.map((entry) => ({
+        session_id: session.id,
+        service_type_id: null,
+        service_name: entry.addon.name,
+        price_cents: entry.addon.price_cents,
+        quantity: entry.quantity,
+        booking_addon_id: entry.addon.id,
+      })),
     );
   }
 

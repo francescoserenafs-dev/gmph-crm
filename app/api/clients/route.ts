@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     await Promise.all([
       supabaseAdmin
         .from("sessions")
-        .select("client_id, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), payments(amount_cents), extras:session_extras(price_cents)")
+        .select("client_id, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), payments(amount_cents), extras:session_extras(price_cents,quantity)")
         .in("client_id", clientIds),
       supabaseAdmin
         .from("gift_vouchers")
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
   const ltvByClient = new Map<string, number>();
   const balanceByClient = new Map<string, number>();
   for (const session of clientSessions) {
-    const extrasTotal = (session.extras ?? []).reduce((sum: number, extra: { price_cents: number }) => sum + extra.price_cents, 0);
+    const extrasTotal = (session.extras ?? []).reduce((sum: number, extra: { price_cents: number; quantity: number }) => sum + extra.price_cents * extra.quantity, 0);
     ltvByClient.set(session.client_id, (ltvByClient.get(session.client_id) ?? 0) + session.agreed_price_cents + extrasTotal);
     const stage = session.current_stage as { code?: string } | null;
     if (stage?.code !== "cancelled") {

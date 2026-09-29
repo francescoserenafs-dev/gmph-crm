@@ -34,10 +34,28 @@ export type BookingEventType = {
   max_bookings_per_day: number | null;
   max_bookings_total: number | null;
   ask_image_consent: boolean;
+  addons_digital_mode: AddonSelectionMode;
+  addons_print_mode: AddonSelectionMode;
+  deposit_cents: number;
   form_fields: BookingFormFieldConfig;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export const ADDON_CATEGORIES = ["digital", "print"] as const;
+export type AddonCategory = (typeof ADDON_CATEGORIES)[number];
+export type AddonSelectionMode = "single" | "multiple";
+
+export type BookingAddon = {
+  id: string;
+  event_type_id: string;
+  category: AddonCategory;
+  name: string;
+  price_cents: number;
+  max_quantity: number | null;
+  is_active: boolean;
+  sort_order: number;
 };
 
 export type BookingAvailabilityRule = {

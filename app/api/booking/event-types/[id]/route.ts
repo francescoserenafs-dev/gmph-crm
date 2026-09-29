@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { EVENT_TYPE_COLUMNS, parseEventTypePayload, replaceAvailability, sanitizeBookingDescription } from "@/lib/booking-server";
+import { EVENT_TYPE_COLUMNS, loadEventTypeAddons, parseEventTypePayload, replaceAddons, replaceAvailability, sanitizeBookingDescription } from "@/lib/booking-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -7,17 +7,18 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, context: RouteContext<"/api/booking/event-types/[id]">) {
   const { id } = await context.params;
 
-  const [eventType, rules, exceptions] = await Promise.all([
+  const [eventType, rules, exceptions, addons] = await Promise.all([
     supabaseAdmin.from("booking_event_types").select(EVENT_TYPE_COLUMNS).eq("id", id).maybeSingle(),
     supabaseAdmin.from("booking_availability_rules").select("id, event_type_id, weekday, start_time, end_time").eq("event_type_id", id).order("weekday").order("start_time"),
     supabaseAdmin.from("booking_availability_exceptions").select("id, event_type_id, exception_date, is_closed, start_time, end_time, note").eq("event_type_id", id).order("exception_date"),
+    loadEventTypeAddons(id),
   ]);
 
   const error = eventType.error ?? rules.error ?? exceptions.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!eventType.data) return NextResponse.json({ error: "Evento non trovato." }, { status: 404 });
 
-  return NextResponse.json({ eventType: { ...eventType.data, description: sanitizeBookingDescription(eventType.data.description) }, rules: rules.data ?? [], exceptions: exceptions.data ?? [] });
+  return NextResponse.json({ eventType: { ...eventType.data, description: sanitizeBookingDescription(eventType.data.description) }, rules: rules.data ?? [], exceptions: exceptions.data ?? [], addons });
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext<"/api/booking/event-types/[id]">) {
@@ -33,6 +34,9 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/bo
 
   const failure = await replaceAvailability(id, parsed);
   if (failure) return failure;
+
+  const addonFailure = await replaceAddons(id, parsed.addons);
+  if (addonFailure) return addonFailure;
 
   return NextResponse.json({ eventType: data });
 }

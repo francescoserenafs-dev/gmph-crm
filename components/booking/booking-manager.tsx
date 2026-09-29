@@ -10,6 +10,7 @@ type Service = { id: string; name: string; suggested_price_cents: number };
 type EventTypeRow = BookingEventType & { bookings_count: number };
 type RuleDraft = { weekday: number; startTime: string; endTime: string };
 type ExceptionDraft = { date: string; isClosed: boolean; startTime: string; endTime: string; note: string };
+type AddonDraft = { category: "digital" | "print"; name: string; priceEuros: string; maxQuantity: string; isActive: boolean };
 
 type FormState = {
   id: string | null;
@@ -36,6 +37,10 @@ type FormState = {
   isActive: boolean;
   rules: RuleDraft[];
   exceptions: ExceptionDraft[];
+  addonsDigitalMode: "single" | "multiple";
+  addonsPrintMode: "single" | "multiple";
+  depositEuros: string;
+  addons: AddonDraft[];
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -66,6 +71,10 @@ function emptyForm(): FormState {
     isActive: false,
     rules: [],
     exceptions: [],
+    addonsDigitalMode: "single",
+    addonsPrintMode: "multiple",
+    depositEuros: "",
+    addons: [],
   };
 }
 
@@ -171,6 +180,16 @@ export function BookingManager() {
           endTime: entry.end_time ? normalizeTime(entry.end_time) : "18:00",
           note: entry.note ?? "",
         })),
+        addonsDigitalMode: eventType.addons_digital_mode ?? "single",
+        addonsPrintMode: eventType.addons_print_mode ?? "multiple",
+        depositEuros: eventType.deposit_cents ? String(eventType.deposit_cents / 100) : "",
+        addons: (body.addons ?? []).map((addon: { category: "digital" | "print"; name: string; price_cents: number; max_quantity: number | null; is_active: boolean }) => ({
+          category: addon.category,
+          name: addon.name,
+          priceEuros: String(addon.price_cents / 100),
+          maxQuantity: addon.max_quantity === null ? "" : String(addon.max_quantity),
+          isActive: addon.is_active,
+        })),
       });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Impossibile aprire l'evento.");
@@ -203,6 +222,10 @@ export function BookingManager() {
       isActive: state.isActive,
       rules: state.rules,
       exceptions: state.exceptions.map((entry) => ({ date: entry.date, isClosed: entry.isClosed, startTime: entry.startTime, endTime: entry.endTime, note: entry.note })),
+      addonsDigitalMode: state.addonsDigitalMode,
+      addonsPrintMode: state.addonsPrintMode,
+      depositEuros: Number(state.depositEuros || 0),
+      addons: state.addons.map((addon) => ({ category: addon.category, name: addon.name.trim(), priceEuros: Number(addon.priceEuros || 0), maxQuantity: addon.maxQuantity === "" ? null : Number(addon.maxQuantity), isActive: addon.isActive })),
     };
   }
 
@@ -442,6 +465,44 @@ export function BookingManager() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-7 border-t border-[#e5ddd2] pt-5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#675f57]">Pacchetti aggiuntivi (checkout)</h3>
+              <p className="mt-1 text-xs text-[#8a8177]">Opzioni foto digitali e stampe proposte al cliente prima della conferma. Rientrano nel totale della sessione.</p>
+
+              {([["digital", "Foto digitali", form.addonsDigitalMode], ["print", "Stampe", form.addonsPrintMode]] as const).map(([category, title, mode]) => (
+                <div className="mt-5" key={category}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h4 className="text-sm font-semibold">{title}</h4>
+                      <select className="h-9 border border-[#cfc5b8] bg-white px-2 text-xs" onChange={(event) => update(category === "digital" ? { addonsDigitalMode: event.target.value as "single" | "multiple" } : { addonsPrintMode: event.target.value as "single" | "multiple" })} value={mode}>
+                        <option value="single">Scelta esclusiva (una sola opzione)</option>
+                        <option value="multiple">Scelta multipla</option>
+                      </select>
+                    </div>
+                    <button className="flex items-center gap-2 border border-[#d8d0c5] px-3 py-2 text-xs font-semibold transition-colors hover:border-[#9b5d43]" onClick={() => update({ addons: [...form.addons, { category, name: "", priceEuros: "", maxQuantity: "", isActive: true }] })} type="button"><Plus className="size-4 text-[#9b5d43]" strokeWidth={1.8} />Aggiungi pacchetto</button>
+                  </div>
+                  {form.addons.filter((addon) => addon.category === category).length === 0 ? <p className="mt-3 text-sm text-[#8a8177]">Nessun pacchetto.</p> : null}
+                  <div className="mt-3 space-y-2">
+                    {form.addons.map((addon, index) => (addon.category !== category ? null : (
+                      <div className="grid gap-2 sm:grid-cols-[1fr_7rem_7rem_auto_auto]" key={index}>
+                        <input className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, name: event.target.value } : item)) })} placeholder="Nome (es. 5 foto digitali)" value={addon.name} />
+                        <input className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" min={0} onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, priceEuros: event.target.value } : item)) })} placeholder="€" type="number" value={addon.priceEuros} />
+                        <input className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" min={1} onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, maxQuantity: event.target.value } : item)) })} placeholder="Qtà max" type="number" value={addon.maxQuantity} />
+                        <label className="flex items-center gap-2 text-xs"><input checked={addon.isActive} onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, isActive: event.target.checked } : item)) })} type="checkbox" />Attivo</label>
+                        <button aria-label="Rimuovi pacchetto" className="flex h-10 w-10 items-center justify-center border border-[#d8d0c5] transition-colors hover:border-[#a53e31]" onClick={() => update({ addons: form.addons.filter((_, position) => position !== index) })} type="button"><Trash2 className="size-4 text-[#a53e31]" strokeWidth={1.8} /></button>
+                      </div>
+                    )))}
+                  </div>
+                </div>
+              ))}
+
+              <label className="mt-6 block text-sm sm:max-w-xs">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#675f57]">Caparra richiesta (€)</span>
+                <input className="mt-1 h-10 w-full border border-[#cfc5b8] bg-white px-3 text-sm" min={0} onChange={(event) => update({ depositEuros: event.target.value })} placeholder="0 = nessuna caparra" type="number" value={form.depositEuros} />
+                <span className="mt-1 block text-xs text-[#8a8177]">Mostrata al cliente nel riepilogo, con il saldo residuo.</span>
+              </label>
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3 border-t border-[#e5ddd2] pt-5">

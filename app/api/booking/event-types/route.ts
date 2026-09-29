@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { EVENT_TYPE_COLUMNS, parseEventTypePayload, replaceAvailability } from "@/lib/booking-server";
+import { EVENT_TYPE_COLUMNS, parseEventTypePayload, replaceAddons, replaceAvailability } from "@/lib/booking-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
   if (failure) {
     await supabaseAdmin.from("booking_event_types").delete().eq("id", data.id);
     return failure;
+  }
+
+  const addonFailure = await replaceAddons(data.id, parsed.addons);
+  if (addonFailure) {
+    await supabaseAdmin.from("booking_event_types").delete().eq("id", data.id);
+    return addonFailure;
   }
 
   return NextResponse.json({ eventType: data }, { status: 201 });

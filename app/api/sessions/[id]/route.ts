@@ -7,7 +7,7 @@ import { parseLocalDateTime } from "@/lib/datetime";
 export const dynamic = "force-dynamic";
 
 const sessionFields =
-  "id, scheduled_at, duration_minutes, participants_count, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, booked_online_at, icloud_event_url, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name,privacy_consent_granted_at,privacy_consent_revoked_at), payments(id,amount_cents,voucher_unused_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,notes,created_at)";
+  "id, scheduled_at, duration_minutes, participants_count, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, booked_online_at, icloud_event_url, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name,privacy_consent_granted_at,privacy_consent_revoked_at), payments(id,amount_cents,voucher_unused_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,quantity,notes,created_at)";
 
 async function loadSession(id: string) {
   return supabaseAdmin.from("sessions").select(sessionFields).eq("id", id).maybeSingle();

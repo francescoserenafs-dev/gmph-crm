@@ -22,7 +22,7 @@ type Session = {
   client: { id: string; first_name: string; last_name: string } | null;
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { price_cents: number }[];
+  extras: { price_cents: number; quantity: number }[];
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
@@ -91,8 +91,8 @@ function toLocalInput(date: Date) {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
-function totalDue(session: { agreed_price_cents: number; extras: { price_cents: number }[] }) {
-  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents, 0);
+function totalDue(session: { agreed_price_cents: number; extras: { price_cents: number; quantity: number }[] }) {
+  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0);
 }
 
 export function SessionDirectory() {
@@ -575,7 +575,7 @@ export function SessionDirectory() {
                   "Data/ora": dateTime.format(new Date(session.scheduled_at)),
                   "Durata (min)": session.duration_minutes,
                   "Prezzo concordato": (session.agreed_price_cents / 100).toFixed(2),
-                  Extra: (session.extras.reduce((sum, extra) => sum + extra.price_cents, 0) / 100).toFixed(2),
+                  Extra: (session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0) / 100).toFixed(2),
                   "Totale dovuto": (totalDue(session) / 100).toFixed(2),
                   Pagato: (session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) / 100).toFixed(2),
                   Avanzamento: session.current_stage?.name ?? "",
