@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const EVENT_TYPE_COLUMNS =
   "id, slug, name, description, service_type_id, duration_minutes, buffer_minutes, location, weekday_price_cents, weekend_price_cents, show_price, window_start_date, window_end_date, visibility_start_date, visibility_end_date, min_notice_hours, max_bookings_per_day, max_bookings_total, ask_image_consent, addons_digital_mode, addons_print_mode, deposit_cents, form_fields, is_active, created_at, updated_at";
 
-export type ParsedAddon = { category: "digital" | "print"; name: string; price_cents: number; max_quantity: number | null; is_active: boolean; sort_order: number };
+export type ParsedAddon = { category: "digital" | "print"; name: string; tooltip: string | null; price_cents: number; max_quantity: number | null; is_active: boolean; sort_order: number };
 
 export type ParsedEventType = {
   row: Record<string, unknown>;
@@ -166,7 +166,8 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
     const rawMax = item.maxQuantity;
     const maxQuantity = rawMax === null || rawMax === undefined || rawMax === "" ? null : Number(rawMax);
     if (maxQuantity !== null && (!Number.isInteger(maxQuantity) || maxQuantity <= 0)) return "La quantità massima di un pacchetto deve essere un intero positivo.";
-    addons.push({ category, name: addonName, price_cents: priceEuros * 100, max_quantity: maxQuantity, is_active: item.isActive !== false, sort_order: addons.length });
+    const tooltip = typeof item.tooltip === "string" ? item.tooltip.trim() || null : null;
+    addons.push({ category, name: addonName, tooltip, price_cents: priceEuros * 100, max_quantity: maxQuantity, is_active: item.isActive !== false, sort_order: addons.length });
   }
 
   const formFields = parseFormFields(body.formFields);
@@ -219,7 +220,7 @@ export async function replaceAvailability(eventTypeId: string, parsed: ParsedEve
   return null;
 }
 
-const ADDON_COLUMNS = "id, event_type_id, category, name, price_cents, max_quantity, is_active, sort_order";
+const ADDON_COLUMNS = "id, event_type_id, category, name, tooltip, price_cents, max_quantity, is_active, sort_order";
 
 export async function loadEventTypeAddons(eventTypeId: string, activeOnly = false): Promise<BookingAddon[]> {
   let query = supabaseAdmin.from("booking_addons").select(ADDON_COLUMNS).eq("event_type_id", eventTypeId);

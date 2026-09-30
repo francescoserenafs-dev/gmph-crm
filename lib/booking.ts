@@ -133,6 +133,7 @@ export type BookingAddon = {
   event_type_id: string;
   category: AddonCategory;
   name: string;
+  tooltip: string | null;
   price_cents: number;
   max_quantity: number | null;
   is_active: boolean;

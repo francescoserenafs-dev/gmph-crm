@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/api/publ
       addonsDigitalMode: eventType.addons_digital_mode,
       addonsPrintMode: eventType.addons_print_mode,
       depositCents: eventType.deposit_cents,
-      addons: addons.map((addon) => ({ id: addon.id, category: addon.category, name: addon.name, priceCents: addon.price_cents, maxQuantity: addon.max_quantity })),
+      addons: addons.map((addon) => ({ id: addon.id, category: addon.category, name: addon.name, tooltip: addon.tooltip, priceCents: addon.price_cents, maxQuantity: addon.max_quantity })),
     },
     days,
   });

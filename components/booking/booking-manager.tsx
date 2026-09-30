@@ -10,7 +10,7 @@ type Service = { id: string; name: string; suggested_price_cents: number };
 type EventTypeRow = BookingEventType & { bookings_count: number };
 type RuleDraft = { weekday: number; startTime: string; endTime: string };
 type ExceptionDraft = { date: string; isClosed: boolean; startTime: string; endTime: string; note: string };
-type AddonDraft = { category: "digital" | "print"; name: string; priceEuros: string; maxQuantity: string; isActive: boolean };
+type AddonDraft = { category: "digital" | "print"; name: string; tooltip: string; priceEuros: string; maxQuantity: string; isActive: boolean };
 
 type FormState = {
   id: string | null;
@@ -183,9 +183,10 @@ export function BookingManager() {
         addonsDigitalMode: eventType.addons_digital_mode ?? "single",
         addonsPrintMode: eventType.addons_print_mode ?? "multiple",
         depositEuros: eventType.deposit_cents ? String(eventType.deposit_cents / 100) : "",
-        addons: (body.addons ?? []).map((addon: { category: "digital" | "print"; name: string; price_cents: number; max_quantity: number | null; is_active: boolean }) => ({
+        addons: (body.addons ?? []).map((addon: { category: "digital" | "print"; name: string; tooltip: string | null; price_cents: number; max_quantity: number | null; is_active: boolean }) => ({
           category: addon.category,
           name: addon.name,
+          tooltip: addon.tooltip ?? "",
           priceEuros: String(addon.price_cents / 100),
           maxQuantity: addon.max_quantity === null ? "" : String(addon.max_quantity),
           isActive: addon.is_active,
@@ -225,7 +226,7 @@ export function BookingManager() {
       addonsDigitalMode: state.addonsDigitalMode,
       addonsPrintMode: state.addonsPrintMode,
       depositEuros: Number(state.depositEuros || 0),
-      addons: state.addons.map((addon) => ({ category: addon.category, name: addon.name.trim(), priceEuros: Number(addon.priceEuros || 0), maxQuantity: addon.maxQuantity === "" ? null : Number(addon.maxQuantity), isActive: addon.isActive })),
+      addons: state.addons.map((addon) => ({ category: addon.category, name: addon.name.trim(), tooltip: addon.tooltip.trim(), priceEuros: Number(addon.priceEuros || 0), maxQuantity: addon.maxQuantity === "" ? null : Number(addon.maxQuantity), isActive: addon.isActive })),
     };
   }
 
@@ -501,7 +502,7 @@ export function BookingManager() {
                         <option value="multiple">Scelta multipla</option>
                       </select>
                     </div>
-                    <button className="flex items-center gap-2 border border-[#d8d0c5] px-3 py-2 text-xs font-semibold transition-colors hover:border-[#9b5d43]" onClick={() => update({ addons: [...form.addons, { category, name: "", priceEuros: "", maxQuantity: "", isActive: true }] })} type="button"><Plus className="size-4 text-[#9b5d43]" strokeWidth={1.8} />Aggiungi pacchetto</button>
+                    <button className="flex items-center gap-2 border border-[#d8d0c5] px-3 py-2 text-xs font-semibold transition-colors hover:border-[#9b5d43]" onClick={() => update({ addons: [...form.addons, { category, name: "", tooltip: "", priceEuros: "", maxQuantity: "", isActive: true }] })} type="button"><Plus className="size-4 text-[#9b5d43]" strokeWidth={1.8} />Aggiungi pacchetto</button>
                   </div>
                   {form.addons.filter((addon) => addon.category === category).length === 0 ? <p className="mt-3 text-sm text-[#8a8177]">Nessun pacchetto.</p> : null}
                   <div className="mt-3 space-y-2">
@@ -512,6 +513,10 @@ export function BookingManager() {
                         <input className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" min={1} onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, maxQuantity: event.target.value } : item)) })} placeholder="Qtà max" type="number" value={addon.maxQuantity} />
                         <label className="flex items-center gap-2 text-xs"><input checked={addon.isActive} onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, isActive: event.target.checked } : item)) })} type="checkbox" />Attivo</label>
                         <button aria-label="Rimuovi pacchetto" className="flex h-10 w-10 items-center justify-center border border-[#d8d0c5] transition-colors hover:border-[#a53e31]" onClick={() => update({ addons: form.addons.filter((_, position) => position !== index) })} type="button"><Trash2 className="size-4 text-[#a53e31]" strokeWidth={1.8} /></button>
+                        <label className="block text-xs text-[#675f57] sm:col-span-5">
+                          Testo info (facoltativo)
+                          <textarea className="mt-1 block w-full resize-y border border-[#cfc5b8] bg-white px-3 py-2 text-sm text-[#302b27]" onChange={(event) => update({ addons: form.addons.map((item, position) => (position === index ? { ...item, tooltip: event.target.value } : item)) })} rows={2} value={addon.tooltip} />
+                        </label>
                       </div>
                     )))}
                   </div>

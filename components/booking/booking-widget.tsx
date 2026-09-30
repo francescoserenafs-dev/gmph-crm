@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MapPin, Minus, Plus } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Info, MapPin, Minus, Plus } from "lucide-react";
 import { DEFAULT_BOOKING_FORM_FIELD_ITEMS, type BookingDay, type BookingFormFieldItem, type BookingFormFieldKey } from "@/lib/booking";
 import { ItalianDateInput } from "@/components/shared/italian-date-input";
 
-type PublicAddon = { id: string; category: "digital" | "print"; name: string; priceCents: number; maxQuantity: number | null };
+type PublicAddon = { id: string; category: "digital" | "print"; name: string; tooltip: string | null; priceCents: number; maxQuantity: number | null };
 type PublicEventType = {
   slug: string;
   name: string;
@@ -55,6 +55,41 @@ function shiftMonth(monthKey: string, offset: number): string {
   const [year, month] = monthKey.split("-").map(Number);
   const shifted = new Date(year, month - 1 + offset, 1);
   return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function AddonInfo({ name, text }: { name: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const tooltipId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    function dismissOutside(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <span className="shrink-0" onPointerEnter={(event) => { if (event.pointerType === "mouse") setOpen(true); }} onPointerLeave={(event) => { if (event.pointerType === "mouse") setOpen(false); }} ref={containerRef}>
+      <button aria-label={`Informazioni su ${name}`} aria-describedby={open ? tooltipId : undefined} aria-expanded={open} className="grid size-10 place-items-center text-[#9b5d43] hover:text-[#75432f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b5d43]" onBlur={() => setOpen(false)} onClick={() => setOpen((current) => !current)} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) setOpen(true); }} type="button">
+        <Info aria-hidden="true" className="size-4" />
+      </button>
+      {open ? (
+        <span className="absolute left-0 top-full z-20 w-full pt-1" id={tooltipId} role="tooltip">
+          <span className="block max-h-60 overflow-y-auto whitespace-pre-wrap break-words rounded border border-[#d8d0c5] bg-white px-3 py-2 text-sm font-normal text-[#302b27] shadow-lg">{text}</span>
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnstileSiteKey: string | null }) {
@@ -477,10 +512,13 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                                 const selected = (addonQty[addon.id] ?? 0) > 0;
                                 return (
                                   <div className={`flex flex-wrap items-center justify-between gap-3 border px-4 py-3 ${selected ? "border-[#9b5d43] bg-[#f8eee8]" : "border-[#ddd4c8]"}`} key={addon.id}>
+                                    <div className="relative flex w-full min-w-0 items-center gap-1 sm:w-auto sm:flex-1">
                                     <label className="flex min-w-0 items-center gap-3 text-sm">
                                       <input className="shrink-0" checked={selected} name={mode === "single" ? `addon-${category}` : undefined} onClick={mode === "single" && selected ? () => toggleAddon(addon.id, false) : undefined} onChange={(event) => (mode === "single" ? selectSingle(category, addon.id) : toggleAddon(addon.id, event.target.checked))} type={mode === "single" ? "radio" : "checkbox"} />
-                                      <span className="min-w-0"><span className="font-medium">{addon.name}</span> · {formatPrice(addon.priceCents)}</span>
+                                      <span className="min-w-0 break-words"><span className="font-medium">{addon.name}</span> · {formatPrice(addon.priceCents)}</span>
                                     </label>
+                                    {addon.tooltip?.trim() ? <AddonInfo name={addon.name} text={addon.tooltip.trim()} /> : null}
+                                    </div>
                                     {selected ? (
                                       <div className="flex shrink-0 items-center gap-2 text-sm">
                                         <span className="text-xs text-[#675f57]">Quantità</span>
