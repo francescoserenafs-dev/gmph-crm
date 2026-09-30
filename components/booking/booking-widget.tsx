@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { ArrowLeft, CalendarDays, Check, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MapPin, Minus, Plus } from "lucide-react";
 import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingFormFieldConfig, type BookingFormFieldKey } from "@/lib/booking";
 import { ItalianDateInput } from "@/components/shared/italian-date-input";
 
@@ -68,8 +68,11 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", birthDate: "", participantsCount: "", notes: "", privacyConsent: false, imageConsent: false });
+  const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", birthDate: "", participantsCount: "", notes: "", privacyConsent: true, imageConsent: false });
   const [addonQty, setAddonQty] = useState<Record<string, number>>({});
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [descriptionSeen, setDescriptionSeen] = useState(false);
+  const [descriptionHint, setDescriptionHint] = useState(false);
   const captchaRef = useRef<HTMLDivElement | null>(null);
 
   async function loadAvailability() {
@@ -93,6 +96,10 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step, confirmation]);
 
   const availableDays = useMemo(() => new Map(days.map((day) => [day.date, day])), [days]);
   const firstAvailableMonth = days[0]?.date.slice(0, 7) ?? "";
@@ -157,7 +164,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     participantsCount: Boolean(fields.participantsCount),
     notes: Boolean(fields.notes.trim()),
   };
-  const canSubmit = Boolean(selectedSlot && fields.privacyConsent && Object.entries(formFields).every(([key, config]) => !config.enabled || !config.required || hasValue[key as BookingFormFieldKey]));
+  const canSubmit = Boolean(selectedSlot && Object.entries(formFields).every(([key, config]) => !config.enabled || !config.required || hasValue[key as BookingFormFieldKey]));
   const requiredMark = <span className="text-[#a53e31]"> *</span>;
 
   const hasAddons = (eventType?.addons.length ?? 0) > 0;
@@ -189,18 +196,28 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
 
   function changeQty(addon: PublicAddon, quantity: number) {
     const capped = Math.max(1, addon.maxQuantity ? Math.min(quantity, addon.maxQuantity) : quantity);
-    setAddonQty((current) => ({ ...current, [addon.id]: capped }));
+    const mode = addon.category === "digital" ? eventType?.addonsDigitalMode : eventType?.addonsPrintMode;
+    setAddonQty((current) => {
+      if (mode === "single") {
+        const ids = new Set((eventType?.addons ?? []).filter((item) => item.category === addon.category).map((item) => item.id));
+        const next: Record<string, number> = {};
+        for (const [id, value] of Object.entries(current)) if (!ids.has(id)) next[id] = value;
+        next[addon.id] = capped;
+        return next;
+      }
+      return { ...current, [addon.id]: capped };
+    });
   }
 
   return (
     <main className="min-h-screen bg-[#fdfbf8] px-4 py-10 text-[#27231f] sm:px-8 lg:px-12">
       {turnstileSiteKey ? <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" /> : null}
 
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <p className="text-center text-[0.7rem] font-semibold uppercase tracking-[0.34em] text-[#9b5d43]">Giulia Malosso Photography</p>
 
         {loading ? (
-          <div className="mt-8 grid gap-px overflow-hidden border border-[#e2d9cd] bg-[#e2d9cd] md:grid-cols-[20rem_1fr]" aria-hidden="true">
+          <div className="mt-8 grid gap-px overflow-hidden border border-[#e2d9cd] bg-[#e2d9cd] md:grid-cols-[24rem_1fr]" aria-hidden="true">
             <div className="animate-pulse space-y-4 bg-white p-7">
               <div className="h-8 w-3/4 bg-[#efe7dc]" />
               <div className="h-3 w-full bg-[#f2ece2]" />
@@ -218,12 +235,25 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
         ) : null}
 
         {!loading && eventType ? (
-          <div className="mt-8 grid gap-px overflow-hidden border border-[#e2d9cd] bg-[#e2d9cd] md:grid-cols-[20rem_1fr]">
-            <aside className="bg-white p-7">
-              <h1 className="font-serif text-3xl leading-tight">{eventType.name}</h1>
-              {eventType.description ? <div className="mt-4 text-sm leading-relaxed text-[#675f57] [&_font]:leading-relaxed [&_ol]:list-decimal [&_ol]:pl-5 [&_p+p]:mt-2 [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: eventType.description }} /> : null}
+          <div className={`mt-8 grid overflow-hidden md:grid-cols-[24rem_1fr] ${confirmation ? "gap-4 md:gap-6" : "gap-px border border-[#e2d9cd] bg-[#e2d9cd]"}`}>
+            <aside className={`flex flex-col bg-white p-5 md:p-7 ${confirmation ? "border border-[#e2d9cd]" : ""}`}>
+              <h1 className="font-serif text-2xl leading-tight md:text-3xl">{eventType.name}</h1>
+              {eventType.description ? (
+                <div className={step === "calendar" ? "" : "hidden md:block"}>
+                  <div className={`mt-4 text-sm leading-relaxed text-[#675f57] md:block md:max-h-[42vh] md:overflow-y-auto md:pr-2 [&_font]:leading-relaxed [&_ol]:list-decimal [&_ol]:pl-5 [&_p+p]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 ${descriptionOpen ? "" : "line-clamp-[7] md:line-clamp-none"}`} dangerouslySetInnerHTML={{ __html: eventType.description }} />
+                  <button
+                    aria-expanded={descriptionOpen}
+                    className="mt-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#9b5d43] md:hidden"
+                    onClick={() => { setDescriptionOpen((open) => !open); setDescriptionSeen(true); setDescriptionHint(false); }}
+                    type="button"
+                  >
+                    {descriptionOpen ? "Nascondi descrizione" : "Leggi tutta la descrizione"}
+                    <ChevronDown className={`size-4 transition-transform ${descriptionOpen ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+              ) : null}
 
-              <dl className="mt-7 space-y-3 border-t border-[#eee7dd] pt-6 text-sm text-[#4a443e]">
+              <dl className={`mt-7 space-y-3 border-t border-[#eee7dd] pt-6 text-sm text-[#4a443e] ${step === "calendar" ? "" : "hidden md:block"}`}>
                 <div className="flex items-center gap-3"><Clock className="size-4 shrink-0 text-[#9b5d43]" strokeWidth={1.6} /><span>{eventType.durationMinutes} minuti</span></div>
                 {eventType.location ? <div className="flex items-center gap-3"><MapPin className="size-4 shrink-0 text-[#9b5d43]" strokeWidth={1.6} /><span>{eventType.location}</span></div> : null}
                 {eventType.showPrice ? (
@@ -238,8 +268,8 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                 ) : null}
               </dl>
 
-              {selectedSlot ? (
-                <div className="mt-7 border-t border-[#eee7dd] pt-6">
+              {selectedSlot && !confirmation ? (
+                <div className="mt-5 border-t border-[#eee7dd] pt-4 md:mt-7 md:pt-6">
                   <p className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">Appuntamento scelto</p>
                   <p className="mt-2 text-sm font-medium capitalize">{selectedDate ? formatFullDate(selectedDate) : ""}</p>
                   <p className="text-sm text-[#675f57]">ore {formatTime(selectedSlot)}{priceCents !== null && eventType.showPrice ? ` · ${formatPrice(priceCents)}` : ""}</p>
@@ -247,14 +277,14 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
               ) : null}
             </aside>
 
-            <section className="bg-white p-7">
+            <section className={`bg-white p-7 ${confirmation ? "border border-[#e2d9cd]" : ""}`}>
               {confirmation ? (
                 <div className="py-10 text-center">
                   <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#eef3e3]"><Check className="size-6 text-[#4f6b33]" strokeWidth={2} /></span>
                   <h2 className="mt-5 font-serif text-2xl">Prenotazione confermata</h2>
                   <p className="mt-3 text-sm capitalize text-[#4a443e]">{formatFullDateFromIso(confirmation.startsAt)} · ore {formatTime(confirmation.startsAt)}</p>
                   {confirmation.location ? <p className="mt-1 text-sm text-[#675f57]">{confirmation.location}</p> : null}
-                  <p className="mx-auto mt-6 max-w-sm text-sm leading-relaxed text-[#675f57]">Grazie! L&apos;appuntamento è stato registrato</p>
+                  <p className="mx-auto mt-6 max-w-sm text-sm leading-relaxed text-[#675f57]">Grazie! L&apos;appuntamento è stato registrato. A breve riceverai un&apos;email con le istruzioni per pagare la caparra.</p>
                 </div>
               ) : (
                 <>
@@ -269,8 +299,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
 
                   {days.length > 0 && step === "calendar" ? (
                     <div>
-                      <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">1 · Scegli il giorno</h2>
-                      <div className="mx-auto mt-5 max-w-lg">
+                      <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">1 · Scegli il giorno</h2>                          {descriptionHint ? <p className="mt-3 border border-[#e2cfa6] bg-[#fbf4e6] px-3 py-2 text-xs leading-relaxed text-[#8a5a1f] md:hidden">Leggi prima la descrizione qui sopra, poi potrai scegliere il giorno.</p> : null}                      <div className="mx-auto mt-5 max-w-lg">
                         <div className="flex items-center justify-between gap-3">
                           <button aria-label="Mese precedente" className="grid size-10 place-items-center border border-[#ddd4c8] transition-colors hover:border-[#9b5d43] disabled:opacity-30" disabled={activeMonth <= firstAvailableMonth} onClick={() => setVisibleMonth(shiftMonth(activeMonth, -1))} title="Mese precedente" type="button"><ChevronLeft className="size-4" /></button>
                           <h3 className="font-serif text-xl capitalize">{calendarTitle}</h3>
@@ -290,7 +319,16 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                                 className={`aspect-square border text-sm tabular-nums transition-colors ${available ? "border-[#9b5d43] bg-[#f8eee8] font-semibold hover:bg-[#ead8ce]" : "border-[#eee8df] text-[#c1b8ad]"}`}
                                 disabled={!available}
                                 key={dateKey}
-                                onClick={() => { setSelectedDate(dateKey); setSelectedSlot(null); setStep("time"); }}
+                                onClick={() => {
+                                  if (eventType?.description && !descriptionSeen && typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+                                    setDescriptionHint(true);
+                                    return;
+                                  }
+                                  setDescriptionHint(false);
+                                  setSelectedDate(dateKey);
+                                  setSelectedSlot(null);
+                                  setStep("time");
+                                }}
                                 type="button"
                               >
                                 {day}
@@ -360,10 +398,6 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                       </div>
 
                       <div className="mt-5 space-y-3 text-sm text-[#4a443e]">
-                        <label className="flex items-start gap-3">
-                          <input checked={fields.privacyConsent} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, privacyConsent: event.target.checked }))} type="checkbox" />
-                          <span>Ho letto e accetto l&apos;informativa sul trattamento dei dati personali. <span className="text-[#a53e31]">*</span></span>
-                        </label>
                         {eventType.askImageConsent ? (
                           <label className="flex items-start gap-3">
                             <input checked={fields.imageConsent} className="mt-1" onChange={(event) => setFields((current) => ({ ...current, imageConsent: event.target.checked }))} type="checkbox" />
@@ -384,27 +418,33 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                     <div>
                       <button className="flex items-center gap-2 text-xs font-semibold text-[#675f57] hover:text-[#9b5d43]" onClick={() => setStep("details")} type="button"><ArrowLeft className="size-4" />Torna ai dati</button>
                       <h2 className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">4 · Aggiungi foto e stampe</h2>
-                      <p className="mt-2 text-sm text-[#675f57]">Puoi aggiungere ora, a un prezzo dedicato, foto digitali e stampe. È facoltativo.</p>
+                      <p className="mt-2 text-sm text-[#675f57]">Aggiungendo ora foto digitali e stampe, le acquisti a un prezzo più vantaggioso. Potrai scegliere i tuoi extra anche in un secondo momento, a un prezzo maggiorato.</p>
 
-                      {([["digital", "Foto digitali", eventType.addonsDigitalMode], ["print", "Stampe", eventType.addonsPrintMode]] as const).map(([category, title, mode]) => {
+                          <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                            <div className="min-w-0">
+                            {([["digital", "Foto Digitali Extra", eventType.addonsDigitalMode], ["print", "Stampe Extra", eventType.addonsPrintMode]] as const).map(([category, title, mode]) => {
                         const items = eventType.addons.filter((addon) => addon.category === category);
                         if (items.length === 0) return null;
                         return (
-                          <div className="mt-6" key={category}>
-                            <h3 className="text-sm font-semibold">{title}{mode === "single" ? <span className="ml-2 text-xs font-normal text-[#8a8177]">(scegli un&apos;opzione)</span> : null}</h3>
+                          <div className="mt-6 first:mt-0" key={category}>
+                            <h3 className="text-sm font-semibold">{title}<span className="ml-2 text-xs font-normal text-[#8a8177]">{mode === "single" ? "(scegli un'opzione)" : "(puoi selezionare più opzioni)"}</span></h3>
                             <div className="mt-3 space-y-2">
                               {items.map((addon) => {
                                 const selected = (addonQty[addon.id] ?? 0) > 0;
                                 return (
                                   <div className={`flex flex-wrap items-center justify-between gap-3 border px-4 py-3 ${selected ? "border-[#9b5d43] bg-[#f8eee8]" : "border-[#ddd4c8]"}`} key={addon.id}>
-                                    <label className="flex items-center gap-3 text-sm">
-                                      <input checked={selected} name={mode === "single" ? `addon-${category}` : undefined} onChange={(event) => (mode === "single" ? selectSingle(category, addon.id) : toggleAddon(addon.id, event.target.checked))} type={mode === "single" ? "radio" : "checkbox"} />
-                                      <span><span className="font-medium">{addon.name}</span> · {formatPrice(addon.priceCents)}</span>
+                                    <label className="flex min-w-0 items-center gap-3 text-sm">
+                                      <input className="shrink-0" checked={selected} name={mode === "single" ? `addon-${category}` : undefined} onClick={mode === "single" && selected ? () => toggleAddon(addon.id, false) : undefined} onChange={(event) => (mode === "single" ? selectSingle(category, addon.id) : toggleAddon(addon.id, event.target.checked))} type={mode === "single" ? "radio" : "checkbox"} />
+                                      <span className="min-w-0"><span className="font-medium">{addon.name}</span> · {formatPrice(addon.priceCents)}</span>
                                     </label>
                                     {selected ? (
-                                      <div className="flex items-center gap-2 text-sm">
+                                      <div className="flex shrink-0 items-center gap-2 text-sm">
                                         <span className="text-xs text-[#675f57]">Quantità</span>
-                                        <input className="h-9 w-16 border border-[#ddd4c8] bg-white px-2 text-sm" min={1} max={addon.maxQuantity ?? undefined} onChange={(event) => changeQty(addon, Number(event.target.value))} type="number" value={addonQty[addon.id]} />
+                                        <div className="flex items-center border border-[#ddd4c8]">
+                                          <button aria-label="Diminuisci quantità" className="grid size-8 place-items-center text-[#9b5d43] transition-colors hover:bg-[#f8eee8] disabled:opacity-30" disabled={addonQty[addon.id] <= 1} onClick={() => changeQty(addon, addonQty[addon.id] - 1)} type="button"><Minus className="size-4" /></button>
+                                          <span className="w-8 text-center text-sm font-medium tabular-nums">{addonQty[addon.id]}</span>
+                                          <button aria-label="Aumenta quantità" className="grid size-8 place-items-center text-[#9b5d43] transition-colors hover:bg-[#f8eee8] disabled:opacity-30" disabled={addon.maxQuantity ? addonQty[addon.id] >= addon.maxQuantity : false} onClick={() => changeQty(addon, addonQty[addon.id] + 1)} type="button"><Plus className="size-4" /></button>
+                                        </div>
                                       </div>
                                     ) : null}
                                   </div>
@@ -413,9 +453,10 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                             </div>
                           </div>
                         );
-                      })}
-
-                      <div className="mt-7 border-t border-[#eee7dd] pt-5">
+                          })}
+                            </div>
+                            <aside className="border-t border-[#eee7dd] pt-5 lg:sticky lg:top-6 lg:self-start lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                          <div className="mt-7 border-t border-[#eee7dd] pt-5 lg:mt-0 lg:border-0 lg:pt-0">
                         <h3 className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">Riepilogo ordine</h3>
                         <dl className="mt-3 space-y-2 text-sm">
                           <div className="flex items-center justify-between gap-4"><dt>Sessione{selectedDate ? ` · ${formatFullDate(selectedDate)}` : ""}</dt><dd className="tabular-nums">{formatPrice(sessionPriceCents)}</dd></div>
@@ -435,12 +476,13 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
 
                       {turnstileSiteKey ? <div className="cf-turnstile mt-5" data-sitekey={turnstileSiteKey} ref={captchaRef} /> : null}
 
-                      <div className="mt-6 flex flex-wrap items-center gap-4">
-                        <button className="w-full bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-opacity disabled:opacity-50 sm:w-auto" disabled={submitting} onClick={() => void submit()} type="button">
+                      <div className="mt-6 flex flex-wrap items-center justify-end gap-4">
+                        <button className="w-full whitespace-nowrap bg-[#9b5d43] px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition-opacity disabled:opacity-50 sm:w-auto" disabled={submitting} onClick={() => void submit()} type="button">
                           {submitting ? "Invio in corso..." : "Conferma prenotazione"}
                         </button>
-                        <button className="text-sm font-semibold text-[#675f57] hover:text-[#9b5d43] disabled:opacity-50" disabled={submitting} onClick={() => { setAddonQty({}); void submit(); }} type="button">Salta senza extra</button>
                       </div>
+                            </aside>
+                          </div>
                     </div>
                   ) : null}
                 </>
