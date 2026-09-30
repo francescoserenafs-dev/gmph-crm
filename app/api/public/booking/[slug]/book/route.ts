@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { DEFAULT_BOOKING_FORM_FIELDS, type BookingFormFieldKey, priceForDate } from "@/lib/booking";
+import { BOOKING_FORM_FIELD_KEYS, type BookingFormFieldKey, normalizeFormFields, priceForDate } from "@/lib/booking";
 import { loadActiveEventTypeBySlug, loadEventTypeAddons, resolveAvailableDays } from "@/lib/booking-server";
 import { toLocalDateKey } from "@/lib/datetime";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
@@ -45,18 +45,38 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
   const eventType = await loadActiveEventTypeBySlug(slug);
   if (!eventType) return NextResponse.json({ error: "Prenotazioni non disponibili." }, { status: 404 });
 
-  const formFields = eventType.form_fields ?? DEFAULT_BOOKING_FORM_FIELDS;
+  const fieldItems = normalizeFormFields(eventType.form_fields);
+  const predefinedConfig = Object.fromEntries(
+    BOOKING_FORM_FIELD_KEYS.map((key) => {
+      const item = fieldItems.find((field) => !field.custom && field.key === key);
+      return [key, { enabled: item?.enabled ?? false, required: item?.required ?? false }];
+    }),
+  ) as Record<BookingFormFieldKey, { enabled: boolean; required: boolean }>;
+
   const values: Record<BookingFormFieldKey, unknown> = { firstName, lastName, email, phone, birthDate, participantsCount, notes: body.notes };
-  const missing = Object.entries(formFields).find(([key, config]) => config.enabled && config.required && (values[key as BookingFormFieldKey] === null || values[key as BookingFormFieldKey] === undefined || values[key as BookingFormFieldKey] === ""));
+  const missing = Object.entries(predefinedConfig).find(([key, config]) => config.enabled && config.required && (values[key as BookingFormFieldKey] === null || values[key as BookingFormFieldKey] === undefined || values[key as BookingFormFieldKey] === ""));
   if (missing) return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
+
+  const customValues = body.customFields && typeof body.customFields === "object" ? (body.customFields as Record<string, unknown>) : {};
+  const customLines: string[] = [];
+  for (const item of fieldItems) {
+    if (!item.custom || !item.enabled) continue;
+    const raw = customValues[item.key];
+    const answer = typeof raw === "string" ? raw.trim() : "";
+    if (item.required && !answer) return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 });
+    if (answer) customLines.push(`${item.label}: ${answer.slice(0, 1000)}`);
+  }
+
   if (!EMAIL_PATTERN.test(email)) return NextResponse.json({ error: "Inserisci un indirizzo email valido." }, { status: 400 });
-  if (formFields.birthDate.enabled && birthDate && !isValidDate(birthDate)) return NextResponse.json({ error: "Inserisci una data di nascita valida." }, { status: 400 });
-  if (formFields.participantsCount.enabled && participantsCount !== null && (!Number.isInteger(participantsCount) || participantsCount <= 0)) return NextResponse.json({ error: "Il numero di partecipanti deve essere un intero positivo." }, { status: 400 });
+  if (predefinedConfig.birthDate.enabled && birthDate && !isValidDate(birthDate)) return NextResponse.json({ error: "Inserisci una data di nascita valida." }, { status: 400 });
+  if (predefinedConfig.participantsCount.enabled && participantsCount !== null && (!Number.isInteger(participantsCount) || participantsCount <= 0)) return NextResponse.json({ error: "Il numero di partecipanti deve essere un intero positivo." }, { status: 400 });
   if (!privacyConsent) return NextResponse.json({ error: "È necessario accettare l'informativa sulla privacy." }, { status: 400 });
 
-  const savedPhone = formFields.phone.enabled && phone ? phone : null;
-  const savedBirthDate = formFields.birthDate.enabled && birthDate ? birthDate : null;
-  const notes = formFields.notes.enabled && typeof body.notes === "string" && body.notes.trim() ? body.notes.trim().slice(0, 2000) : null;
+  const savedPhone = predefinedConfig.phone.enabled && phone ? phone : null;
+  const savedBirthDate = predefinedConfig.birthDate.enabled && birthDate ? birthDate : null;
+  const notesInput = predefinedConfig.notes.enabled && typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : "";
+  const notesParts = [notesInput, ...customLines].filter((part) => part.length > 0);
+  const notes = notesParts.length > 0 ? notesParts.join("\n\n").slice(0, 2000) : null;
 
   const startsAt = new Date(slotStart);
   if (Number.isNaN(startsAt.valueOf())) return NextResponse.json({ error: "Orario selezionato non valido." }, { status: 400 });
@@ -133,7 +153,7 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
       duration_minutes: eventType.duration_minutes,
       location: eventType.location,
       notes,
-      participants_count: formFields.participantsCount.enabled ? participantsCount : null,
+      participants_count: predefinedConfig.participantsCount.enabled ? participantsCount : null,
       agreed_price_cents: sessionPriceCents,
       deposit_cents: depositCents,
       current_stage_id: stage.id,

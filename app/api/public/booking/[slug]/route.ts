@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { normalizeFormFields } from "@/lib/booking";
 import { loadActiveEventTypeBySlug, loadEventTypeAddons, resolveAvailableDays, sanitizeBookingDescription } from "@/lib/booking-server";
 import { addDaysToDateKey, toLocalDateKey } from "@/lib/datetime";
 import { clientIpFrom, isRateLimited } from "@/lib/rate-limit";
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/api/publ
       weekdayPriceCents: eventType.weekday_price_cents,
       weekendPriceCents: eventType.weekend_price_cents,
       askImageConsent: eventType.ask_image_consent,
-      formFields: eventType.form_fields,
+      formFields: normalizeFormFields(eventType.form_fields),
       addonsDigitalMode: eventType.addons_digital_mode,
       addonsPrintMode: eventType.addons_print_mode,
       depositCents: eventType.deposit_cents,

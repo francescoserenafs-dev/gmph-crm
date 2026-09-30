@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Copy, Plus, Trash2 } from "lucide-react";
-import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BookingFormFieldKey, WEEKDAY_LABELS, normalizeTime, slugify } from "@/lib/booking";
+import { CalendarDays, ChevronDown, ChevronUp, Copy, Plus, Trash2 } from "lucide-react";
+import { DEFAULT_BOOKING_FORM_FIELD_ITEMS, LOCKED_FORM_FIELD_KEYS, MAX_CUSTOM_FIELDS, MAX_CUSTOM_FIELD_LABEL, type BookingDay, type BookingEventType, type BookingFormFieldItem, WEEKDAY_LABELS, normalizeFormFields, normalizeTime, slugify } from "@/lib/booking";
 import { ItalianDateInput } from "@/components/shared/italian-date-input";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 
@@ -33,7 +33,7 @@ type FormState = {
   maxBookingsPerDay: string;
   maxBookingsTotal: string;
   askImageConsent: boolean;
-  formFields: BookingFormFieldConfig;
+  formFields: BookingFormFieldItem[];
   isActive: boolean;
   rules: RuleDraft[];
   exceptions: ExceptionDraft[];
@@ -67,7 +67,7 @@ function emptyForm(): FormState {
     maxBookingsPerDay: "",
     maxBookingsTotal: "",
     askImageConsent: true,
-    formFields: structuredClone(DEFAULT_BOOKING_FORM_FIELDS),
+    formFields: structuredClone(DEFAULT_BOOKING_FORM_FIELD_ITEMS),
     isActive: false,
     rules: [],
     exceptions: [],
@@ -170,7 +170,7 @@ export function BookingManager() {
         maxBookingsPerDay: eventType.max_bookings_per_day === null ? "" : String(eventType.max_bookings_per_day),
         maxBookingsTotal: eventType.max_bookings_total === null ? "" : String(eventType.max_bookings_total),
         askImageConsent: eventType.ask_image_consent,
-        formFields: eventType.form_fields ?? structuredClone(DEFAULT_BOOKING_FORM_FIELDS),
+        formFields: normalizeFormFields(eventType.form_fields),
         isActive: eventType.is_active,
         rules: (body.rules ?? []).map((rule: { weekday: number; start_time: string; end_time: string }) => ({ weekday: rule.weekday, startTime: normalizeTime(rule.start_time), endTime: normalizeTime(rule.end_time) })),
         exceptions: (body.exceptions ?? []).map((entry: { exception_date: string; is_closed: boolean; start_time: string | null; end_time: string | null; note: string | null }) => ({
@@ -218,7 +218,7 @@ export function BookingManager() {
       maxBookingsPerDay: state.maxBookingsPerDay === "" ? null : Number(state.maxBookingsPerDay),
       maxBookingsTotal: state.maxBookingsTotal === "" ? null : Number(state.maxBookingsTotal),
       askImageConsent: state.askImageConsent,
-      formFields: state.formFields,
+      formFields: state.formFields.filter((field) => !field.custom || field.label.trim()),
       isActive: state.isActive,
       rules: state.rules,
       exceptions: state.exceptions.map((entry) => ({ date: entry.date, isClosed: entry.isClosed, startTime: entry.startTime, endTime: entry.endTime, note: entry.note })),
@@ -388,21 +388,41 @@ export function BookingManager() {
             </div>
 
             <div className="mt-7 border-t border-[#e5ddd2] pt-5">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#675f57]">Campi del form pubblico</h3>
-              <p className="mt-1 text-xs text-[#8a8177]">Scegli quali dati chiedere e quali rendere obbligatori durante la prenotazione.</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#675f57]">Campi del form pubblico</h3>
+                  <p className="mt-1 text-xs text-[#8a8177]">Scegli quali dati chiedere, l&apos;ordine e quali rendere obbligatori. I campi personalizzati sono aree di testo libere; le risposte finiscono nelle note della sessione.</p>
+                </div>
+                <button className="flex items-center gap-2 border border-[#d8d0c5] px-3 py-2 text-xs font-semibold transition-colors hover:border-[#9b5d43] disabled:opacity-40" disabled={form.formFields.filter((field) => field.custom).length >= MAX_CUSTOM_FIELDS} onClick={() => update({ formFields: [...form.formFields, { key: `custom_${Date.now()}`, custom: true, label: "", enabled: true, required: false }] })} type="button"><Plus className="size-4 text-[#9b5d43]" strokeWidth={1.8} />Aggiungi campo</button>
+              </div>
               <div className="mt-4 divide-y divide-[#eee8df] border border-[#e5ddd2]">
-                {([
-                  ["firstName", "Nome"], ["lastName", "Cognome"], ["email", "Email"], ["phone", "Cellulare"],
-                  ["birthDate", "Data di nascita"], ["participantsCount", "Numero di persone che partecipano alla sessione"], ["notes", "Note"],
-                ] as Array<[BookingFormFieldKey, string]>).map(([key, label]) => {
-                  const locked = key === "firstName" || key === "lastName" || key === "email";
-                  const field = form.formFields[key];
+                {form.formFields.map((field, index) => {
+                  const locked = !field.custom && LOCKED_FORM_FIELD_KEYS.includes(field.key as (typeof LOCKED_FORM_FIELD_KEYS)[number]);
+                  const setField = (patch: Partial<BookingFormFieldItem>) => update({ formFields: form.formFields.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)) });
+                  const move = (direction: -1 | 1) => {
+                    const target = index + direction;
+                    if (target < 0 || target >= form.formFields.length) return;
+                    const next = [...form.formFields];
+                    [next[index], next[target]] = [next[target], next[index]];
+                    update({ formFields: next });
+                  };
                   return (
-                    <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3" key={key}>
-                      <span className="text-sm font-medium">{label}</span>
+                    <div className="flex flex-wrap items-center gap-3 px-4 py-3" key={field.key}>
+                      <div className="flex flex-col">
+                        <button aria-label="Sposta su" className="text-[#9b5d43] transition-opacity disabled:opacity-25" disabled={index === 0} onClick={() => move(-1)} type="button"><ChevronUp className="size-4" /></button>
+                        <button aria-label="Sposta giù" className="text-[#9b5d43] transition-opacity disabled:opacity-25" disabled={index === form.formFields.length - 1} onClick={() => move(1)} type="button"><ChevronDown className="size-4" /></button>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {field.custom ? (
+                          <input className="h-9 w-full border border-[#cfc5b8] bg-white px-3 text-sm" maxLength={MAX_CUSTOM_FIELD_LABEL} onChange={(event) => setField({ label: event.target.value })} placeholder="Etichetta del campo personalizzato" value={field.label} />
+                        ) : (
+                          <span className="text-sm font-medium">{field.label}</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-5 text-xs">
-                        <label className="flex items-center gap-2"><input checked={field.enabled} disabled={locked} onChange={(event) => update({ formFields: { ...form.formFields, [key]: { enabled: event.target.checked, required: event.target.checked && field.required } } })} type="checkbox" />Mostra</label>
-                        <label className="flex items-center gap-2"><input checked={field.required} disabled={locked || !field.enabled} onChange={(event) => update({ formFields: { ...form.formFields, [key]: { ...field, required: event.target.checked } } })} type="checkbox" />Obbligatorio</label>
+                        <label className="flex items-center gap-2"><input checked={field.enabled} disabled={locked} onChange={(event) => setField({ enabled: event.target.checked, required: event.target.checked && field.required })} type="checkbox" />Mostra</label>
+                        <label className="flex items-center gap-2"><input checked={field.required} disabled={locked || !field.enabled} onChange={(event) => setField({ required: event.target.checked })} type="checkbox" />Obbligatorio</label>
+                        {field.custom ? <button aria-label="Rimuovi campo" className="text-[#a53e31] transition-opacity hover:opacity-70" onClick={() => update({ formFields: form.formFields.filter((_, i) => i !== index) })} type="button"><Trash2 className="size-4" /></button> : null}
                       </div>
                     </div>
                   );

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, MapPin, Minus, Plus } from "lucide-react";
-import { DEFAULT_BOOKING_FORM_FIELDS, type BookingDay, type BookingFormFieldConfig, type BookingFormFieldKey } from "@/lib/booking";
+import { DEFAULT_BOOKING_FORM_FIELD_ITEMS, type BookingDay, type BookingFormFieldItem, type BookingFormFieldKey } from "@/lib/booking";
 import { ItalianDateInput } from "@/components/shared/italian-date-input";
 
 type PublicAddon = { id: string; category: "digital" | "print"; name: string; priceCents: number; maxQuantity: number | null };
@@ -17,7 +17,7 @@ type PublicEventType = {
   weekdayPriceCents: number;
   weekendPriceCents: number;
   askImageConsent: boolean;
-  formFields: BookingFormFieldConfig;
+  formFields: BookingFormFieldItem[];
   addonsDigitalMode: "single" | "multiple";
   addonsPrintMode: "single" | "multiple";
   depositCents: number;
@@ -69,6 +69,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState({ firstName: "", lastName: "", email: "", phone: "", birthDate: "", participantsCount: "", notes: "", privacyConsent: true, imageConsent: false });
+  const [customFields, setCustomFields] = useState<Record<string, string>>({});
   const [addonQty, setAddonQty] = useState<Record<string, number>>({});
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [descriptionSeen, setDescriptionSeen] = useState(false);
@@ -131,7 +132,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
       const response = await fetch(`/api/public/booking/${slug}/book`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...fields, slotStart: selectedSlot, captchaToken, addons: Object.entries(addonQty).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ id, quantity })) }),
+        body: JSON.stringify({ ...fields, customFields, slotStart: selectedSlot, captchaToken, addons: Object.entries(addonQty).filter(([, quantity]) => quantity > 0).map(([id, quantity]) => ({ id, quantity })) }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -154,7 +155,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     }
   }
 
-  const formFields = eventType?.formFields ?? DEFAULT_BOOKING_FORM_FIELDS;
+  const fieldItems = eventType?.formFields ?? DEFAULT_BOOKING_FORM_FIELD_ITEMS;
   const hasValue: Record<BookingFormFieldKey, boolean> = {
     firstName: Boolean(fields.firstName.trim()),
     lastName: Boolean(fields.lastName.trim()),
@@ -164,8 +165,78 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
     participantsCount: Boolean(fields.participantsCount),
     notes: Boolean(fields.notes.trim()),
   };
-  const canSubmit = Boolean(selectedSlot && Object.entries(formFields).every(([key, config]) => !config.enabled || !config.required || hasValue[key as BookingFormFieldKey]));
+  const canSubmit = Boolean(selectedSlot && fieldItems.every((item) => {
+    if (!item.enabled || !item.required) return true;
+    if (item.custom) return Boolean((customFields[item.key] ?? "").trim());
+    return hasValue[item.key as BookingFormFieldKey];
+  }));
   const requiredMark = <span className="text-[#a53e31]"> *</span>;
+
+  const renderField = (item: BookingFormFieldItem) => {
+    const mark = item.required ? requiredMark : null;
+    const labelSpan = <span className="text-xs text-[#675f57]">{item.label}{mark}</span>;
+    if (item.custom) {
+      return (
+        <label className="text-sm sm:col-span-2" key={item.key}>
+          {labelSpan}
+          <textarea className="mt-1 w-full border border-[#ddd4c8] bg-white px-3 py-2 text-sm" onChange={(event) => setCustomFields((current) => ({ ...current, [item.key]: event.target.value }))} rows={3} value={customFields[item.key] ?? ""} />
+        </label>
+      );
+    }
+    switch (item.key) {
+      case "firstName":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <input autoComplete="given-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, firstName: event.target.value }))} value={fields.firstName} />
+          </label>
+        );
+      case "lastName":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <input autoComplete="family-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, lastName: event.target.value }))} value={fields.lastName} />
+          </label>
+        );
+      case "email":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <input autoComplete="email" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, email: event.target.value }))} type="email" value={fields.email} />
+          </label>
+        );
+      case "phone":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <input autoComplete="tel" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, phone: event.target.value }))} type="tel" value={fields.phone} />
+          </label>
+        );
+      case "birthDate":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <ItalianDateInput className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(birthDate) => setFields((current) => ({ ...current, birthDate }))} required={item.required} value={fields.birthDate} />
+          </label>
+        );
+      case "participantsCount":
+        return (
+          <label className="text-sm" key={item.key}>
+            {labelSpan}
+            <input className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" min="1" onChange={(event) => setFields((current) => ({ ...current, participantsCount: event.target.value }))} step="1" type="number" value={fields.participantsCount} />
+          </label>
+        );
+      case "notes":
+        return (
+          <label className="text-sm sm:col-span-2" key={item.key}>
+            {labelSpan}
+            <textarea className="mt-1 w-full border border-[#ddd4c8] bg-white px-3 py-2 text-sm" onChange={(event) => setFields((current) => ({ ...current, notes: event.target.value }))} rows={3} value={fields.notes} />
+          </label>
+        );
+      default:
+        return null;
+    }
+  };
 
   const hasAddons = (eventType?.addons.length ?? 0) > 0;
   const sessionPriceCents = priceCents ?? 0;
@@ -367,34 +438,7 @@ export function BookingWidget({ slug, turnstileSiteKey }: { slug: string; turnst
                       <button className="flex items-center gap-2 text-xs font-semibold text-[#675f57] hover:text-[#9b5d43]" onClick={() => setStep("time")} type="button"><ArrowLeft className="size-4" />Torna agli orari</button>
                       <h2 className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#9b5d43]">3 · I tuoi dati</h2>
                       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                        {formFields.firstName.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Nome{formFields.firstName.required ? requiredMark : null}</span>
-                          <input autoComplete="given-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, firstName: event.target.value }))} value={fields.firstName} />
-                        </label> : null}
-                        {formFields.lastName.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Cognome{formFields.lastName.required ? requiredMark : null}</span>
-                          <input autoComplete="family-name" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, lastName: event.target.value }))} value={fields.lastName} />
-                        </label> : null}
-                        {formFields.email.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Email{formFields.email.required ? requiredMark : null}</span>
-                          <input autoComplete="email" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, email: event.target.value }))} type="email" value={fields.email} />
-                        </label> : null}
-                        {formFields.phone.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Cellulare{formFields.phone.required ? requiredMark : null}</span>
-                          <input autoComplete="tel" className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(event) => setFields((current) => ({ ...current, phone: event.target.value }))} type="tel" value={fields.phone} />
-                        </label> : null}
-                        {formFields.birthDate.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Data di nascita{formFields.birthDate.required ? requiredMark : null}</span>
-                          <ItalianDateInput className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" onChange={(birthDate) => setFields((current) => ({ ...current, birthDate }))} required={formFields.birthDate.required} value={fields.birthDate} />
-                        </label> : null}
-                        {formFields.participantsCount.enabled ? <label className="text-sm">
-                          <span className="text-xs text-[#675f57]">Numero di persone che partecipano alla sessione{formFields.participantsCount.required ? requiredMark : null}</span>
-                          <input className="mt-1 h-11 w-full border border-[#ddd4c8] bg-white px-3 text-sm" min="1" onChange={(event) => setFields((current) => ({ ...current, participantsCount: event.target.value }))} step="1" type="number" value={fields.participantsCount} />
-                        </label> : null}
-                        {formFields.notes.enabled ? <label className="text-sm sm:col-span-2">
-                          <span className="text-xs text-[#675f57]">Note{formFields.notes.required ? requiredMark : null}</span>
-                          <textarea className="mt-1 w-full border border-[#ddd4c8] bg-white px-3 py-2 text-sm" onChange={(event) => setFields((current) => ({ ...current, notes: event.target.value }))} rows={3} value={fields.notes} />
-                        </label> : null}
+                        {fieldItems.filter((item) => item.enabled).map((item) => renderField(item))}
                       </div>
 
                       <div className="mt-5 space-y-3 text-sm text-[#4a443e]">

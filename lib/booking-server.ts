@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import sanitizeHtml from "sanitize-html";
-import { BOOKING_FORM_FIELD_KEYS, DEFAULT_BOOKING_FORM_FIELDS, type BookingAddon, type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BookingFormFieldConfig, type BusyInterval, computeAvailableDays } from "@/lib/booking";
+import { BOOKING_FORM_FIELD_KEYS, DEFAULT_BOOKING_FORM_FIELD_ITEMS, LOCKED_FORM_FIELD_KEYS, MAX_CUSTOM_FIELDS, MAX_CUSTOM_FIELD_LABEL, type BookingAddon, type BookingAvailabilityException, type BookingAvailabilityRule, type BookingDay, type BookingEventType, type BookingFormFieldItem, type BusyInterval, computeAvailableDays, normalizeFormFields } from "@/lib/booking";
 import { addDaysToDateKey, parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -19,16 +19,46 @@ export type ParsedEventType = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const LOCKED_FORM_FIELDS = new Set(["firstName", "lastName", "email"]);
 
-function parseFormFields(value: unknown): BookingFormFieldConfig {
-  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  return Object.fromEntries(BOOKING_FORM_FIELD_KEYS.map((key) => {
-    const item = input[key] && typeof input[key] === "object" ? input[key] as Record<string, unknown> : {};
-    const locked = LOCKED_FORM_FIELDS.has(key);
-    const enabled = locked || item.enabled === true;
-    return [key, { enabled, required: locked || (enabled && item.required === true) }];
-  })) as BookingFormFieldConfig;
+// Converte la config dei campi (array ordinato dal client) in una lista validata.
+// I campi predefiniti restano vincolati dalle regole note; i custom sono testo lungo con etichetta.
+function parseFormFields(value: unknown): BookingFormFieldItem[] | string {
+  if (value === undefined || value === null) return DEFAULT_BOOKING_FORM_FIELD_ITEMS;
+  if (!Array.isArray(value)) return normalizeFormFields(value);
+
+  const items: BookingFormFieldItem[] = [];
+  const seenPredefined = new Set<string>();
+  let customCount = 0;
+
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as Record<string, unknown>;
+    const key = typeof entry.key === "string" ? entry.key : "";
+    const enabled = entry.enabled === true;
+    const required = entry.required === true;
+
+    if ((BOOKING_FORM_FIELD_KEYS as readonly string[]).includes(key)) {
+      if (seenPredefined.has(key)) continue;
+      seenPredefined.add(key);
+      const locked = LOCKED_FORM_FIELD_KEYS.includes(key as (typeof LOCKED_FORM_FIELD_KEYS)[number]);
+      const isEnabled = locked || enabled;
+      items.push({ key, custom: false, label: "", enabled: isEnabled, required: locked || (isEnabled && required) });
+      continue;
+    }
+
+    if (entry.custom === true || key.startsWith("custom_")) {
+      const label = typeof entry.label === "string" ? entry.label.trim() : "";
+      if (!label) return "Ogni campo personalizzato deve avere un'etichetta.";
+      if (label.length > MAX_CUSTOM_FIELD_LABEL) return `L'etichetta di un campo personalizzato non può superare ${MAX_CUSTOM_FIELD_LABEL} caratteri.`;
+      customCount += 1;
+      if (customCount > MAX_CUSTOM_FIELDS) return `Puoi aggiungere al massimo ${MAX_CUSTOM_FIELDS} campi personalizzati.`;
+      items.push({ key: `custom_${customCount}`, custom: true, label, enabled, required: enabled && required });
+    }
+  }
+
+  // Garantisce la presenza di tutti i predefiniti (in coda, con i default) se il client ne ha omesso qualcuno.
+  const normalized = normalizeFormFields(items);
+  return normalized;
 }
 
 export function sanitizeBookingDescription(value: unknown): string | null {
@@ -139,6 +169,9 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
     addons.push({ category, name: addonName, price_cents: priceEuros * 100, max_quantity: maxQuantity, is_active: item.isActive !== false, sort_order: addons.length });
   }
 
+  const formFields = parseFormFields(body.formFields);
+  if (typeof formFields === "string") return formFields;
+
   return {
     row: {
       slug,
@@ -162,7 +195,7 @@ export function parseEventTypePayload(body: Record<string, unknown> | null): Par
       addons_digital_mode: addonsDigitalMode,
       addons_print_mode: addonsPrintMode,
       deposit_cents: depositEuros * 100,
-      form_fields: parseFormFields(body.formFields ?? DEFAULT_BOOKING_FORM_FIELDS),
+      form_fields: formFields,
       is_active: body.isActive === true,
     },
     rules,

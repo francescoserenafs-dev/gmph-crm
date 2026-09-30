@@ -14,6 +14,87 @@ export const DEFAULT_BOOKING_FORM_FIELDS: BookingFormFieldConfig = {
   notes: { enabled: false, required: false },
 };
 
+export const BOOKING_FIELD_LABELS: Record<BookingFormFieldKey, string> = {
+  firstName: "Nome",
+  lastName: "Cognome",
+  email: "Email",
+  phone: "Cellulare",
+  birthDate: "Data di nascita",
+  participantsCount: "Numero di persone che partecipano alla sessione",
+  notes: "Note",
+};
+
+export const LOCKED_FORM_FIELD_KEYS: BookingFormFieldKey[] = ["firstName", "lastName", "email"];
+export const MAX_CUSTOM_FIELD_LABEL = 80;
+export const MAX_CUSTOM_FIELDS = 12;
+
+// Campo del form pubblico: predefinito (key nota) oppure custom (testo lungo, key "custom_...").
+export type BookingFormFieldItem = {
+  key: string;
+  custom: boolean;
+  label: string;
+  enabled: boolean;
+  required: boolean;
+};
+
+function isPredefinedKey(key: string): key is BookingFormFieldKey {
+  return (BOOKING_FORM_FIELD_KEYS as readonly string[]).includes(key);
+}
+
+// Normalizza la config (nuova forma array oppure vecchio oggetto) in una lista ordinata,
+// garantendo la presenza di tutti i campi predefiniti e i vincoli sui campi bloccati.
+export function normalizeFormFields(value: unknown): BookingFormFieldItem[] {
+  const items: BookingFormFieldItem[] = [];
+  const seen = new Set<string>();
+  let customCounter = 0;
+
+  const pushPredefined = (key: BookingFormFieldKey, enabled: boolean, required: boolean) => {
+    if (seen.has(key)) return;
+    const locked = LOCKED_FORM_FIELD_KEYS.includes(key);
+    const isEnabled = locked || enabled;
+    items.push({ key, custom: false, label: BOOKING_FIELD_LABELS[key], enabled: isEnabled, required: locked || (isEnabled && required) });
+    seen.add(key);
+  };
+
+  if (Array.isArray(value)) {
+    for (const raw of value) {
+      if (!raw || typeof raw !== "object") continue;
+      const entry = raw as Record<string, unknown>;
+      const key = typeof entry.key === "string" ? entry.key : "";
+      const enabled = entry.enabled === true;
+      const required = entry.required === true;
+      if (isPredefinedKey(key)) {
+        pushPredefined(key, enabled, required);
+      } else if (entry.custom === true || key.startsWith("custom_")) {
+        const label = typeof entry.label === "string" ? entry.label.trim().slice(0, MAX_CUSTOM_FIELD_LABEL) : "";
+        if (!label) continue;
+        customCounter += 1;
+        const stableKey = key.startsWith("custom_") && !seen.has(key) ? key : `custom_${customCounter}`;
+        if (seen.has(stableKey)) continue;
+        items.push({ key: stableKey, custom: true, label, enabled, required: enabled && required });
+        seen.add(stableKey);
+      }
+    }
+  } else if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of BOOKING_FORM_FIELD_KEYS) {
+      const item = obj[key] && typeof obj[key] === "object" ? (obj[key] as Record<string, unknown>) : {};
+      pushPredefined(key, item.enabled === true, item.required === true);
+    }
+  }
+
+  for (const key of BOOKING_FORM_FIELD_KEYS) {
+    if (!seen.has(key)) {
+      const def = DEFAULT_BOOKING_FORM_FIELDS[key];
+      pushPredefined(key, def.enabled, def.required);
+    }
+  }
+
+  return items;
+}
+
+export const DEFAULT_BOOKING_FORM_FIELD_ITEMS: BookingFormFieldItem[] = normalizeFormFields(DEFAULT_BOOKING_FORM_FIELDS);
+
 export type BookingEventType = {
   id: string;
   slug: string;
@@ -37,7 +118,7 @@ export type BookingEventType = {
   addons_digital_mode: AddonSelectionMode;
   addons_print_mode: AddonSelectionMode;
   deposit_cents: number;
-  form_fields: BookingFormFieldConfig;
+  form_fields: BookingFormFieldItem[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
