@@ -217,6 +217,11 @@ export async function replaceAvailability(eventTypeId: string, parsed: ParsedEve
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  if (parsed.exceptions.length > 0) {
+    const { error } = await supabaseAdmin.from("booking_availability_exceptions").insert(parsed.exceptions.map((exception) => ({ ...exception, event_type_id: eventTypeId })));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
   return null;
 }
 
