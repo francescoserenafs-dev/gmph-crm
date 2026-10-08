@@ -23,10 +23,14 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/ses
 
   const serviceTypeId = typeof body.serviceTypeId === "string" ? body.serviceTypeId : "";
   const priceEuros = Number(body.priceEuros);
+  const quantity = body.quantity === undefined || body.quantity === "" ? 1 : Number(body.quantity);
   const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
 
   if (!serviceTypeId || !Number.isInteger(priceEuros) || priceEuros < 0) {
     return NextResponse.json({ error: "Seleziona un servizio extra e indica un prezzo valido." }, { status: 400 });
+  }
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+    return NextResponse.json({ error: "Indica una quantita valida." }, { status: 400 });
   }
 
   const [{ data: session }, { data: service }] = await Promise.all([
@@ -39,8 +43,8 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/ses
 
   const { data, error } = await supabaseAdmin
     .from("session_extras")
-    .insert({ session_id: id, service_type_id: service.id, service_name: service.name, price_cents: priceEuros * 100, notes })
-    .select("id, service_type_id, service_name, price_cents, notes, created_at")
+    .insert({ session_id: id, service_type_id: service.id, service_name: service.name, price_cents: priceEuros * 100, quantity, notes })
+    .select("id, service_type_id, service_name, price_cents, quantity, notes, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

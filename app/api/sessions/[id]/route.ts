@@ -3,11 +3,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { deleteIcloudEvent, upsertIcloudEvent } from "@/lib/icloud-calendar";
 import { promotePastBookedSessions } from "@/lib/sessions-server";
 import { parseLocalDateTime } from "@/lib/datetime";
+import { isHttpsUrl } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
 const sessionFields =
-  "id, scheduled_at, duration_minutes, participants_count, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, booked_online_at, icloud_event_url, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name,privacy_consent_granted_at,privacy_consent_revoked_at), payments(id,amount_cents,voucher_unused_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,quantity,notes,created_at)";
+  "id, scheduled_at, duration_minutes, participants_count, location, service_name, service_detail, notes, agreed_price_cents, is_settled, service_type_id, image_consent_granted_at, image_consent_revoked_at, booked_online_at, icloud_event_url, package_id, included_photos, proofs_gallery_url, package:session_packages!sessions_package_id_fkey(id,name,included_photos,description), emails:session_emails(id,template_code,to_email,subject,sent_at), current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name,email,privacy_consent_granted_at,privacy_consent_revoked_at), payments(id,amount_cents,voucher_unused_cents,paid_at,paid_date,category,payment_method_name,applied_voucher_id,reference,notes), stage_history:session_stage_history(id,stage_name,changed_at,notes), extras:session_extras(id,service_type_id,service_name,price_cents,quantity,notes,created_at)";
 
 async function loadSession(id: string) {
   return supabaseAdmin.from("sessions").select(sessionFields).eq("id", id).maybeSingle();
@@ -73,6 +74,33 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       }
     }
 
+    return NextResponse.json({ session: data });
+  }
+
+  if (body.action === "updateDelivery") {
+    const packageId = typeof body.packageId === "string" && body.packageId ? body.packageId : null;
+    const includedPhotos = body.includedPhotos === null || body.includedPhotos === "" || body.includedPhotos === undefined ? null : Number(body.includedPhotos);
+    const galleryUrl = typeof body.proofsGalleryUrl === "string" && body.proofsGalleryUrl.trim() ? body.proofsGalleryUrl.trim() : null;
+
+    if (includedPhotos !== null && (!Number.isInteger(includedPhotos) || includedPhotos < 0 || includedPhotos > 1000)) {
+      return NextResponse.json({ error: "Indica un numero di foto incluse valido." }, { status: 400 });
+    }
+    if (galleryUrl && (galleryUrl.length > 2000 || !isHttpsUrl(galleryUrl))) {
+      return NextResponse.json({ error: "Il link alla gallery deve iniziare con https://." }, { status: 400 });
+    }
+
+    const { data: current } = await supabaseAdmin.from("sessions").select("service_type_id").eq("id", id).maybeSingle();
+    if (!current) return NextResponse.json({ error: "Sessione non trovata." }, { status: 404 });
+
+    if (packageId) {
+      const { data: selectedPackage } = await supabaseAdmin.from("session_packages").select("id").eq("id", packageId).eq("service_type_id", current.service_type_id).maybeSingle();
+      if (!selectedPackage) return NextResponse.json({ error: "Pacchetto non disponibile per questo servizio." }, { status: 400 });
+    }
+
+    const { error: deliveryError } = await supabaseAdmin.from("sessions").update({ package_id: packageId, included_photos: includedPhotos, proofs_gallery_url: galleryUrl }).eq("id", id);
+    if (deliveryError) return NextResponse.json({ error: "Aggiornamento non riuscito." }, { status: 500 });
+
+    const { data } = await loadSession(id);
     return NextResponse.json({ session: data });
   }
 

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Anteprima — Giulia Malosso Photography</title>
+	<!-- NOTA: questa è solo un'anteprima statica. Il sito vero gira su WordPress (file .php). -->
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="giulia-malosso-photography/style.css">
+	<style>
+		/* Segnaposto immagini per l'anteprima (nel tema sono generati da PHP). */
+		.ph {
+			background:
+				repeating-linear-gradient(45deg, #efe6dc, #efe6dc 14px, #f3ece3 14px, #f3ece3 28px);
+			display: grid;
+			place-items: center;
+			color: #9b5d43;
+			font-family: "Cormorant Garamond", Georgia, serif;
+			font-size: 1.2rem;
+			letter-spacing: 0.12em;
+			text-transform: uppercase;
+			text-align: center;
+			padding: 1rem;
+		}
+		.preview-banner {
+			background: #27231f;
+			color: #fdfbf8;
+			text-align: center;
+			font-family: "Inter", sans-serif;
+			font-size: 0.82rem;
+			letter-spacing: 0.04em;
+			padding: 0.55rem 1rem;
+		}
+		.preview-banner strong { color: #e8b9a5; }
+	</style>
+</head>
+<body>
+
+<div class="preview-banner">
+	<strong>ANTEPRIMA STATICA</strong> — così apparirà il sito. Le immagini sono segnaposto: su WordPress caricherai le foto vere.
+</div>
+
+<!-- HEADER -->
+<header class="site-header">
+	<div class="container site-header__inner">
+		<a class="site-brand" href="#home">Giulia <span>Malosso</span></a>
+		<nav class="main-nav" aria-label="Navigazione principale">
+			<ul>
+				<li><a href="#home">Home</a></li>
+				<li><a href="#servizi">Servizi</a></li>
+				<li><a href="#portfolio">Portfolio</a></li>
+				<li><a href="#chi-sono">Chi sono</a></li>
+				<li><a href="#contatti">Contatti</a></li>
+			</ul>
+		</nav>
+		<button class="nav-toggle" aria-label="Apri menu" aria-expanded="false">
+			<span></span><span></span><span></span>
+		</button>
+	</div>
+</header>
+
+<main class="site-main">
+
+	<!-- HERO -->
+	<section class="hero" id="home" style="background-image: linear-gradient(180deg, rgba(39,35,31,0.45), rgba(39,35,31,0.6)), repeating-linear-gradient(45deg, #b79b86, #b79b86 20px, #ad907b 20px, #ad907b 40px);">
+		<div class="container hero__content">
+			<span class="eyebrow">Fotografa di famiglia · Maser (TV)</span>
+			<h1>Ricordi autentici, luce naturale, emozioni vere</h1>
+			<p>Racconto la vostra famiglia così com’è: gli abbracci, le risate, i primi giorni di un bimbo e l’attesa della maternità. Fotografie da custodire negli anni.</p>
+			<div class="hero__actions">
+				<a class="btn btn--primary" href="#contatti">Prenota un servizio</a>
+				<a class="btn btn--ghost" href="#portfolio">Guarda il portfolio</a>
+			</div>
+		</div>
+	</section>
+
+	<!-- SERVIZI -->
+	<section class="section" id="servizi">
+		<div class="container">
+			<div class="section__head">
+				<span class="eyebrow">Servizi</span>
+				<h2>Cosa fotografo</h2>
+				<p class="lead center">Ogni servizio è pensato per mettervi a vostro agio e catturare momenti spontanei.</p>
+			</div>
+			<div class="grid grid--3">
+				<article class="service-card"><div class="service-card__icon">👨‍👩‍👧</div><h3>Famiglia</h3><p>Servizi in studio o all’aperto che raccontano i legami e la quotidianità della vostra famiglia.</p></article>
+				<article class="service-card"><div class="service-card__icon">🤰</div><h3>Maternità</h3><p>L’attesa diventa immagine: ritratti delicati per celebrare questo momento unico.</p></article>
+				<article class="service-card"><div class="service-card__icon">👶</div><h3>Bambini e newborn</h3><p>Dai primi giorni ai primi passi: scatti teneri, sicuri e pieni di dettagli da ricordare.</p></article>
+				<article class="service-card"><div class="service-card__icon">🎄</div><h3>Mini session</h3><p>Sessioni brevi a tema (come le Christmas Mini Session) perfette per un ricordo speciale.</p></article>
+				<article class="service-card"><div class="service-card__icon">💍</div><h3>Matrimoni</h3><p>Per chi cerca uno stile naturale e discreto nel giorno più importante.</p></article>
+				<article class="service-card"><div class="service-card__icon">💼</div><h3>Business &amp; branding</h3><p>Ritratti professionali e immagini per raccontare la vostra attività con autenticità.</p></article>
+			</div>
+		</div>
+	</section>
+
+	<!-- PORTFOLIO -->
+	<section class="section section--soft" id="portfolio">
+		<div class="container">
+			<div class="section__head">
+				<span class="eyebrow">Portfolio</span>
+				<h2>Alcuni scatti recenti</h2>
+				<p class="lead center">Una selezione dei servizi realizzati. Filtra per categoria.</p>
+			</div>
+			<div class="filters" role="tablist">
+				<button class="filter-btn is-active" data-filter="all">Tutti</button>
+				<button class="filter-btn" data-filter="famiglia">Famiglia</button>
+				<button class="filter-btn" data-filter="maternita">Maternità</button>
+				<button class="filter-btn" data-filter="bambini">Bambini</button>
+				<button class="filter-btn" data-filter="mini">Mini session</button>
+			</div>
+			<div class="gallery">
+				<figure class="gallery__item" data-category="famiglia"><div class="ph" style="aspect-ratio:3/4;">Famiglia · al parco</div><figcaption>Famiglia · al parco</figcaption></figure>
+				<figure class="gallery__item" data-category="maternita"><div class="ph" style="aspect-ratio:3/4;">Maternità · in studio</div><figcaption>Maternità · in studio</figcaption></figure>
+				<figure class="gallery__item" data-category="bambini"><div class="ph" style="aspect-ratio:3/4;">Newborn · primi giorni</div><figcaption>Newborn · primi giorni</figcaption></figure>
+				<figure class="gallery__item" data-category="mini"><div class="ph" style="aspect-ratio:3/4;">Christmas mini</div><figcaption>Christmas mini</figcaption></figure>
+				<figure class="gallery__item" data-category="famiglia"><div class="ph" style="aspect-ratio:3/4;">Famiglia · a casa</div><figcaption>Famiglia · a casa</figcaption></figure>
+				<figure class="gallery__item" data-category="bambini"><div class="ph" style="aspect-ratio:3/4;">Bambini · gioco</div><figcaption>Bambini · gioco</figcaption></figure>
+				<figure class="gallery__item" data-category="maternita"><div class="ph" style="aspect-ratio:3/4;">Maternità · outdoor</div><figcaption>Maternità · outdoor</figcaption></figure>
+				<figure class="gallery__item" data-category="mini"><div class="ph" style="aspect-ratio:3/4;">Mini session · autunno</div><figcaption>Mini session · autunno</figcaption></figure>
+			</div>
+		</div>
+	</section>
+
+	<!-- CHI SONO -->
+	<section class="section" id="chi-sono">
+		<div class="container about">
+			<div class="about__photo"><div class="ph" style="height:100%;">Ritratto di Giulia</div></div>
+			<div>
+				<span class="eyebrow">Chi sono</span>
+				<h2>Ciao, sono Giulia</h2>
+				<p>Sono una fotografa di famiglia con base a Maser, in provincia di Treviso. Amo le immagini naturali, la luce morbida e le emozioni che nascono senza posa.</p>
+				<p>Durante ogni servizio il mio obiettivo è farvi sentire a vostro agio, così da raccontare la vostra storia in modo sincero. Il risultato sono fotografie che potrete guardare tra vent’anni emozionandovi come oggi.</p>
+				<blockquote>«Le fotografie più belle nascono quando ci si dimentica della macchina fotografica.»</blockquote>
+			</div>
+		</div>
+	</section>
+
+	<!-- CTA -->
+	<section class="section section--soft">
+		<div class="container">
+			<div class="cta">
+				<h2>Prenotiamo il vostro servizio</h2>
+				<p>Raccontatemi cosa avete in mente: vi risponderò con disponibilità, pacchetti e tutti i dettagli.</p>
+				<a class="btn btn--primary" href="#contatti">Scrivimi ora</a>
+			</div>
+		</div>
+	</section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer" id="contatti">
+	<div class="container">
+		<div class="site-footer__grid">
+			<div>
+				<div class="site-footer__brand">Giulia Malosso Photography</div>
+				<p>Fotografia di famiglia, maternità, bambini e mini session. Immagini autentiche che raccontano chi siete.</p>
+				<div class="social-links">
+					<a href="#" aria-label="Instagram">IG</a>
+					<a href="#" aria-label="Facebook">FB</a>
+				</div>
+			</div>
+			<div>
+				<h4>Esplora</h4>
+				<ul>
+					<li><a href="#home">Home</a></li>
+					<li><a href="#servizi">Servizi</a></li>
+					<li><a href="#portfolio">Portfolio</a></li>
+					<li><a href="#chi-sono">Chi sono</a></li>
+				</ul>
+			</div>
+			<div>
+				<h4>Contatti</h4>
+				<ul>
+					<li><a href="#">ciao@giuliamalosso.it</a></li>
+					<li><a href="#">+39 000 000 0000</a></li>
+					<li>Maser (TV)</li>
+				</ul>
+			</div>
+		</div>
+		<div class="site-footer__bottom">
+			<span>&copy; 2026 Giulia Malosso Photography</span>
+			<span>P.IVA — da inserire</span>
+		</div>
+	</div>
+</footer>
+
+<script src="giulia-malosso-photography/assets/js/main.js"></script>
+</body>
+</html>

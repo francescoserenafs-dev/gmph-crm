@@ -1,7 +1,7 @@
 # Piano editoriale
 ## Christmas Mini Session 2026
 
-Documento operativo aggiornato al 29 settembre 2026. Segui le date in ordine: ogni voce indica canale, obiettivo, materiale, testo e CTA. Sostituisci i campi tra parentesi quadre con dati reali prima della pubblicazione.
+Documento operativo aggiornato al 5 ottobre 2026. Il lancio ufficiale e l'apertura delle prenotazioni a tutti sono oggi, 5 ottobre, alle 17:00 CEST. Sostituisci i campi tra parentesi quadre con dati reali prima della pubblicazione.
 
 ## Offerta e messaggio
 
@@ -17,24 +17,24 @@ Documento operativo aggiornato al 29 settembre 2026. Segui le date in ordine: og
 
 | Entro | Preparare | Verificare |
 |---|---|---|
-| 28 settembre | Reel gia pubblicato con palline di Natale e CTA NATALE; flow ManyChat gia attivo | Verifica che DM e commenti inviino al form/landing corretto |
-| 2 ottobre | Landing e form MailerLite Lista Christmas | Prova che il modulo invii subito la guida e registri l'iscrizione per l'accesso anticipato |
-| 4 ottobre | Eventuale contenuto di richiamo alla lista | Riutilizza il flow ManyChat esistente; non crearne un secondo |
-| 6 ottobre | Email teaser e email accesso anticipato | Verifica gruppo, segmenti, mittente e link con un invio di prova |
-| 7 ottobre | Calendario prenotazioni per la lista | Testa date, orari, prezzi, durata, buffer e conferma |
-| 10 ottobre | Link pubblico, grafiche e campagna Meta prenotazioni | Test da telefono; verifica disponibilita e tracking, se usato |
+| 28 settembre - 4 ottobre (riscaldamento) | Reel teaser, Stories, form guida e flow ManyChat gia attivi; ads awareness verso la guida | Verifica che DM, commenti e form consegnino la guida e portino al link corretto |
+| Prima delle 17:00 del 5 ottobre | Calendario, link prenotazione, landing pubblica, grafiche e comunicazioni di lancio; ads di prenotazione pronti | Test da telefono; verifica date, orari, prezzi, durata, buffer, conferma e disponibilita reali |
+| 5 ottobre, ore 17:00 CEST | Email, Reel, Stories e link pubblico | Pubblica e invia solo dopo aver verificato che il flusso di prenotazione funzioni |
+| Dal 6 ottobre | FAQ, reminder e aggiornamenti disponibilita | Usa link pubblico e comunica solo slot ancora prenotabili |
 | 26 ottobre | Template disponibilita e processo consenso immagini | Non pubblicare persone identificabili senza consenso |
 | Prima della prima consegna | Prezzi/campioni stampe, email consegna e follow-up | Inserisci prezzi, formati e scadenze reali |
 
-**Landing:** titolo "Il Natale da vivere insieme"; descrizione, foto coerente col set, durata, foto incluse, prezzi e date; stampe facoltative; CTA "Scegli la tua data" e CTA secondaria per la lista; FAQ su partecipanti, abbigliamento, consegna e stampe.
+**Landing:** titolo "Il Natale da vivere insieme"; descrizione, foto coerente col set, durata, foto incluse, prezzi e date; stampe facoltative; CTA "Scegli la tua data" e CTA secondaria "Chiedi informazioni"; FAQ su partecipanti, abbigliamento, consegna e stampe.
 
-**Anteprima:** inviare il link solo alla lista non rende privata una pagina pubblica. Se il link diretto e accessibile, l'anteprima e riservata a chi riceve il link, non protetta tecnicamente.
+Dalle 17 del 5 ottobre il link e pubblico e le prenotazioni sono aperte a tutti; non presentare la lista come accesso anticipato o riservato.
 
 ## Calendario di pubblicazione
 
-### 28 settembre - Reel teaser: le palline di Natale
+La fase dal 28 settembre al 4 ottobre e il riscaldamento gia pubblicato: serviva a creare attesa e raccogliere iscritti alla guida, senza promettere accesso anticipato. Il lancio con apertura delle prenotazioni a tutti e il 5 ottobre alle 17:00 CEST; da li in poi la comunicazione punta a prenotazioni, disponibilita e consegna.
 
-**Canale e obiettivo:** Instagram Reel; incuriosire e avviare conversazioni che portano alla lista, senza vendere ancora.
+### 28 settembre - Reel teaser: le palline di Natale (riscaldamento)
+
+**Canale e obiettivo:** Instagram Reel; incuriosire e avviare conversazioni che portano alla guida, senza vendere ancora.
 **Materiale:** palline di Natale che rotolano. Mantieni il video essenziale e usa il movimento come gancio visivo.
 
 **Testo in sovraimpressione:** `Qualcosa sta arrivando...` / `Scrivi NATALE in DM o nei commenti`.
@@ -42,19 +42,19 @@ Documento operativo aggiornato al 29 settembre 2026. Segui le date in ordine: og
 **Caption:**
 > Qualcosa sta arrivando per questo Natale... 🤍
 >
-> Vuoi ricevere la guida per prepararti alla sessione e avere accesso anticipato alle iscrizioni?
+> Vuoi ricevere la guida per prepararti alla sessione e tutti i dettagli?
 >
-> Scrivi **NATALE** in DM o nei commenti: ti mandero il link al modulo. Compilandolo riceverai subito la guida; l'accesso anticipato alle iscrizioni arrivera quando apriranno.
+> Scrivi **NATALE** in DM o nei commenti: ti mandero il link al modulo. Compilandolo riceverai subito la guida; le prenotazioni sono aperte dal 5 ottobre alle 17:00.
 
-**Flow ManyChat gia attivo:** intercetta `NATALE` nei DM o nei commenti e risponde con il link alla form/landing. Dopo la compilazione del modulo, la persona riceve subito la guida e viene inserita nella lista per ricevere l'accesso anticipato in seguito. Controlla che il link e la consegna immediata funzionino. Hashtag facoltativi: `#christmasminisession #ritrattidinatale #fotografiadifamiglia #Maser`.
+**Flow ManyChat gia attivo:** intercetta `NATALE` nei DM o nei commenti e risponde con il link alla form/landing. Dopo la compilazione del modulo, la persona riceve subito la guida; indirizzala anche al link pubblico per prenotare. Controlla che link e consegna funzionino. Hashtag facoltativi: `#christmasminisession #ritrattidinatale #fotografiadifamiglia #Maser`.
 
-**Meta Ads lista:** pubblico locale con centro a Maser (TV) e raggio massimo di 25 km; budget iniziale 5-8 euro al giorno. Testa massimo tre copy, mantenendo uguali pubblico e budget; scegli una sola destinazione.
+**Meta Ads riscaldamento (28 settembre - 4 ottobre):** pubblico locale con centro a Maser (TV) e raggio massimo di 25 km; budget iniziale 5-8 euro al giorno. Obiettivo: far conoscere le Christmas Mini Session e raccogliere iscritti alla guida prima dell'apertura del 5 ottobre. Testa massimo tre copy, mantenendo uguali pubblico e budget.
 
-- **A, crescita:** `I bambini crescono in fretta. Prima che arrivi un altro Natale, puoi fermare il modo in cui la vostra famiglia si guarda oggi. Sto preparando a Maser (TV) un piccolo set per Christmas Mini Session: luce calda, fotografie naturali e un momento semplice da vivere insieme. Entra nella lista per ricevere tutti i dettagli e scegliere la tua data in anteprima.` Titolo: `Un ricordo da custodire`.
-- **B, atmosfera:** `Il Natale ha una luce che dura solo per poche settimane. Ho preparato un set caldo e curato per raccontare la vostra famiglia con immagini semplici e autentiche. Lascia la tua email per ricevere l'accesso anticipato alle date.` Titolo: `La vostra luce di Natale`.
-- **C, tempo insieme:** `Tra la corsa ai regali e i preparativi, a volte ci dimentichiamo del regalo piu semplice: stare insieme. Le Christmas Mini Session fermano un momento della vostra famiglia prima che le feste passino. Scrivimi NATALE e ti mando i dettagli.` Titolo: `Un momento tutto vostro`.
+- **A, crescita:** `I bambini crescono in fretta. Prima che arrivi un altro Natale, puoi fermare il modo in cui la vostra famiglia si guarda oggi. A Maser (TV) arrivano le Christmas Mini Session: luce calda, fotografie naturali e un momento semplice da vivere insieme. Scrivi NATALE per la guida e i dettagli.` Titolo: `Un ricordo da custodire`.
+- **B, atmosfera:** `Il Natale ha una luce che dura solo per poche settimane. Ho preparato un set caldo e curato per raccontare la vostra famiglia con immagini semplici e autentiche. Scrivimi per ricevere la guida e sapere quando aprono le prenotazioni.` Titolo: `La vostra luce di Natale`.
+- **C, tempo insieme:** `Tra la corsa ai regali e i preparativi, a volte ci dimentichiamo del regalo piu semplice: stare insieme. Le Christmas Mini Session fermano un momento della vostra famiglia prima che le feste passino. Scrivi NATALE e ti mando la guida.` Titolo: `Un momento tutto vostro`.
 
-CTA: `Scopri di piu` per il form oppure `Invia un messaggio` per ManyChat.
+CTA: `Scopri di piu` verso il form della guida oppure `Invia un messaggio` per il flow ManyChat. Dal 5 ottobre alle 17 sostituisci questi annunci con quelli di prenotazione (vedi 5 ottobre).
 
 ### 30 settembre - Storie sondaggio
 
@@ -70,83 +70,54 @@ CTA: `Scopri di piu` per il form oppure `Invia un messaggio` per ManyChat.
 **Storia 1:** `Se potessi conservare un solo ricordo di questo Natale, quale sarebbe?` Sticker: `Scrivimelo qui`.
 **Storia 2:** ricondividi 2-3 risposte, oscurando i nomi se necessario; testo: `Sono proprio questi piccoli momenti che vorrei raccontare sul set.`
 
-### 2 ottobre - Storie e lista Christmas
+### 2 ottobre - Storie e guida Christmas (riscaldamento)
 
-**Canale e obiettivo:** 3 Stories e apertura landing/form; raccogliere contatti interessati all'anteprima. Prepara una grafica semplice: `Entra nella lista Christmas`.
+**Canale e obiettivo:** 3 Stories e apertura landing/form; raccogliere iscritti alla guida prima del lancio. Prepara una grafica semplice: `Ricevi la guida Christmas`. Non promettere accesso anticipato: dal 5 ottobre alle 17 le prenotazioni sono aperte a tutti.
 
 1. `Sto preparando qualcosa di speciale per le famiglie che amano conservare i momenti veri.`
-2. `Chi entra nella lista ricevera tutte le informazioni e potra scegliere la propria data in anteprima.`
+2. `Chi si iscrive ricevera la mini-guida e tutti i dettagli delle sessioni.`
 3. `Se vuoi esserci, lascia qui la tua email. 🤍` Sticker link: `[LINK FORM]`.
 
-Nel form prometti accesso anticipato e mini-guida per gli abiti; CTA `Voglio ricevere l'accesso anticipato`. Email di conferma: ringrazia, consegna la guida e anticipa il link del 7 ottobre.
+Nel form prometti la mini-guida per gli abiti; CTA `Ricevi la mini-guida`. Email di conferma: ringrazia, consegna la guida e include il link pubblico alle prenotazioni.
 
-### 3 ottobre - Carosello mood
+### 3 ottobre - Carosello mood (riscaldamento)
 
 **Canale e obiettivo:** Instagram, 4-5 slide; far immaginare l'atmosfera senza ancora mettere prezzo e dettagli. Usa luce calda, materiali, dettagli e parte del set.
 
-**Slide:** `La luce del Natale sta arrivando` / `Luci calde e dettagli semplici` / `Un piccolo spazio per stare insieme` / `Un ricordo da riguardare negli anni` / `La lista ricevera l'accesso in anteprima`.
+**Slide:** `La luce del Natale sta arrivando` / `Luci calde e dettagli semplici` / `Un piccolo spazio per stare insieme` / `Un ricordo da riguardare negli anni` / `Prenotazioni aperte dal 5 ottobre alle 17`.
 
 **Caption:**
 > L'atmosfera che sto preparando per questo Natale.
 >
 > Luci calde, dettagli curati e uno spazio pensato per lasciare al centro voi: i vostri sguardi, le risate, il modo in cui vi state vicini.
 >
-> Le prenotazioni apriranno presto. Chi entra nella lista potra scegliere per primo.
+> Le prenotazioni aprono oggi, 5 ottobre, alle 17. Da quel momento potrai scegliere la tua data dal link in bio.
 >
-> Link in bio per ricevere l'accesso anticipato.
+> Link in bio per ricevere la guida e i dettagli.
 
-### 4 ottobre - Eventuale richiamo alla lista
+### 4 ottobre - Ultimo richiamo alla guida (riscaldamento)
 
-**Canale e obiettivo:** se serve un ulteriore contenuto, pubblica un Reel o una sequenza Stories per ricordare la lista. Riutilizza il flow ManyChat gia attivo: non configurare una nuova automazione. Mostra un dettaglio del set in preparazione.
+**Canale e obiettivo:** se serve un ulteriore contenuto, pubblica un Reel o una sequenza Stories per ricordare la guida e l'apertura del 5 ottobre. Riutilizza il flow ManyChat gia attivo: non configurare una nuova automazione. Mostra un dettaglio del set in preparazione.
 
 **Caption:**
-> Vuoi ricevere la guida per prepararti alla sessione e avere accesso anticipato alle iscrizioni?
+> Vuoi ricevere la guida per prepararti alla sessione?
 >
-> Scrivi **NATALE** in DM o nei commenti. ManyChat ti inviera il link al modulo: compilalo per ricevere subito la guida e restare nella lista per l'accesso anticipato.
+> Scrivi **NATALE** in DM o nei commenti. ManyChat ti inviera il link al modulo: compilalo per ricevere subito la guida. Dal 5 ottobre alle 17 potrai prenotare dal link pubblico.
 >
 > 🤍
 
 **Messaggio inviato dal flow attivo:**
 > Ciao [Nome]! Grazie per aver scritto NATALE 🤍
 >
-> Per ricevere subito la guida per prepararti alle Christmas Mini Session e avere accesso anticipato alle iscrizioni, compila questo modulo: [LINK FORM/LANDING]
+> Per ricevere subito la guida per prepararti alle Christmas Mini Session, compila questo modulo: [LINK FORM]. Per prenotare dalle 17 del 5 ottobre: [LINK PRENOTAZIONE]
 
-**Dopo l'invio del modulo:** consegna subito la mini-guida; conserva il contatto nella lista a cui invierai l'accesso anticipato quando le iscrizioni apriranno. La risposta ManyChat non promette disponibilita o prenotazioni gia aperte.
+**Dopo l'invio del modulo:** consegna subito la mini-guida e conserva il contatto per gli aggiornamenti. Dalle 17 del 5 ottobre, il flow deve indirizzare al link di prenotazione pubblico.
 
-### 5 ottobre - Storie FAQ e attesa
+### 5 ottobre - Lancio ufficiale, ore 17:00 CEST
 
-**Canale e obiettivo:** Instagram Stories; chiarire quando arrivano i dettagli e raccogliere gli ultimi iscritti. Usa sticker link.
+**Canali e obiettivo:** alle 17:00 invia l'email, pubblica il Reel e aggiorna bio e Stories con il link pubblico. Da questo momento chiunque puo prenotare. Mostra il set completo; usa immagini di famiglia solo se autorizzate.
 
-1. `Mi state chiedendo quando apriranno le prenotazioni...`
-2. `Domani vi raccontero tutto: date, modalita e dettagli del set.`
-3. `Vuoi ricevere l'accesso in anteprima? Entra nella lista.` Link: `[LINK FORM]`.
-
-### 6 ottobre - Email teaser
-
-**Canale e obiettivo:** email MailerLite agli iscritti; anticipare l'apertura senza ancora inviare il link.
-**Oggetto:** `Sta arrivando qualcosa di speciale (e tu lo saprai per primo)`
-
-> Ciao [Nome],
->
-> ho una notizia che aspettavo di darti.
->
-> Quest'anno ho preparato un set dedicato ai Ritratti di Natale: luci calde, dettagli curati e mini-sessioni pensate per fermare un momento della vostra famiglia prima che l'anno finisca.
->
-> I bambini crescono, le famiglie cambiano e ogni Natale ha qualcosa di irripetibile. Vorrei aiutarti a conservare proprio questo.
->
-> Le sessioni inizieranno il 26 ottobre. Domani ti mandero date, prezzo e link per scegliere in anteprima.
->
-> Essere nella lista significa poter scegliere prima dell'apertura pubblica.
->
-> Tieni d'occhio la casella. 🤍
->
-> [Nome fotografa]
-
-### 7 ottobre - Reveal e apertura alla lista
-
-**Canali e obiettivo:** email alla Lista Christmas e Reel Instagram; presentare l'offerta e aprire la scelta anticipata. Mostra il set completo; usa immagini di famiglia solo se autorizzate.
-
-**Testo Reel:** `CHRISTMAS MINI SESSION` / `Il Natale da vivere insieme` / `Dal 26 ottobre` / `Foto digitali incluse` / `Accesso anticipato per la lista`.
+**Testo Reel:** `CHRISTMAS MINI SESSION` / `Il Natale da vivere insieme` / `Dal 26 ottobre` / `Foto digitali incluse` / `Prenotazioni aperte`.
 
 **Caption Reel:**
 > E ufficiale: arrivano le Christmas Mini Session. 🤍
@@ -155,92 +126,24 @@ Nel form prometti accesso anticipato e mini-guida per gli abiti; CTA `Voglio ric
 >
 > Le sessioni iniziano il 26 ottobre. Le fotografie digitali sono incluse. Il prezzo e di 125 euro nei giorni feriali e 145 euro il sabato.
 >
-> Gli iscritti alla lista possono scegliere la propria data da oggi. L'apertura pubblica sara il 10 ottobre.
->
-> Se non sei ancora nella lista, trovi il link in bio.
+> Da oggi alle 17 le prenotazioni sono aperte a tutti. Scegli la tua data dal link in bio.
 
-**Email - Oggetto:** `Il tuo accesso anticipato alle Christmas Mini Session`
+**Email - Oggetto:** `Sono aperte le prenotazioni per le Christmas Mini Session`
 
 > Ciao [Nome],
 >
-> ci siamo: da oggi puoi scegliere in anteprima il momento da vivere sul set di Natale.
+> ci siamo: da oggi alle 17 puoi scegliere il momento da vivere sul set di Natale.
 >
 > Ho immaginato queste sessioni come un'occasione semplice per fermare il tempo: voi insieme, la luce calda, i bambini cosi come sono oggi e un ricordo da ritrovare negli anni.
 >
 > Le sessioni iniziano il 26 ottobre. Le fotografie digitali sono incluse. Il prezzo e di 125 euro nei giorni feriali e 145 euro il sabato.
 >
-> Puoi scegliere la tua data qui: [LINK PRENOTAZIONE]
->
-> L'apertura pubblica sara il 10 ottobre. Se c'e una data a cui tieni particolarmente, questo e il momento migliore per sceglierla.
+> Le prenotazioni sono aperte a tutti: scegli la tua data qui [LINK PRENOTAZIONE].
 >
 > Ti aspetto sul set 🤍
 > [Nome fotografa]
 
-CTA email: link prenotazione. Ricorda: un link inviato solo alla lista non rende privata una pagina pubblica.
-
-### 8 ottobre - Carosello informativo
-
-**Canale e obiettivo:** Instagram; contenuto salvabile con le informazioni pratiche. Usa foto e grafica pulita, testi leggibili.
-
-**Slide:** `Christmas Mini Session - Un ricordo da vivere insieme` / `Un piccolo set natalizio, caldo e curato` / `15-20 minuti per lasciare spazio ai momenti veri` / `Fotografie digitali incluse` / `125 euro feriali - 145 euro sabato` / `Dal 26 ottobre - disponibilita limitata per data` / `Sei nella lista? Puoi scegliere in anteprima` / `Scrivimi o trovi il link in bio`.
-
-**Caption:**
-> Salva questo post per avere tutte le informazioni a portata di mano.
->
-> Le Christmas Mini Session sono pensate per chi desidera fermare un momento della propria famiglia prima delle feste, senza fotografie rigide o pose complicate.
->
-> Le fotografie digitali sono incluse. Se vorrai, potrai aggiungere una stampa fine-art da tenere vicino o regalare ai nonni.
->
-> Le sessioni iniziano il 26 ottobre. Gli iscritti alla lista possono scegliere per primi. Scrivimi per informazioni.
-
-### 9 ottobre - Reminder e Stories
-
-**Canali e obiettivo:** email ai non-openers della mail del 7 ottobre e Stories; ricordare che il 10 si apre a tutti.
-**Oggetto email:** `Hai gia scelto il momento da custodire?`
-
-> Ciao [Nome],
->
-> ti lascio qui un piccolo promemoria: l'accesso anticipato alle Christmas Mini Session e ancora aperto, ma dal 10 ottobre le prenotazioni saranno disponibili per tutti.
->
-> Se desideri vivere questo momento con la tua famiglia e avere fotografie da custodire prima delle feste, puoi scegliere la tua data qui: [LINK PRENOTAZIONE]
->
-> A presto,
-> [Nome fotografa]
-
-Stories: `Domani le prenotazioni si aprono a tutti.` / `Se desideri scegliere una delle date disponibili, puoi farlo oggi in anteprima.` / `Il Natale passa. Il modo in cui vi guardate oggi resta nelle fotografie.` Sticker link `[LINK PRENOTAZIONE]` e countdown al 10 ottobre.
-
-### 10 ottobre - Apertura pubblica
-
-**Canali e orari:** email alle 9:00; Reel alle 12:00; Stories durante la giornata; link pubblico e campagna Meta prenotazioni.
-**Obiettivo:** trasformare interesse e lista in prenotazioni. Usa il set completo e la grafica `PRENOTAZIONI APERTE`.
-
-**Email - Oggetto:** `Le prenotazioni sono aperte`
-
-> Ciao [Nome],
->
-> da oggi le Christmas Mini Session sono aperte a tutti.
->
-> Il set e pronto: luci calde, dettagli natalizi e uno spazio pensato per raccontare la vostra famiglia cosi com'e oggi.
->
-> Le sessioni iniziano il 26 ottobre. Le fotografie digitali sono incluse. 125 euro nei giorni feriali e 145 euro il sabato.
->
-> Ogni data ha un numero limitato di slot, perche desidero dedicare a ogni famiglia il tempo e l'attenzione necessari.
->
-> Puoi scegliere la tua data qui: [LINK PRENOTAZIONE]
->
-> Ti aspetto sul set. 🤍
-> [Nome fotografa]
-
-**Caption Reel:**
-> Le prenotazioni sono aperte. 🤍
->
-> Il set di Natale e pronto ad accogliere le vostre famiglie: ci saranno risate, piccoli imprevisti, bambini da seguire e momenti veri. Proprio quelli che rendono una fotografia preziosa.
->
-> Sessioni dal 26 ottobre, fotografie digitali incluse. 125 euro feriali, 145 euro sabato.
->
-> Per scegliere la tua data trovi il link in bio. Se hai una domanda, scrivimi: ti rispondo volentieri.
-
-**Stories:** `Da oggi puoi scegliere la tua Christmas Mini Session` + link / `Il set e pronto. Io non vedo l'ora di accogliervi` / `Disponibilita aggiornate: [DATE E ORARI REALI]`.
+**Stories:** prima delle 17, countdown e dettagli del set; dalle 17, `Le prenotazioni sono aperte` + link / `Sessioni dal 26 ottobre, foto digitali incluse` / `Disponibilita aggiornate: [DATE E ORARI REALI]`.
 
 **Meta Ads prenotazioni:** retargeting su chi ha interagito col profilo o visitato la landing; pubblico lista solo se configurato; escludi i gia prenotati se possibile. Link `[LINK PRENOTAZIONE]`, UTM `utm_source=meta&utm_campaign=christmas_conversion_2026`.
 
@@ -249,6 +152,51 @@ Stories: `Domani le prenotazioni si aprono a tutti.` / `Se desideri scegliere un
 - **C, prova sociale:** `Le prime famiglie sono gia passate dal set. Ci sono state risate, abbracci e piccoli momenti che rendono preziosa una fotografia. Restano queste date: [DATE REALI].` Usa solo immagini/parole autorizzate. Titolo `Le Christmas Mini Session`.
 
 CTA: `Prenota ora`. Valuta prenotazioni, costi e riempimento per data, non solo click.
+
+### 6 ottobre - FAQ e reminder
+
+**Canale e obiettivo:** Instagram Stories; rispondere ai dubbi emersi e riportare al calendario pubblico.
+
+1. `Le prenotazioni sono aperte: ecco come scegliere la tua data.` + link
+2. `Hai dubbi su durata, partecipanti o abbigliamento? Scrivimi.`
+3. `Sessioni dal 26 ottobre, fotografie digitali incluse.` + link
+
+### 8 ottobre - Carosello informativo
+
+**Canale e obiettivo:** Instagram; contenuto salvabile con le informazioni pratiche. Usa foto e grafica pulita, testi leggibili.
+
+**Slide:** `Christmas Mini Session - Un ricordo da vivere insieme` / `Un piccolo set natalizio, caldo e curato` / `15-20 minuti per lasciare spazio ai momenti veri` / `Fotografie digitali incluse` / `125 euro feriali - 145 euro sabato` / `Dal 26 ottobre - disponibilita limitata per data` / `Prenotazioni aperte a tutti` / `Scegli la tua data dal link in bio`.
+
+**Caption:**
+> Salva questo post per avere tutte le informazioni a portata di mano.
+>
+> Le Christmas Mini Session sono pensate per chi desidera fermare un momento della propria famiglia prima delle feste, senza fotografie rigide o pose complicate.
+>
+> Le fotografie digitali sono incluse. Se vorrai, potrai aggiungere una stampa fine-art da tenere vicino o regalare ai nonni.
+>
+> Le sessioni iniziano il 26 ottobre e le prenotazioni sono aperte a tutti. Se hai una domanda, scrivimi; per scegliere la data trovi il link in bio.
+
+### 9 ottobre - Reminder e Stories
+
+**Canali e obiettivo:** email a chi non ha aperto il messaggio di lancio del 5 ottobre e Stories; ricordare che le prenotazioni sono gia aperte.
+**Oggetto email:** `Hai gia scelto il momento da custodire?`
+
+> Ciao [Nome],
+>
+> ti lascio qui un piccolo promemoria: le prenotazioni per le Christmas Mini Session sono aperte a tutti.
+>
+> Se desideri vivere questo momento con la tua famiglia e avere fotografie da custodire prima delle feste, puoi scegliere la tua data qui: [LINK PRENOTAZIONE]
+>
+> A presto,
+> [Nome fotografa]
+
+Stories: `Le prenotazioni sono aperte.` / `Queste sono le date ancora disponibili: [DATE REALI].` / `Il Natale passa. Il modo in cui vi guardate oggi resta nelle fotografie.` Sticker link `[LINK PRENOTAZIONE]`.
+
+### 10 ottobre - Aggiornamento disponibilita
+
+**Canale e obiettivo:** Instagram Stories; mostrare solo gli slot ancora prenotabili e rimandare al calendario pubblico.
+
+**Testo:** `Queste sono le date ancora disponibili: [DATE E ORARI REALI].` + sticker link `[LINK PRENOTAZIONE]`. Aggiorna il calendario prima di pubblicare e rimuovi subito le date piene.
 
 ### 11-16 ottobre - Stories disponibilita
 

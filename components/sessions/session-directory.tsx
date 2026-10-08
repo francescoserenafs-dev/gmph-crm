@@ -30,6 +30,7 @@ type SessionForm = { clientId: string; serviceTypeId: string; scheduledAt: strin
 type QuickClient = { firstName: string; lastName: string; email: string };
 type Filters = { clientId: string; serviceTypeIds: string[]; stageIds: string[]; paymentStatuses: string[]; day: string };
 type ExpiringVoucher = { id: string; code: string; expires_at: string; purchaser: { first_name: string; last_name: string } | null };
+type MailerLiteGroup = { id: string; name: string };
 type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number | null };
 
 const VOUCHER_METHOD = "__voucher__";
@@ -133,6 +134,12 @@ export function SessionDirectory() {
   const [optionsKey, setOptionsKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [mailerliteOpen, setMailerliteOpen] = useState(false);
+  const [mailerliteGroups, setMailerliteGroups] = useState<MailerLiteGroup[]>([]);
+  const [mailerliteGroupId, setMailerliteGroupId] = useState("");
+  const [mailerliteBusy, setMailerliteBusy] = useState(false);
+  const [mailerliteError, setMailerliteError] = useState<string | null>(null);
+  const [mailerliteResult, setMailerliteResult] = useState<{ added: number; total: number; errors: { id: string; name: string; error: string }[] } | null>(null);
   const [expiringVouchers, setExpiringVouchers] = useState<ExpiringVoucher[]>([]);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
   const [voucherId, setVoucherId] = useState("");
@@ -505,6 +512,46 @@ export function SessionDirectory() {
     }
   }
 
+  async function openMailerliteDialog() {
+    if (selectedIds.size === 0) return;
+    setMailerliteOpen(true);
+    setMailerliteResult(null);
+    setMailerliteError(null);
+    if (mailerliteGroups.length > 0) return;
+    setMailerliteBusy(true);
+    try {
+      const response = await fetch("/api/mailerlite/groups");
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setMailerliteGroups(body.groups ?? []);
+    } catch (reason) {
+      setMailerliteError(reason instanceof Error ? reason.message : "Impossibile caricare i gruppi MailerLite.");
+    } finally {
+      setMailerliteBusy(false);
+    }
+  }
+
+  async function addSelectedToMailerliteGroup() {
+    if (selectedIds.size === 0 || !mailerliteGroupId || mailerliteBusy) return;
+    setMailerliteBusy(true);
+    setMailerliteError(null);
+    setMailerliteResult(null);
+    try {
+      const response = await fetch("/api/mailerlite/add-to-group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionIds: Array.from(selectedIds), groupId: mailerliteGroupId }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setMailerliteResult(body as { added: number; total: number; errors: { id: string; name: string; error: string }[] });
+    } catch (reason) {
+      setMailerliteError(reason instanceof Error ? reason.message : "Aggiunta al gruppo non riuscita.");
+    } finally {
+      setMailerliteBusy(false);
+    }
+  }
+
   async function moveSessionToStage(sessionId: string, targetCode: string) {
     const stageId = stageIdByCode.get(targetCode);
     const session = pipelineSessions.find((item) => item.id === sessionId);
@@ -548,6 +595,11 @@ export function SessionDirectory() {
             {selectedIds.size > 0 ? (
               <button className="grid h-11 place-items-center border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef] disabled:cursor-wait disabled:opacity-60" disabled={isDeleting} onClick={handleDeleteSelected} type="button">
                 {isDeleting ? "Eliminazione..." : `Elimina selezionate (${selectedIds.size})`}
+              </button>
+            ) : null}
+            {selectedIds.size > 0 ? (
+              <button className="grid h-11 place-items-center border border-[#9b5d43] px-5 text-sm font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" onClick={() => void openMailerliteDialog()} type="button">
+                {`Aggiungi a gruppo MailerLite (${selectedIds.size})`}
               </button>
             ) : null}
             <Link
@@ -851,6 +903,40 @@ export function SessionDirectory() {
             {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
             <ModalActions busy={busy} onCancel={() => setInline(null)} submitLabel="Salva pagamento" />
           </form>
+        </Modal>
+      ) : null}
+
+      {mailerliteOpen ? (
+        <Modal onClose={() => setMailerliteOpen(false)} title="Aggiungi a gruppo MailerLite">
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-[#675f57]">I clienti delle {selectedIds.size} sessioni selezionate verranno aggiunti al gruppo MailerLite scelto.</p>
+            {mailerliteError ? <p className="border border-[#d9aaa0] bg-[#fff7f5] p-3 text-sm text-[#a53e31]">{mailerliteError}</p> : null}
+            {mailerliteResult ? (
+              <div className="border border-[#cfe0cf] bg-[#f3f8f3] p-3 text-sm text-[#367e4a]">
+                <p>{mailerliteResult.added} di {mailerliteResult.total} clienti aggiunti al gruppo.</p>
+                {mailerliteResult.errors.length > 0 ? (
+                  <ul className="mt-2 list-disc pl-5 text-[#a53e31]">
+                    {mailerliteResult.errors.map((item) => <li key={item.id}>{item.name}: {item.error}</li>)}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <label className="flex flex-col gap-2 text-sm font-medium">Gruppo di destinazione
+                <select className="h-11 border border-[#cfc5b8] bg-white px-3" disabled={mailerliteBusy || mailerliteGroups.length === 0} onChange={(event) => setMailerliteGroupId(event.target.value)} value={mailerliteGroupId}>
+                  <option value="">{mailerliteBusy ? "Caricamento gruppi..." : mailerliteGroups.length === 0 ? "Nessun gruppo disponibile" : "Seleziona gruppo"}</option>
+                  {mailerliteGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                </select>
+              </label>
+            )}
+            <div className="flex justify-end gap-3">
+              <button className="h-11 border border-[#cfc5b8] px-5 text-sm font-semibold hover:bg-[#eee8df]" onClick={() => setMailerliteOpen(false)} type="button">{mailerliteResult ? "Chiudi" : "Annulla"}</button>
+              {mailerliteResult ? null : (
+                <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60" disabled={mailerliteBusy || !mailerliteGroupId} onClick={() => void addSelectedToMailerliteGroup()} type="button">
+                  {mailerliteBusy ? "Aggiunta..." : "Aggiungi al gruppo"}
+                </button>
+              )}
+            </div>
+          </div>
         </Modal>
       ) : null}
     </main>

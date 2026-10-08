@@ -7,6 +7,7 @@ import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { calculateRemainingBalance } from "@/lib/sessions";
 
 type Payment = {
@@ -26,6 +27,10 @@ type StageEvent = { id: string; stage_name: string; changed_at: string; notes: s
 
 type Extra = { id: string; service_type_id: string | null; service_name: string; price_cents: number; quantity: number; notes: string | null; created_at: string };
 
+type SentEmail = { id: string; template_code: string; to_email: string; subject: string; sent_at: string };
+type PackageOption = { id: string; service_type_id: string; name: string; included_photos: number; is_active: boolean };
+type EmailDraft = { to: string | null; subject: string; bodyHtml: string; warnings: string[] };
+
 type Session = {
   id: string;
   scheduled_at: string;
@@ -33,11 +38,17 @@ type Session = {
   location: string | null;
   service_name: string;
   service_detail: string | null;
+  service_type_id: string;
   notes: string | null;
   agreed_price_cents: number;
   is_settled: boolean;
+  package_id: string | null;
+  included_photos: number | null;
+  proofs_gallery_url: string | null;
+  package: { id: string; name: string; included_photos: number; description: string | null } | null;
+  emails: SentEmail[];
   current_stage: { id: string; name: string; code: string } | null;
-  client: { id: string; first_name: string; last_name: string } | null;
+  client: { id: string; first_name: string; last_name: string; email: string | null } | null;
   payments: Payment[];
   stage_history: StageEvent[];
   extras: Extra[];
@@ -80,32 +91,38 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [selectedVoucher, setSelectedVoucher] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | null>(openExtrasDialogOnMount ? "extra" : null);
+  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | "delivery" | "email" | null>(openExtrasDialogOnMount ? "extra" : null);
   const [busy, setBusy] = useState(false);
+  const [packages, setPackages] = useState<PackageOption[]>([]);
+  const [deliveryForm, setDeliveryForm] = useState({ packageId: "", includedPhotos: "", proofsGalleryUrl: "" });
+  const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
 
   const [stageForm, setStageForm] = useState({ stageId: "", changedAt: "", notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: "", paidDate: "", methodId: "", category: "balance", notes: "" });
   const [editForm, setEditForm] = useState({ scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "" });
-  const [extraForm, setExtraForm] = useState({ serviceTypeId: "", priceEuros: "", notes: "" });
+  const [extraForm, setExtraForm] = useState({ serviceTypeId: "", priceEuros: "", quantity: "1", notes: "" });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [sessionRes, stagesRes, methodsRes] = await Promise.all([
+        const [sessionRes, stagesRes, methodsRes, packagesRes] = await Promise.all([
           fetch(`/api/sessions/${sessionId}`),
           fetch("/api/sessions/options"),
           fetch("/api/payments/options"),
+          fetch("/api/packages"),
         ]);
         const sessionBody = await sessionRes.json();
         const stagesBody = await stagesRes.json();
         const methodsBody = await methodsRes.json();
+        const packagesBody = await packagesRes.json();
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
         if (stagesRes.ok) { setStages(stagesBody.stages); setAddonServices(stagesBody.addonServices ?? []); }
         if (methodsRes.ok) setMethods(methodsBody.methods);
+        if (packagesRes.ok) setPackages(packagesBody.packages);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
       } finally {
@@ -123,9 +140,49 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
   const extraServiceTypeId = extraForm.serviceTypeId || addonServices[0]?.id || "";
+  const sessionPackages = packages.filter((item) => item.service_type_id === session?.service_type_id && (item.is_active || item.id === session?.package_id));
+  const includedPhotos = session?.included_photos ?? session?.package?.included_photos ?? null;
+
+  function openDeliveryDialog() {
+    if (!session) return;
+    setDeliveryForm({ packageId: session.package_id ?? "", includedPhotos: session.included_photos === null ? "" : String(session.included_photos), proofsGalleryUrl: session.proofs_gallery_url ?? "" });
+    setError(null);
+    setDialog("delivery");
+  }
+
+  async function submitDelivery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "updateDelivery", ...deliveryForm }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setSession(body.session as Session); setDialog(null);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento non riuscito."); } finally { setBusy(false); }
+  }
+
+  async function openProofsEmail() {
+    setBusy(true); setError(null); setEmailDraft(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/emails`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateCode: "proofs", mode: "preview" }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setEmailDraft(body as EmailDraft); setDialog("email");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Anteprima non disponibile."); } finally { setBusy(false); }
+  }
+
+  async function sendEmail() {
+    if (!emailDraft || !window.confirm(`Inviare l'email a ${emailDraft.to}?`)) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/emails`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateCode: "proofs", mode: "send", subject: emailDraft.subject, bodyHtml: emailDraft.bodyHtml }) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setDialog(null); setEmailDraft(null); setRefreshKey((key) => key + 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Invio non riuscito."); } finally { setBusy(false); }
+  }
 
   function openExtraDialog() {
-    setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", notes: "" });
+    setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", quantity: "1", notes: "" });
     setError(null);
     setDialog("extra");
   }
@@ -382,6 +439,36 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
 
         <section className="mt-9">
           <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Consegna</h2>
+            <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={openDeliveryDialog} type="button">Modifica</button>
+          </div>
+          <div className="mt-4 border border-[#d8d0c5] bg-white p-5">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Pacchetto</p><p className="mt-1 text-sm font-medium">{session.package?.name ?? "-"}</p></div>
+              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Foto incluse</p><p className="mt-1 text-sm font-medium">{includedPhotos ?? "-"}{session.included_photos !== null && session.package ? " (personalizzato)" : ""}</p></div>
+              <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Gallery provini</p>{session.proofs_gallery_url ? <a className="mt-1 block truncate text-sm font-medium text-[#9b5d43] hover:underline" href={session.proofs_gallery_url} rel="noopener noreferrer" target="_blank">{session.proofs_gallery_url}</a> : <p className="mt-1 text-sm font-medium">-</p>}</div>
+            </div>
+            {!isCancelled ? (
+              <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[#eee8df] pt-4">
+                <button className="h-10 bg-[#9b5d43] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} onClick={openProofsEmail} type="button">Invia provini</button>
+                {!session.client?.email ? <p className="text-xs text-[#a53e31]">Il cliente non ha un indirizzo email.</p> : null}
+              </div>
+            ) : null}
+            {session.emails.length > 0 ? (
+              <div className="mt-4 border-t border-[#eee8df] pt-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Email inviate</p>
+                <ul className="mt-2 space-y-1">
+                  {[...session.emails].sort((a, b) => b.sent_at.localeCompare(a.sent_at)).map((email) => (
+                    <li className="text-sm" key={email.id}>{dateTime.format(new Date(email.sent_at))} - {email.subject} <span className="text-xs text-[#675f57]">({email.to_email})</span></li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="mt-9">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Extra</h2>
             {!isCancelled ? <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={openExtraDialog} type="button">Aggiungi extra</button> : null}
           </div>
@@ -551,10 +638,15 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
                     {addonServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                   </select>
                 </label>
-                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Prezzo (EUR)
-                  <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="0" onChange={(e) => setExtraForm({ ...extraForm, priceEuros: e.target.value })} required type="number" value={extraForm.priceEuros} />
-                </label>
-                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note (facoltativo)
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-sm font-medium">Prezzo unitario (EUR)
+                    <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="0" onChange={(e) => setExtraForm({ ...extraForm, priceEuros: e.target.value })} required type="number" value={extraForm.priceEuros} />
+                  </label>
+                  <label className="flex flex-col gap-2 text-sm font-medium">Quantita
+                    <input className="h-11 border border-[#cfc5b8] bg-white px-3" max="999" min="1" onChange={(e) => setExtraForm({ ...extraForm, quantity: e.target.value })} required type="number" value={extraForm.quantity} />
+                  </label>
+                </div>
+                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note (facoltativo, es. formato e carta)
                   <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, notes: e.target.value })} value={extraForm.notes} />
                 </label>
               </>
@@ -565,6 +657,54 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
               <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || addonServices.length === 0} type="submit">{busy ? "Salvataggio..." : "Aggiungi extra"}</button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {dialog === "delivery" ? (
+        <Modal onClose={() => setDialog(null)} title="Consegna">
+          <form onSubmit={submitDelivery}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm font-medium">Pacchetto
+                <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setDeliveryForm({ ...deliveryForm, packageId: e.target.value })} value={deliveryForm.packageId}>
+                  <option value="">Nessun pacchetto</option>
+                  {sessionPackages.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.included_photos} foto)</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium">Foto incluse (vuoto = come da pacchetto)
+                <input className="h-11 border border-[#cfc5b8] bg-white px-3" max="1000" min="0" onChange={(e) => setDeliveryForm({ ...deliveryForm, includedPhotos: e.target.value })} placeholder={String(sessionPackages.find((item) => item.id === deliveryForm.packageId)?.included_photos ?? "")} type="number" value={deliveryForm.includedPhotos} />
+              </label>
+            </div>
+            {sessionPackages.length === 0 ? <p className="mt-3 text-xs text-[#675f57]">Nessun pacchetto per questo servizio: puoi crearne uno nella pagina Pacchetti.</p> : null}
+            <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Link gallery provini
+              <input className="h-11 border border-[#cfc5b8] bg-white px-3" maxLength={2000} onChange={(e) => setDeliveryForm({ ...deliveryForm, proofsGalleryUrl: e.target.value })} placeholder="https://..." type="url" value={deliveryForm.proofsGalleryUrl} />
+            </label>
+            <p className="mt-3 text-xs text-[#675f57]">Stampe e foto extra acquistate si gestiscono nella sezione Extra e compaiono nell&apos;email.</p>
+            {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
+            <ModalActions busy={busy} onCancel={() => setDialog(null)} submitLabel="Salva" />
+          </form>
+        </Modal>
+      ) : null}
+
+      {dialog === "email" && emailDraft ? (
+        <Modal onClose={() => setDialog(null)} title="Anteprima email provini">
+          <p className="text-sm"><span className="font-semibold">A:</span> {emailDraft.to ?? "-"}</p>
+          {emailDraft.warnings.length > 0 ? (
+            <ul className="mt-3 space-y-1 border-l-2 border-[#c69214] bg-[#fdf6e7] px-4 py-3 text-sm text-[#7a5a0c]">
+              {emailDraft.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          ) : null}
+          <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Oggetto
+            <input className="h-11 border border-[#cfc5b8] bg-white px-3" maxLength={200} onChange={(e) => setEmailDraft({ ...emailDraft, subject: e.target.value })} value={emailDraft.subject} />
+          </label>
+          <div className="mt-4 text-sm font-medium">Testo (modificabile solo per questo invio)
+            <RichTextEditor onChange={(value) => setEmailDraft((current) => current ? { ...current, bodyHtml: value } : current)} value={emailDraft.bodyHtml} />
+          </div>
+          <p className="mt-3 text-xs text-[#675f57]">Dopo l&apos;invio la sessione passa a &quot;Provini inviati&quot;.</p>
+          {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
+          <div className="mt-6 flex justify-end gap-3">
+            <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
+            <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || !emailDraft.to || !emailDraft.subject.trim() || !session.proofs_gallery_url} onClick={sendEmail} type="button">{busy ? "Invio..." : "Invia email"}</button>
+          </div>
         </Modal>
       ) : null}
 
