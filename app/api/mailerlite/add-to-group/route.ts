@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
     for (let start = 0; start < clients.length; start += 50) {
       const batch = clients.slice(start, start + 50);
       const results = await batchUpsertMailerLiteSubscribers(batch.map((client) => ({
-        id: client.mailerlite_subscriber_id,
         email: client.email,
         name: client.first_name,
         lastName: client.last_name,

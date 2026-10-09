@@ -1,6 +1,5 @@
 -- Pacchetti per tipo di servizio (N pacchetti : 1 servizio), dati di consegna sulla sessione,
 -- modelli email modificabili e registro delle email transazionali inviate.
--- non ancora caricata (credo)
 
 create table public.session_packages (
   id uuid primary key default gen_random_uuid(),

@@ -42,21 +42,20 @@ export async function listMailerLiteSubscribers() {
   return subscribers;
 }
 
-export async function upsertMailerLiteSubscriber(input: { id?: string | null; email: string; name: string; lastName: string; phone: string | null; groupId: string }) {
+// Always upsert via POST /subscribers: PUT /subscribers/:id removes the subscriber from every group not listed.
+export async function upsertMailerLiteSubscriber(input: { email: string; name: string; lastName: string; phone: string | null; groupId: string }) {
   const payload = { email: input.email, fields: { nome: input.name, cognome: input.lastName, cellulare: input.phone ?? "" }, groups: [input.groupId] };
-  const body = input.id
-    ? await request(`/subscribers/${encodeURIComponent(input.id)}`, { method: "PUT", body: JSON.stringify(payload) })
-    : await request("/subscribers", { method: "POST", body: JSON.stringify(payload) });
+  const body = await request("/subscribers", { method: "POST", body: JSON.stringify(payload) });
   return body.data as { id: string };
 }
 
-export async function batchUpsertMailerLiteSubscribers(inputs: { id?: string | null; email: string; name: string; lastName: string; phone: string | null; groupId: string }[]) {
+export async function batchUpsertMailerLiteSubscribers(inputs: { email: string; name: string; lastName: string; phone: string | null; groupId: string }[]) {
   const body = await request("/batch", {
     method: "POST",
     body: JSON.stringify({
       requests: inputs.map((input) => ({
-        method: input.id ? "PUT" : "POST",
-        path: input.id ? `api/subscribers/${encodeURIComponent(input.id)}` : "api/subscribers",
+        method: "POST",
+        path: "api/subscribers",
         body: { email: input.email, fields: { nome: input.name, cognome: input.lastName, cellulare: input.phone ?? "" }, groups: [input.groupId] },
       })),
     }),
@@ -64,6 +63,24 @@ export async function batchUpsertMailerLiteSubscribers(inputs: { id?: string | n
   return (body.responses ?? []).map((response) => ({
     ok: response.code >= 200 && response.code < 300,
     id: response.body?.data?.id ?? null,
+    error: response.body?.message ?? `MailerLite ha restituito ${response.code}.`,
+  }));
+}
+
+export async function batchRemoveMailerLiteSubscribersFromGroups(inputs: { subscriberId: string; groupId: string }[]) {
+  if (inputs.length === 0) return [];
+  const body = await request("/batch", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: inputs.map((input) => ({
+        method: "DELETE",
+        path: `api/subscribers/${encodeURIComponent(input.subscriberId)}/groups/${encodeURIComponent(input.groupId)}`,
+      })),
+    }),
+  }) as MailerLiteResponse & { responses?: { code: number; body?: { message?: string } }[] };
+  // 404 = subscriber was not in the group: nothing to remove.
+  return (body.responses ?? []).map((response) => ({
+    ok: (response.code >= 200 && response.code < 300) || response.code === 404,
     error: response.body?.message ?? `MailerLite ha restituito ${response.code}.`,
   }));
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { batchUpsertMailerLiteSubscribers, listMailerLiteSubscribers } from "@/lib/mailerlite";
+import { batchRemoveMailerLiteSubscribersFromGroups, batchUpsertMailerLiteSubscribers, listMailerLiteSubscribers } from "@/lib/mailerlite";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ async function loadSyncData(force = false) {
   if (settingsError || clientsError) throw new Error((settingsError ?? clientsError)?.message ?? "Dati di sincronizzazione non disponibili.");
   if (!settings?.mailerlite_transactional_group_id || !settings.mailerlite_marketing_group_id) throw new Error("Configura prima i due gruppi MailerLite.");
   const lastSync = settings.mailerlite_last_sync_at ? new Date(settings.mailerlite_last_sync_at) : null;
-  const selected = (clients ?? []).filter((client) => force || !lastSync || new Date(client.updated_at) > lastSync || client.mailerlite_sync_status === "error") as Client[];
+  const selected = (clients ?? []).filter((client) => client.email && (force || !lastSync || new Date(client.updated_at) > lastSync || client.mailerlite_sync_status === "error")) as Client[];
   return { settings, clients: selected };
 }
 
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
     const errors: { id: string; name: string; error: string }[] = [];
     for (let start = 0; start < items.length; start += 50) {
       const batch = items.slice(start, start + 50);
+      const upserted: { item: SyncItem; subscriberId: string }[] = [];
       const results = await batchUpsertMailerLiteSubscribers(batch.map((item) => ({
-        id: item.mailerlite_subscriber_id,
         email: item.email,
         name: item.first_name,
         lastName: item.last_name,
@@ -52,13 +52,29 @@ export async function POST(request: NextRequest) {
       for (let index = 0; index < batch.length; index += 1) {
         const item = batch[index];
         const result = results[index] ?? { ok: false, id: null, error: "Risposta batch incompleta." };
-        if (result.ok && result.id) {
-          await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: result.id, mailerlite_sync_status: "synced", mailerlite_synced_at: syncedAt, mailerlite_last_error: null }).eq("id", item.id);
+        if (!result.ok || !result.id) {
+          errors.push({ id: item.id, name: `${item.first_name} ${item.last_name}`, error: result.error });
+          await supabaseAdmin.from("clients").update({ mailerlite_sync_status: "error", mailerlite_last_error: result.error }).eq("id", item.id);
+          continue;
+        }
+        upserted.push({ item, subscriberId: result.id });
+      }
+
+      // Groups are mutually exclusive: remove from the opposite group (e.g. marketing after consent revocation).
+      const removals = await batchRemoveMailerLiteSubscribersFromGroups(upserted.map(({ item, subscriberId }) => ({
+        subscriberId,
+        groupId: item.group === "marketing" ? settings.mailerlite_transactional_group_id : settings.mailerlite_marketing_group_id,
+      })));
+      for (let index = 0; index < upserted.length; index += 1) {
+        const { item, subscriberId } = upserted[index];
+        const removal = removals[index] ?? { ok: false, error: "Risposta batch incompleta." };
+        if (removal.ok) {
+          await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: subscriberId, mailerlite_sync_status: "synced", mailerlite_synced_at: syncedAt, mailerlite_last_error: null }).eq("id", item.id);
           synced += 1;
         } else {
-          const message = result.error;
+          const message = `Rimozione dal gruppo ${item.group === "marketing" ? "transazionale" : "marketing"} non riuscita: ${removal.error}`;
           errors.push({ id: item.id, name: `${item.first_name} ${item.last_name}`, error: message });
-          await supabaseAdmin.from("clients").update({ mailerlite_sync_status: "error", mailerlite_last_error: message }).eq("id", item.id);
+          await supabaseAdmin.from("clients").update({ mailerlite_subscriber_id: subscriberId, mailerlite_sync_status: "error", mailerlite_last_error: message }).eq("id", item.id);
         }
       }
     }
