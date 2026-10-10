@@ -13,7 +13,8 @@ const VOUCHER_METHOD = "__voucher__";
 type Payment = {
   id: string;
   amount_cents: number;
-  paid_at: string;
+  paid_at: string | null;
+  paid_date: string | null;
   category: string;
   payment_method_name: string;
   applied_voucher_id: string | null;
@@ -24,6 +25,16 @@ type Payment = {
 
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+
+function paymentDay(payment: Payment) {
+  if (payment.paid_date) return payment.paid_date;
+  return payment.paid_at ? new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Rome" }).format(new Date(payment.paid_at)) : "";
+}
+
+function formatPaymentDay(payment: Payment) {
+  const day = paymentDay(payment);
+  return day ? dateOnly.format(new Date(`${day}T00:00:00`)) : "-";
+}
 const categoryLabels: Record<string, string> = {
   deposit: "Caparra",
   balance: "Saldo",
@@ -119,7 +130,7 @@ export function PaymentDirectory() {
   function openEdit(payment: Payment) {
     if (payment.applied_voucher_id) return;
     setEditing(payment);
-    setForm({ sessionId: payment.session?.id ?? "", amountEuros: String(payment.amount_cents / 100), paidAt: new Date(payment.paid_at).toISOString().slice(0, 10), methodId: methods.find((method) => method.name === payment.payment_method_name)?.id ?? "", category: payment.category, notes: payment.notes ?? "" });
+    setForm({ sessionId: payment.session?.id ?? "", amountEuros: String(payment.amount_cents / 100), paidAt: paymentDay(payment), methodId: methods.find((method) => method.name === payment.payment_method_name)?.id ?? "", category: payment.category, notes: payment.notes ?? "" });
     setError(null);
     setDialog("edit");
   }
@@ -168,7 +179,7 @@ export function PaymentDirectory() {
           <div className="flex flex-wrap gap-2">
             <ExportButton
               fetchRows={async () => {
-                const params = new URLSearchParams({ page: "1", pageSize: "10000" });
+                const params = new URLSearchParams({ all: "1" });
                 if (methodFilter) params.set("method", methodFilter);
                 if (categoryFilter) params.set("category", categoryFilter);
                 const response = await fetch(`/api/payments?${params.toString()}`);
@@ -177,7 +188,7 @@ export function PaymentDirectory() {
                   const payer = payment.session?.client ?? payment.voucher?.purchaser ?? null;
                   return {
                     Cliente: payer ? `${payer.first_name} ${payer.last_name}` : "",
-                    Data: dateOnly.format(new Date(payment.paid_at)),
+                    Data: formatPaymentDay(payment),
                     Riferimento: payment.session ? payment.session.service_name : payment.voucher ? `Buono ${payment.voucher.code}` : "",
                     Causale: categoryLabels[payment.category] ?? payment.category,
                     Metodo: payment.payment_method_name,
@@ -225,7 +236,7 @@ export function PaymentDirectory() {
                 <span className="min-w-0 truncate font-medium">
                   {payer ? <Link className="hover:underline" href={`/clients/${payer.id}`}>{payer.first_name} {payer.last_name}</Link> : "-"}
                 </span>
-                <span>{dateOnly.format(new Date(payment.paid_at))}</span>
+                <span>{formatPaymentDay(payment)}</span>
                 <span className="min-w-0 truncate">
                   {payment.session ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/sessions/${payment.session.id}`}>{payment.session.service_name}</Link> : payment.voucher ? <Link className="font-medium text-[#9b5d43] hover:underline" href={`/vouchers/${payment.voucher.id}`}>Buono {payment.voucher.code}</Link> : "-"}
                 </span>

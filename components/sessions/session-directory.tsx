@@ -612,7 +612,7 @@ export function SessionDirectory() {
             </Link>
             <ExportButton
               fetchRows={async () => {
-                const params = new URLSearchParams({ page: "1", pageSize: "10000" });
+                const params = new URLSearchParams({ all: "1" });
                 if (filters.clientId) params.set("clientId", filters.clientId);
                 if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
                 if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
@@ -620,7 +620,8 @@ export function SessionDirectory() {
                 const response = await fetch(`/api/sessions?${params.toString()}`);
                 const body = await response.json();
                 const rows = (body.sessions ?? []) as Session[];
-                const filtered = filters.day ? rows.filter((session) => localDayKey(session.scheduled_at) === filters.day) : rows;
+                const byDay = filters.day ? rows.filter((session) => localDayKey(session.scheduled_at) === filters.day) : rows;
+                const filtered = selectedIds.size > 0 ? byDay.filter((session) => selectedIds.has(session.id)) : byDay;
                 return filtered.map((session) => ({
                   Cliente: session.client ? `${session.client.first_name} ${session.client.last_name}` : "",
                   Servizio: session.service_name,

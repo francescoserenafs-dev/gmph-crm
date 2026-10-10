@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
   });
 
   const total = filteredSessions.length;
+  if (request.nextUrl.searchParams.get("all") === "1") return NextResponse.json({ sessions: filteredSessions, total });
   return NextResponse.json({ sessions: filteredSessions.slice((page - 1) * pageSize, page * pageSize), total });
 }
 

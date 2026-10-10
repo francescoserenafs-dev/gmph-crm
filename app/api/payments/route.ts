@@ -15,11 +15,12 @@ export async function GET(request: NextRequest) {
   const method = request.nextUrl.searchParams.get("method");
   const category = request.nextUrl.searchParams.get("category");
 
-  let query = supabaseAdmin.from("payments").select(paymentFields, { count: "exact" }).order("paid_at", { ascending: false });
+  let query = supabaseAdmin.from("payments").select(paymentFields, { count: "exact" }).order("paid_date", { ascending: false, nullsFirst: false }).order("paid_at", { ascending: false });
   if (method) query = query.eq("payment_method_name", method);
   if (category) query = query.eq("category", category);
 
-  const { data, error, count } = await query.range((page - 1) * pageSize, page * pageSize - 1);
+  const exportAll = request.nextUrl.searchParams.get("all") === "1";
+  const { data, error, count } = exportAll ? await query : await query.range((page - 1) * pageSize, page * pageSize - 1);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ payments: data, total: count ?? 0 });
