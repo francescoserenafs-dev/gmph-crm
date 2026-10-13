@@ -132,9 +132,9 @@ export function ExtraAnalysis() {
               <p className="mt-1 text-sm text-[#675f57]">Iniziale = prezzo concordato. Finale = prezzo concordato + extra{categoryLabel ? ` "${categoryLabel}"` : ""}. Media sulle sessioni analizzate.</p>
               <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric hint="Media dei prezzi concordati" label="Ticket iniziale medio" value={formatCents(data.totals.averageInitialTicketCents)} />
-                <Metric hint="Media di prezzo concordato + extra" label="Ticket finale medio" value={formatCents(data.totals.averageFinalTicketCents)} />
-                <Metric hint="Ticket finale − ticket iniziale" label="Incremento medio" value={formatCents(data.totals.ticketIncreaseCents)} />
-                <Metric hint="Ticket finale ÷ ticket iniziale − 1" label="Incremento %" value={formatRate(data.totals.ticketIncreaseRate)} />
+                <Metric hint={categoryLabel ? `Media di prezzo concordato + solo extra "${categoryLabel}"` : "Media di prezzo concordato + extra"} label={categoryLabel ? `Ticket medio con ${categoryLabel}` : "Ticket finale medio"} value={formatCents(data.totals.averageFinalTicketCents)} />
+                <Metric hint={categoryLabel ? "Contributo medio della sola categoria" : "Ticket finale − ticket iniziale"} label={categoryLabel ? `Incremento medio da ${categoryLabel}` : "Incremento medio"} value={formatCents(data.totals.ticketIncreaseCents)} />
+                <Metric hint={categoryLabel ? "Incremento medio della categoria ÷ ticket iniziale" : "Ticket finale ÷ ticket iniziale − 1"} label={categoryLabel ? `Incremento % da ${categoryLabel}` : "Incremento %"} value={formatRate(data.totals.ticketIncreaseRate)} />
               </div>
             </section>
 
@@ -156,7 +156,7 @@ export function ExtraAnalysis() {
 
             <div className="mt-8">
               <DataTable
-                columns={["Servizio", "Sessioni", "Con extra", "Upsell rate", "Extra totale", "Extra medio", "Ticket finale medio"]}
+                columns={["Servizio", "Sessioni", "Con extra", "Upsell rate", "Extra totale", "Extra medio", categoryLabel ? `Ticket medio con ${categoryLabel}` : "Ticket finale medio"]}
                 emptyLabel="Nessuna sessione."
                 rows={data.byService.map((row) => [row.label, String(row.sessions), String(row.withExtras), formatRate(row.upsellRate), euro.format(row.extrasCents / 100), formatCents(row.averageExtraPerSessionCents), formatCents(row.averageFinalTicketCents)])}
                 title="Per servizio"
@@ -195,7 +195,7 @@ export function ExtraAnalysis() {
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
     <div className="border border-[#d8d0c5] bg-white px-4 py-3" title={hint}>
-      <p className="whitespace-nowrap text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-[#8a8178]">{hint}</p>
     </div>

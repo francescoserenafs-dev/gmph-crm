@@ -15,14 +15,16 @@ type LoadedSession = {
   proofs_gallery_url: string | null;
   current_stage: { code: string } | null;
   client: { first_name: string; last_name: string; email: string | null } | null;
-  package: { name: string; included_photos: number; description: string | null } | null;
+  package_name_snapshot: string | null;
+  package_included_photos_snapshot: number | null;
+  package_description_snapshot: string | null;
   extras: { service_name: string; quantity: number; notes: string | null; created_at: string }[];
 };
 
 async function loadContext(sessionId: string) {
   const { data } = await supabaseAdmin
     .from("sessions")
-    .select("scheduled_at, service_name, service_detail, included_photos, proofs_gallery_url, current_stage:session_stages!sessions_current_stage_id_fkey(code), client:clients!sessions_client_id_fkey(first_name,last_name,email), package:session_packages!sessions_package_id_fkey(name,included_photos,description), extras:session_extras(service_name,quantity,notes,created_at)")
+    .select("scheduled_at, service_name, service_detail, included_photos, proofs_gallery_url, current_stage:session_stages!sessions_current_stage_id_fkey(code), client:clients!sessions_client_id_fkey(first_name,last_name,email), package_name_snapshot, package_included_photos_snapshot, package_description_snapshot, extras:session_extras(service_name,quantity,notes,created_at)")
     .eq("id", sessionId)
     .maybeSingle();
   const session = data as unknown as LoadedSession | null;
@@ -33,9 +35,9 @@ async function loadContext(sessionId: string) {
     clientLastName: session.client.last_name,
     serviceName: session.service_detail ? `${session.service_name} - ${session.service_detail}` : session.service_name,
     scheduledAt: session.scheduled_at,
-    packageName: session.package?.name ?? null,
-    packageDescription: session.package?.description ?? null,
-    includedPhotos: session.included_photos ?? session.package?.included_photos ?? null,
+    packageName: session.package_name_snapshot,
+    packageDescription: session.package_description_snapshot,
+    includedPhotos: session.included_photos ?? session.package_included_photos_snapshot,
     galleryUrl: session.proofs_gallery_url,
     extras: [...session.extras].sort((a, b) => a.created_at.localeCompare(b.created_at)).map((extra) => ({ name: extra.service_name, quantity: extra.quantity, notes: extra.notes })),
   };

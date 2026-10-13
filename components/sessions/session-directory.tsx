@@ -26,7 +26,8 @@ type Session = {
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
-type SessionForm = { clientId: string; serviceTypeId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; location: string; serviceDetail: string; notes: string; imageConsentGranted: boolean };
+type SessionForm = { clientId: string; serviceTypeId: string; packageId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; includedPhotos: string; location: string; serviceDetail: string; notes: string; imageConsentGranted: boolean };
+type PackageOption = { id: string; service_type_id: string; name: string; price_cents: number | null; duration_minutes: number | null; included_photos: number; is_active: boolean };
 type QuickClient = { firstName: string; lastName: string; email: string };
 type Filters = { clientId: string; serviceTypeIds: string[]; stageIds: string[]; paymentStatuses: string[]; day: string };
 type ExpiringVoucher = { id: string; code: string; expires_at: string; purchaser: { first_name: string; last_name: string } | null };
@@ -35,7 +36,7 @@ type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "va
 
 const VOUCHER_METHOD = "__voucher__";
 
-const emptySession: SessionForm = { clientId: "", serviceTypeId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "", imageConsentGranted: false };
+const emptySession: SessionForm = { clientId: "", serviceTypeId: "", packageId: "", scheduledAt: "", durationMinutes: "", priceEuros: "", includedPhotos: "", location: "", serviceDetail: "", notes: "", imageConsentGranted: false };
 const paymentStatusOptions = [
   { id: "unpaid", name: "Da saldare" },
   { id: "partial", name: "Parzialmente pagata" },
@@ -107,6 +108,7 @@ export function SessionDirectory() {
   const [services, setServices] = useState<Service[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
+  const [packages, setPackages] = useState<PackageOption[]>([]);
   const [calendarSessions, setCalendarSessions] = useState<Session[]>([]);
   const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
   const [pageSize, setPageSize] = useState(() => Number(searchParams.get("pageSize")) || 25);
@@ -177,12 +179,14 @@ export function SessionDirectory() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [optionsResponse, paymentResponse] = await Promise.all([fetch("/api/sessions/options"), fetch("/api/payments/options")]);
+      const [optionsResponse, paymentResponse, packagesResponse] = await Promise.all([fetch("/api/sessions/options"), fetch("/api/payments/options"), fetch("/api/packages")]);
       const optionsBody = await optionsResponse.json();
       const paymentBody = await paymentResponse.json();
+      const packagesBody = await packagesResponse.json();
       if (!active) return;
       if (optionsResponse.ok) { setClients(optionsBody.clients); setServices(optionsBody.services); setStages(optionsBody.stages); }
       if (paymentResponse.ok) setMethods(paymentBody.methods);
+      if (packagesResponse.ok) setPackages(packagesBody.packages);
     })().catch(() => {});
     return () => { active = false; };
   }, [optionsKey]);
@@ -250,6 +254,19 @@ export function SessionDirectory() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedService = services.find((service) => service.id === sessionForm.serviceTypeId);
+  const servicePackages = packages.filter((item) => item.is_active && item.service_type_id === sessionForm.serviceTypeId);
+
+  // Il pacchetto propone prezzo, durata e foto; restano modificabili prima del salvataggio.
+  function selectPackage(packageId: string) {
+    const selected = packages.find((item) => item.id === packageId);
+    setSessionForm((current) => selected ? {
+      ...current,
+      packageId,
+      priceEuros: selected.price_cents === null ? current.priceEuros : String(selected.price_cents / 100),
+      durationMinutes: selected.duration_minutes === null ? current.durationMinutes : String(selected.duration_minutes),
+      includedPhotos: String(selected.included_photos),
+    } : { ...current, packageId: "", includedPhotos: "" });
+  }
   const endTime = sessionForm.scheduledAt && Number(sessionForm.durationMinutes) > 0 ? new Date(new Date(sessionForm.scheduledAt).getTime() + Number(sessionForm.durationMinutes) * 60_000) : null;
 
   const visibleSessions = filters.day ? sessions.filter((session) => localDayKey(session.scheduled_at) === filters.day) : sessions;
@@ -338,6 +355,8 @@ export function SessionDirectory() {
       setSessionForm({
         clientId: source.client?.id ?? "",
         serviceTypeId: source.service_type_id ?? "",
+        packageId: "",
+        includedPhotos: "",
         scheduledAt: "",
         durationMinutes: String(source.duration_minutes),
         priceEuros: String(source.agreed_price_cents / 100),
@@ -366,6 +385,8 @@ export function SessionDirectory() {
         setSessionForm({
           clientId: source.client?.id ?? "",
           serviceTypeId: source.service_type_id ?? "",
+          packageId: "",
+          includedPhotos: "",
           scheduledAt: "",
           durationMinutes: String(source.duration_minutes),
           priceEuros: String(source.agreed_price_cents / 100),
@@ -806,10 +827,19 @@ export function SessionDirectory() {
             {conversionLeadId ? <p className="mb-4 border border-[#d8b7a5] bg-[#f1e3db] px-3 py-2 text-sm text-[#8a4f37]">Al salvataggio la sessione verrà collegata al lead, che passerà a Prenotato.</p> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ClientCombobox clients={clients} onChange={(clientId) => setSessionForm({ ...sessionForm, clientId })} value={sessionForm.clientId} />
-              <SelectField label="Servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceTypeId: value, serviceDetail: "" })} options={services} value={sessionForm.serviceTypeId} />
+              <SelectField label="Servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceTypeId: value, serviceDetail: "", packageId: "", includedPhotos: "" })} options={services} value={sessionForm.serviceTypeId} />
+              {servicePackages.length > 0 ? (
+                <label className="flex flex-col gap-2 text-sm font-medium">Pacchetto (facoltativo)
+                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => selectPackage(e.target.value)} value={sessionForm.packageId}>
+                    <option value="">Nessun pacchetto</option>
+                    {servicePackages.map((item) => <option key={item.id} value={item.id}>{item.name}{item.price_cents === null ? "" : ` — ${euro.format(item.price_cents / 100)}`}</option>)}
+                  </select>
+                </label>
+              ) : null}
               <InputField label="Data e ora" onChange={(value) => setSessionForm({ ...sessionForm, scheduledAt: value })} type="datetime-local" value={sessionForm.scheduledAt} />
               <InputField label="Durata (minuti)" min="1" onChange={(value) => setSessionForm({ ...sessionForm, durationMinutes: value })} type="number" value={sessionForm.durationMinutes} />
               <InputField label="Prezzo concordato (EUR)" min="0" onChange={(value) => setSessionForm({ ...sessionForm, priceEuros: value })} type="number" value={sessionForm.priceEuros} />
+              {sessionForm.packageId ? <InputField label="Foto incluse" min="0" onChange={(value) => setSessionForm({ ...sessionForm, includedPhotos: value })} type="number" value={sessionForm.includedPhotos} /> : null}
               <InputField label="Luogo" optional onChange={(value) => setSessionForm({ ...sessionForm, location: value })} value={sessionForm.location} />
               {selectedService?.name === "Altro" ? <InputField label="Specifica il servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceDetail: value })} value={sessionForm.serviceDetail} /> : null}
             </div>

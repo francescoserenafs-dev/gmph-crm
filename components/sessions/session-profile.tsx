@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { SessionExtraDialog } from "@/components/extras/session-extra-dialog";
+import { SessionPackageDialog } from "@/components/packages/session-package-dialog";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
@@ -11,6 +12,7 @@ import { Modal } from "@/components/shared/modal";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { calculateRemainingBalance } from "@/lib/sessions";
 import { EXTRA_CATEGORY_LABELS, type ExtraCategory } from "@/lib/extra-products";
+import type { PackageInclusionSnapshot } from "@/lib/packages";
 
 type Payment = {
   id: string;
@@ -30,7 +32,7 @@ type StageEvent = { id: string; stage_name: string; changed_at: string; notes: s
 type Extra = { id: string; service_type_id: string | null; service_name: string; category_snapshot: ExtraCategory | null; price_cents: number; quantity: number; line_total_cents: number; unit_cost_cents: number | null; notes: string | null; created_at: string };
 
 type SentEmail = { id: string; template_code: string; to_email: string; subject: string; sent_at: string };
-type PackageOption = { id: string; service_type_id: string; name: string; included_photos: number; is_active: boolean };
+type PackageOption = { id: string; service_type_id: string; name: string; price_cents: number | null; duration_minutes: number | null; included_photos: number; is_active: boolean };
 type EmailDraft = { to: string | null; subject: string; bodyHtml: string; warnings: string[] };
 
 type Session = {
@@ -47,7 +49,12 @@ type Session = {
   package_id: string | null;
   included_photos: number | null;
   proofs_gallery_url: string | null;
-  package: { id: string; name: string; included_photos: number; description: string | null } | null;
+  package_name_snapshot: string | null;
+  package_price_cents_snapshot: number | null;
+  package_duration_minutes_snapshot: number | null;
+  package_included_photos_snapshot: number | null;
+  package_description_snapshot: string | null;
+  package_inclusions: PackageInclusionSnapshot[];
   emails: SentEmail[];
   current_stage: { id: string; name: string; code: string } | null;
   client: { id: string; first_name: string; last_name: string; email: string | null } | null;
@@ -91,10 +98,10 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [selectedVoucher, setSelectedVoucher] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | "delivery" | "email" | null>(openExtrasDialogOnMount ? "extra" : null);
+  const [dialog, setDialog] = useState<"stage" | "payment" | "delete" | "voucher" | "edit" | "extra" | "delivery" | "email" | "package" | null>(openExtrasDialogOnMount ? "extra" : null);
   const [busy, setBusy] = useState(false);
   const [packages, setPackages] = useState<PackageOption[]>([]);
-  const [deliveryForm, setDeliveryForm] = useState({ packageId: "", includedPhotos: "", proofsGalleryUrl: "" });
+  const [deliveryForm, setDeliveryForm] = useState({ includedPhotos: "", proofsGalleryUrl: "" });
   const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
 
   const [stageForm, setStageForm] = useState({ stageId: "", changedAt: "", notes: "" });
@@ -138,12 +145,13 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
-  const sessionPackages = packages.filter((item) => item.service_type_id === session?.service_type_id && (item.is_active || item.id === session?.package_id));
-  const includedPhotos = session?.included_photos ?? session?.package?.included_photos ?? null;
+  const sessionPackages = packages.filter((item) => item.service_type_id === session?.service_type_id && item.is_active);
+  // Storico: si usa sempre lo snapshot, mai il catalogo corrente.
+  const includedPhotos = session?.included_photos ?? session?.package_included_photos_snapshot ?? null;
 
   function openDeliveryDialog() {
     if (!session) return;
-    setDeliveryForm({ packageId: session.package_id ?? "", includedPhotos: session.included_photos === null ? "" : String(session.included_photos), proofsGalleryUrl: session.proofs_gallery_url ?? "" });
+    setDeliveryForm({ includedPhotos: session.included_photos === null ? "" : String(session.included_photos), proofsGalleryUrl: session.proofs_gallery_url ?? "" });
     setError(null);
     setDialog("delivery");
   }
@@ -426,13 +434,44 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
 
         <section className="mt-9">
           <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Pacchetto</h2>
+            <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={() => { setError(null); setDialog("package"); }} type="button">{session.package_id ? "Cambia o rimuovi" : "Assegna pacchetto"}</button>
+          </div>
+          <div className="mt-4 border border-[#d8d0c5] bg-white p-5">
+            {session.package_name_snapshot ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Pacchetto</p><p className="mt-1 text-sm font-medium">{session.package_name_snapshot}</p></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Listino alla prenotazione</p><p className="mt-1 text-sm font-medium">{session.package_price_cents_snapshot === null ? "-" : euro.format(session.package_price_cents_snapshot / 100)}</p></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Prezzo concordato</p><p className="mt-1 text-sm font-medium">{euro.format(session.agreed_price_cents / 100)}</p></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Foto del pacchetto</p><p className="mt-1 text-sm font-medium">{session.package_included_photos_snapshot ?? "-"}</p></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Durata pacchetto</p><p className="mt-1 text-sm font-medium">{session.package_duration_minutes_snapshot === null ? "-" : `${session.package_duration_minutes_snapshot} min`}</p></div>
+                </div>
+                {session.package_description_snapshot ? <p className="mt-4 whitespace-pre-line text-sm text-[#514a43]">{session.package_description_snapshot}</p> : null}
+                <div className="mt-4 border-t border-[#eee8df] pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Prodotti inclusi nel prezzo</p>
+                  {session.package_inclusions.length === 0 ? <p className="mt-2 text-sm text-[#675f57]">Nessun prodotto incluso.</p> : (
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {[...session.package_inclusions].sort((a, b) => a.sort_order - b.sort_order).map((item) => (
+                        <li key={item.id}>{item.quantity} × {item.product_name_snapshot}{item.category_snapshot ? <span className="text-xs text-[#675f57]"> · {EXTRA_CATEGORY_LABELS[item.category_snapshot]}</span> : null}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : <p className="text-sm text-[#675f57]">Nessun pacchetto associato.</p>}
+          </div>
+        </section>
+
+        <section className="mt-9">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Consegna</h2>
             <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={openDeliveryDialog} type="button">Modifica</button>
           </div>
           <div className="mt-4 border border-[#d8d0c5] bg-white p-5">
             <div className="grid gap-4 sm:grid-cols-3">
-              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Pacchetto</p><p className="mt-1 text-sm font-medium">{session.package?.name ?? "-"}</p></div>
-              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Foto incluse</p><p className="mt-1 text-sm font-medium">{includedPhotos ?? "-"}{session.included_photos !== null && session.package ? " (personalizzato)" : ""}</p></div>
+              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Pacchetto</p><p className="mt-1 text-sm font-medium">{session.package_name_snapshot ?? "-"}</p></div>
+              <div><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Foto incluse</p><p className="mt-1 text-sm font-medium">{includedPhotos ?? "-"}{session.included_photos !== null && session.package_included_photos_snapshot !== null && session.included_photos !== session.package_included_photos_snapshot ? " (personalizzato)" : ""}</p></div>
               <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Gallery provini</p>{session.proofs_gallery_url ? <a className="mt-1 block truncate text-sm font-medium text-[#9b5d43] hover:underline" href={session.proofs_gallery_url} rel="noopener noreferrer" target="_blank">{session.proofs_gallery_url}</a> : <p className="mt-1 text-sm font-medium">-</p>}</div>
             </div>
             {!isCancelled ? (
@@ -617,21 +656,24 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         <SessionExtraDialog onClose={() => setDialog(null)} onSaved={() => { setDialog(null); setRefreshKey((key) => key + 1); }} sessionId={sessionId} />
       ) : null}
 
+      {dialog === "package" ? (
+        <SessionPackageDialog
+          current={{ packageId: session.package_id, packageName: session.package_name_snapshot, agreedPriceCents: session.agreed_price_cents, durationMinutes: session.duration_minutes, includedPhotos }}
+          onClose={() => setDialog(null)}
+          onSaved={() => { setDialog(null); setRefreshKey((key) => key + 1); }}
+          packages={sessionPackages}
+          sessionId={sessionId}
+        />
+      ) : null}
+
       {dialog === "delivery" ? (
         <Modal onClose={() => setDialog(null)} title="Consegna">
           <form onSubmit={submitDelivery}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-2 text-sm font-medium">Pacchetto
-                <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setDeliveryForm({ ...deliveryForm, packageId: e.target.value })} value={deliveryForm.packageId}>
-                  <option value="">Nessun pacchetto</option>
-                  {sessionPackages.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.included_photos} foto)</option>)}
-                </select>
-              </label>
               <label className="flex flex-col gap-2 text-sm font-medium">Foto incluse (vuoto = come da pacchetto)
-                <input className="h-11 border border-[#cfc5b8] bg-white px-3" max="1000" min="0" onChange={(e) => setDeliveryForm({ ...deliveryForm, includedPhotos: e.target.value })} placeholder={String(sessionPackages.find((item) => item.id === deliveryForm.packageId)?.included_photos ?? "")} type="number" value={deliveryForm.includedPhotos} />
+                <input className="h-11 border border-[#cfc5b8] bg-white px-3" max="1000" min="0" onChange={(e) => setDeliveryForm({ ...deliveryForm, includedPhotos: e.target.value })} placeholder={session.package_included_photos_snapshot === null ? "" : String(session.package_included_photos_snapshot)} type="number" value={deliveryForm.includedPhotos} />
               </label>
             </div>
-            {sessionPackages.length === 0 ? <p className="mt-3 text-xs text-[#675f57]">Nessun pacchetto per questo servizio: puoi crearne uno nella pagina Pacchetti.</p> : null}
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Link gallery provini
               <input className="h-11 border border-[#cfc5b8] bg-white px-3" maxLength={2000} onChange={(e) => setDeliveryForm({ ...deliveryForm, proofsGalleryUrl: e.target.value })} placeholder="https://..." type="url" value={deliveryForm.proofsGalleryUrl} />
             </label>

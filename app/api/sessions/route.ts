@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
   const serviceDetail = typeof body.serviceDetail === "string" && body.serviceDetail.trim() ? body.serviceDetail.trim() : null;
   const imageConsentGranted = body.imageConsentGranted === true;
   const leadId = typeof body.leadId === "string" && body.leadId ? body.leadId : null;
+  const packageId = typeof body.packageId === "string" && body.packageId ? body.packageId : null;
+  const includedPhotos = body.includedPhotos === undefined || body.includedPhotos === null || body.includedPhotos === "" ? null : Number(body.includedPhotos);
+
+  if (includedPhotos !== null && (!Number.isInteger(includedPhotos) || includedPhotos < 0 || includedPhotos > 1000)) {
+    return NextResponse.json({ error: "Indica un numero di foto incluse valido." }, { status: 400 });
+  }
 
   if (!clientId || !serviceTypeId || !scheduledAt || Number.isNaN(scheduledAt.valueOf()) || !Number.isInteger(durationMinutes) || durationMinutes <= 0 || !Number.isInteger(priceEuros) || priceEuros < 0) {
     return NextResponse.json({ error: "Compila tutti i campi obbligatori con valori validi." }, { status: 400 });
@@ -85,16 +91,30 @@ export async function POST(request: NextRequest) {
 
   if (!client || !service || !stage) return NextResponse.json({ error: "Cliente, servizio o avanzamento non disponibile." }, { status: 400 });
 
+  if (packageId) {
+    const { data: selectedPackage } = await supabaseAdmin.from("session_packages").select("id").eq("id", packageId).eq("service_type_id", service.id).eq("is_active", true).maybeSingle();
+    if (!selectedPackage) return NextResponse.json({ error: "Pacchetto non disponibile per questo servizio." }, { status: 400 });
+  }
+
   if (leadId) {
     const { data: lead } = await supabaseAdmin.from("leads").select("status").eq("id", leadId).maybeSingle();
     if (!lead) return NextResponse.json({ error: "Lead non trovato." }, { status: 404 });
     if (!LEAD_OPEN_STATUSES.includes(lead.status as LeadStatus)) return NextResponse.json({ error: "Il lead e gia stato convertito o chiuso." }, { status: 409 });
   }
 
-  const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
+  const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, included_photos: includedPhotos, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
   if (error) return NextResponse.json({ error: error.message.includes("overlaps") ? "Questa sessione si sovrappone a un appuntamento esistente." : error.message }, { status: error.message.includes("overlaps") ? 409 : 500 });
 
   const created = data as unknown as SessionRow & { service_name: string; location: string | null; notes: string | null; client: { first_name: string; last_name: string } | null };
+
+  if (packageId) {
+    const { error: packageError } = await supabaseAdmin.rpc("apply_session_package", { p_session_id: created.id, p_package_id: packageId });
+    if (packageError) {
+      // Compensazione: nessuna sessione con pacchetto senza snapshot coerenti.
+      await supabaseAdmin.from("sessions").delete().eq("id", created.id);
+      return NextResponse.json({ error: "Applicazione del pacchetto non riuscita: la sessione non e stata salvata." }, { status: 500 });
+    }
+  }
 
   if (leadId) {
     const now = new Date().toISOString();
