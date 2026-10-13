@@ -2,45 +2,31 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Banknote, Calendar, Camera, ChevronDown, Home, MoreHorizontal, Plus, TicketPlus, Users, UserRoundPlus, X } from "lucide-react";
 import { GlobalSearch } from "@/components/shared/global-search";
 
-const navigationItems = [
+type NavLink = { href: string; label: string };
+type NavEntry = NavLink | { label: string; links: NavLink[] };
+
+// Unica struttura del menu, usata sia su desktop sia nel foglio "Altro" mobile.
+const navigation: NavEntry[] = [
   { href: "/home", label: "Home" },
-  { href: "/clients", label: "Clienti" },
-  { href: "/sessions", label: "Sessioni" },
-  { href: "/payments", label: "Pagamenti" },
-  { href: "/vouchers", label: "Buoni" },
-  { href: "/prenotazioni", label: "Prenotazioni" },
+  { label: "Contatti", links: [{ href: "/leads", label: "Lead" }, { href: "/clients", label: "Clienti" }] },
+  { label: "Gestione", links: [{ href: "/sessions", label: "Sessioni" }, { href: "/payments", label: "Pagamenti" }, { href: "/vouchers", label: "Buoni regalo" }] },
   { href: "/pacchetti", label: "Pacchetti" },
+  { label: "Analisi", links: [{ href: "/leads/analisi", label: "Lead" }, { href: "/analisi/extra", label: "Extra & Upsell" }] },
+  { href: "/prenotazioni", label: "Prenotazioni" },
+  { label: "Configurazione", links: [{ href: "/config", label: "Configurazione" }, { href: "/extra", label: "Extra" }, { href: "/mailerlite", label: "MailerLite" }, { href: "/calendly", label: "Calendly" }] },
 ];
 
-const settingsLinks = [
-  { href: "/config", label: "Configurazione" },
-  { href: "/extra", label: "Extra" },
-  { href: "/mailerlite", label: "MailerLite" },
-  { href: "/calendly", label: "Calendly" },
-];
+const allLinks = navigation.flatMap((entry) => ("links" in entry ? entry.links : [entry]));
 
-const leadLinks = [
-  { href: "/leads", label: "Elenco" },
-  { href: "/leads/analisi", label: "Analisi" },
-];
-
-const analysisLinks = [
-  { href: "/leads/analisi", label: "Lead" },
-  { href: "/analisi/extra", label: "Extra & Upsell" },
-];
-
-function isPathActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-// "Elenco" copre anche le schede /leads/[id], ma non /leads/analisi.
-function isLeadLinkActive(pathname: string, href: string) {
-  if (href === "/leads") return isPathActive(pathname, href) && !isPathActive(pathname, "/leads/analisi");
-  return isPathActive(pathname, href);
+// La voce piu specifica vince: /leads/analisi evidenzia Analisi > Lead, non Contatti > Lead.
+function activeHrefFor(pathname: string) {
+  return allLinks
+    .filter((link) => pathname === link.href || pathname.startsWith(`${link.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 }
 
 const mobileTabs = [
@@ -50,25 +36,14 @@ const mobileTabs = [
   { href: "/payments", label: "Pagamenti", icon: Banknote },
 ];
 
-const moreLinks = [
-  { href: "/leads", label: "Lead" },
-  { href: "/leads/analisi", label: "Analisi Lead" },
-  { href: "/analisi/extra", label: "Analisi Extra & Upsell" },
-  { href: "/vouchers", label: "Buoni regalo" },
-  { href: "/prenotazioni", label: "Prenotazioni" },
-  { href: "/pacchetti", label: "Pacchetti" },
-  { href: "/config", label: "Configurazione" },
-  { href: "/extra", label: "Catalogo extra" },
-  { href: "/mailerlite", label: "MailerLite" },
-  { href: "/calendly", label: "Calendly" },
-];
-
 export function AppNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
 
   if (pathname === "/login" || pathname.startsWith("/prenota/")) return null;
+
+  const activeHref = activeHrefFor(pathname);
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
@@ -83,28 +58,24 @@ export function AppNavigation() {
           <Link className="mr-auto text-sm font-semibold tracking-[0.08em] text-[#9b5d43]" href="/home">
             GIULIA MALOSSO PHOTOGRAPHY
           </Link>
-          {navigationItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-
+          {navigation.map((entry) => {
+            if ("links" in entry) return <NavDropdown activeHref={activeHref} key={entry.label} label={entry.label} links={entry.links} />;
+            const isActive = entry.href === activeHref;
             return (
-              <Fragment key={item.href}>
-                <Link
-                  aria-current={isActive ? "page" : undefined}
-                  className={`border-b-2 py-1 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "border-[#9b5d43] text-[#9b5d43]"
-                      : "border-transparent text-[#675f57] hover:text-[#27231f]"
-                  }`}
-                  href={item.href}
-                >
-                  {item.label}
-                </Link>
-                {item.href === "/home" ? <NavDropdown isLinkActive={isLeadLinkActive} label="Lead" links={leadLinks} pathname={pathname} widthClass="w-40" /> : null}
-              </Fragment>
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={`border-b-2 py-1 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "border-[#9b5d43] text-[#9b5d43]"
+                    : "border-transparent text-[#675f57] hover:text-[#27231f]"
+                }`}
+                href={entry.href}
+                key={entry.href}
+              >
+                {entry.label}
+              </Link>
             );
           })}
-          <NavDropdown isLinkActive={isPathActive} label="Analisi" links={analysisLinks} pathname={pathname} widthClass="w-48" />
-          <NavDropdown isLinkActive={isPathActive} label="Impostazioni" links={settingsLinks} pathname={pathname} widthClass="w-48" />
           <button className="text-sm font-medium text-[#675f57] hover:text-[#27231f]" onClick={handleLogout} type="button">Esci</button>
         </div>
       </nav>
@@ -136,7 +107,7 @@ export function AppNavigation() {
       <nav aria-label="Navigazione mobile" className="fixed inset-x-0 bottom-0 z-30 border-t border-[#d8d0c5] bg-[#fdfbf8] pb-[env(safe-area-inset-bottom)] sm:hidden">
         <div className="grid grid-cols-5">
           {mobileTabs.map((tab) => {
-            const isActive = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+            const isActive = tab.href === activeHref;
             const Icon = tab.icon;
             return (
               <Link
@@ -165,17 +136,24 @@ export function AppNavigation() {
       {isMoreOpen ? (
         <div className="fixed inset-0 z-40 sm:hidden">
           <button aria-label="Chiudi" className="absolute inset-0 bg-[#27231f]/45" onClick={() => setIsMoreOpen(false)} type="button" />
-          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-[#fdfbf8] pb-[env(safe-area-inset-bottom)] shadow-xl">
+          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-[#fdfbf8] pb-[env(safe-area-inset-bottom)] shadow-xl">
             <div className="flex items-center justify-between border-b border-[#eee8df] px-5 py-4">
-              <p className="text-sm font-semibold">Altro</p>
+              <p className="text-sm font-semibold">Menu</p>
               <button aria-label="Chiudi" onClick={() => setIsMoreOpen(false)} type="button">
                 <X className="size-5" strokeWidth={1.8} />
               </button>
             </div>
-            {moreLinks.map((link) => (
-              <Link className="block border-b border-[#eee8df] px-5 py-4 text-sm font-medium" href={link.href} key={link.href} onClick={() => setIsMoreOpen(false)}>
-                {link.label}
-              </Link>
+            {navigation.map((entry) => "links" in entry ? (
+              <div className="border-b border-[#eee8df] py-2" key={entry.label}>
+                <p className="px-5 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#958b80]">{entry.label}</p>
+                {entry.links.map((link) => (
+                  <MobileSheetLink active={link.href === activeHref} indented key={link.href} link={link} onNavigate={() => setIsMoreOpen(false)} />
+                ))}
+              </div>
+            ) : (
+              <div className="border-b border-[#eee8df]" key={entry.href}>
+                <MobileSheetLink active={entry.href === activeHref} link={entry} onNavigate={() => setIsMoreOpen(false)} />
+              </div>
             ))}
             <button
               className="block w-full px-5 py-4 text-left text-sm font-medium text-[#a53e31]"
@@ -191,7 +169,20 @@ export function AppNavigation() {
   );
 }
 
-function NavDropdown({ label, links, pathname, isLinkActive, widthClass }: { label: string; links: { href: string; label: string }[]; pathname: string; isLinkActive: (pathname: string, href: string) => boolean; widthClass: string }) {
+function MobileSheetLink({ link, active, indented = false, onNavigate }: { link: NavLink; active: boolean; indented?: boolean; onNavigate: () => void }) {
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={`block py-3 text-sm ${indented ? "pl-8 pr-5" : "px-5 py-4"} ${active ? "font-semibold text-[#9b5d43]" : "font-medium"}`}
+      href={link.href}
+      onClick={onNavigate}
+    >
+      {link.label}
+    </Link>
+  );
+}
+
+function NavDropdown({ label, links, activeHref }: { label: string; links: NavLink[]; activeHref: string | null }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -211,7 +202,7 @@ function NavDropdown({ label, links, pathname, isLinkActive, widthClass }: { lab
     };
   }, [isOpen]);
 
-  const isGroupActive = links.some((item) => isLinkActive(pathname, item.href));
+  const isGroupActive = links.some((item) => item.href === activeHref);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -228,9 +219,9 @@ function NavDropdown({ label, links, pathname, isLinkActive, widthClass }: { lab
         <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
       </button>
       {isOpen ? (
-        <div className={`absolute right-0 z-40 mt-2 ${widthClass} border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg`} role="menu">
+        <div className="absolute right-0 z-40 mt-2 w-48 border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg" role="menu">
           {links.map((item) => {
-            const isActive = isLinkActive(pathname, item.href);
+            const isActive = item.href === activeHref;
             return (
               <Link
                 aria-current={isActive ? "page" : undefined}
