@@ -28,6 +28,11 @@ const leadLinks = [
   { href: "/leads/analisi", label: "Analisi" },
 ];
 
+const analysisLinks = [
+  { href: "/leads/analisi", label: "Lead" },
+  { href: "/analisi/extra", label: "Extra & Upsell" },
+];
+
 function isPathActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -48,6 +53,7 @@ const mobileTabs = [
 const moreLinks = [
   { href: "/leads", label: "Lead" },
   { href: "/leads/analisi", label: "Analisi Lead" },
+  { href: "/analisi/extra", label: "Analisi Extra & Upsell" },
   { href: "/vouchers", label: "Buoni regalo" },
   { href: "/prenotazioni", label: "Prenotazioni" },
   { href: "/pacchetti", label: "Pacchetti" },
@@ -97,6 +103,7 @@ export function AppNavigation() {
               </Fragment>
             );
           })}
+          <NavDropdown isLinkActive={isPathActive} label="Analisi" links={analysisLinks} pathname={pathname} widthClass="w-48" />
           <NavDropdown isLinkActive={isPathActive} label="Impostazioni" links={settingsLinks} pathname={pathname} widthClass="w-48" />
           <button className="text-sm font-medium text-[#675f57] hover:text-[#27231f]" onClick={handleLogout} type="button">Esci</button>
         </div>
