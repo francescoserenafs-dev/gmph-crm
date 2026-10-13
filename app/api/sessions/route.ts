@@ -3,10 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
 import { promotePastBookedSessions } from "@/lib/sessions-server";
 import { parseLocalDateTime } from "@/lib/datetime";
+import { LEAD_OPEN_STATUSES, type LeadStatus } from "@/lib/leads";
 
 export const dynamic = "force-dynamic";
 
-const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(price_cents,quantity)";
+const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents)";
 
 type SessionRow = {
   id: string;
@@ -17,7 +18,7 @@ type SessionRow = {
   client: { id: string } | null;
   current_stage: { id: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { price_cents: number; quantity: number }[];
+  extras: { line_total_cents: number }[];
 };
 
 export async function GET(request: NextRequest) {
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     if (serviceTypeIds.length > 0 && !serviceTypeIds.includes(session.service_type_id)) return false;
     if (stageIds.length > 0 && !(session.current_stage && stageIds.includes(session.current_stage.id))) return false;
     const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0);
+    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
     const status = totalDue === 0 ? "paid" : paid === 0 ? "unpaid" : paid < totalDue ? "partial" : "paid";
     return paymentStatuses.length === 0 || paymentStatuses.includes(status);
   }).sort((first, second) => {
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
   const notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
   const serviceDetail = typeof body.serviceDetail === "string" && body.serviceDetail.trim() ? body.serviceDetail.trim() : null;
   const imageConsentGranted = body.imageConsentGranted === true;
+  const leadId = typeof body.leadId === "string" && body.leadId ? body.leadId : null;
 
   if (!clientId || !serviceTypeId || !scheduledAt || Number.isNaN(scheduledAt.valueOf()) || !Number.isInteger(durationMinutes) || durationMinutes <= 0 || !Number.isInteger(priceEuros) || priceEuros < 0) {
     return NextResponse.json({ error: "Compila tutti i campi obbligatori con valori validi." }, { status: 400 });
@@ -83,10 +85,32 @@ export async function POST(request: NextRequest) {
 
   if (!client || !service || !stage) return NextResponse.json({ error: "Cliente, servizio o avanzamento non disponibile." }, { status: 400 });
 
+  if (leadId) {
+    const { data: lead } = await supabaseAdmin.from("leads").select("status").eq("id", leadId).maybeSingle();
+    if (!lead) return NextResponse.json({ error: "Lead non trovato." }, { status: 404 });
+    if (!LEAD_OPEN_STATUSES.includes(lead.status as LeadStatus)) return NextResponse.json({ error: "Il lead e gia stato convertito o chiuso." }, { status: 409 });
+  }
+
   const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
   if (error) return NextResponse.json({ error: error.message.includes("overlaps") ? "Questa sessione si sovrappone a un appuntamento esistente." : error.message }, { status: error.message.includes("overlaps") ? 409 : 500 });
 
   const created = data as unknown as SessionRow & { service_name: string; location: string | null; notes: string | null; client: { first_name: string; last_name: string } | null };
+
+  if (leadId) {
+    const now = new Date().toISOString();
+    const { data: linked, error: linkError } = await supabaseAdmin
+      .from("leads")
+      .update({ status: "booked", client_id: client.id, session_id: created.id, converted_at: now, closed_at: now })
+      .eq("id", leadId)
+      .in("status", LEAD_OPEN_STATUSES)
+      .select("id")
+      .maybeSingle();
+    if (linkError || !linked) {
+      // Compensazione: senza lead collegato la sessione appena creata non deve restare.
+      await supabaseAdmin.from("sessions").delete().eq("id", created.id);
+      return NextResponse.json({ error: linkError ? "Collegamento del lead non riuscito: la sessione non e stata salvata." : "Il lead e gia stato convertito o chiuso: la sessione non e stata salvata." }, { status: linkError ? 500 : 409 });
+    }
+  }
   const icloudEventUrl = await upsertIcloudEvent(
     { id: created.id, scheduledAt: created.scheduled_at, durationMinutes: durationMinutes, location: created.location, notes: created.notes, serviceName: created.service_name, clientName: created.client ? `${created.client.first_name} ${created.client.last_name}` : "" },
     null,

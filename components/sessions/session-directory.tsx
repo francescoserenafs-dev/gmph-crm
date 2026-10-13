@@ -22,7 +22,7 @@ type Session = {
   client: { id: string; first_name: string; last_name: string } | null;
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { price_cents: number; quantity: number }[];
+  extras: { line_total_cents: number }[];
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
@@ -92,14 +92,16 @@ function toLocalInput(date: Date) {
   return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
 }
 
-function totalDue(session: { agreed_price_cents: number; extras: { price_cents: number; quantity: number }[] }) {
-  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0);
+function totalDue(session: { agreed_price_cents: number; extras: { line_total_cents: number }[] }) {
+  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
 }
 
 export function SessionDirectory() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectClient = searchParams.get("newSession") ?? "";
+  const leadToConvert = searchParams.get("lead") ?? "";
+  const leadService = leadToConvert ? searchParams.get("service") ?? "" : "";
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -121,7 +123,8 @@ export function SessionDirectory() {
   const [month, setMonth] = useState(() => { const now = new Date(); return { year: now.getFullYear(), month: now.getMonth() }; });
   const [nowTimestamp] = useState(() => Date.now());
 
-  const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient } : emptySession);
+  const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient, serviceTypeId: leadService } : emptySession);
+  const [conversionLeadId, setConversionLeadId] = useState(preselectClient ? leadToConvert : "");
   const [quickClientOpen, setQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState<QuickClient>({ firstName: "", lastName: "", email: "" });
   const [dialog, setDialog] = useState<"new" | null>(preselectClient || searchParams.get("new") === "1" ? "new" : null);
@@ -323,7 +326,7 @@ export function SessionDirectory() {
       .slice(0, 5);
   }, [expiringVouchers, nowTimestamp]);
 
-  function openNewSession() { setSessionForm(emptySession); setQuickClientOpen(false); setError(null); setDialog("new"); }
+  function openNewSession() { setSessionForm(emptySession); setConversionLeadId(""); setQuickClientOpen(false); setError(null); setDialog("new"); }
 
   async function openDuplicateSession(id: string) {
     try {
@@ -331,6 +334,7 @@ export function SessionDirectory() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       const source = body.session;
+      setConversionLeadId("");
       setSessionForm({
         clientId: source.client?.id ?? "",
         serviceTypeId: source.service_type_id ?? "",
@@ -383,9 +387,10 @@ export function SessionDirectory() {
   async function submitSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sessionForm) });
+      const response = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...sessionForm, leadId: conversionLeadId || undefined }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
+      if (conversionLeadId) { router.push(`/leads/${conversionLeadId}?converted=1`); return; }
       setDialog(null); setPage(1); setRefreshKey((key) => key + 1);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Salvataggio non riuscito."); } finally { setBusy(false); }
   }
@@ -628,7 +633,7 @@ export function SessionDirectory() {
                   "Data/ora": dateTime.format(new Date(session.scheduled_at)),
                   "Durata (min)": session.duration_minutes,
                   "Prezzo concordato": (session.agreed_price_cents / 100).toFixed(2),
-                  Extra: (session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0) / 100).toFixed(2),
+                  Extra: (session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0) / 100).toFixed(2),
                   "Totale dovuto": (totalDue(session) / 100).toFixed(2),
                   Pagato: (session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) / 100).toFixed(2),
                   Avanzamento: session.current_stage?.name ?? "",
@@ -798,6 +803,7 @@ export function SessionDirectory() {
       {dialog === "new" ? (
         <Modal onClose={() => setDialog(null)} title="Nuova sessione">
           <form onSubmit={submitSession}>
+            {conversionLeadId ? <p className="mb-4 border border-[#d8b7a5] bg-[#f1e3db] px-3 py-2 text-sm text-[#8a4f37]">Al salvataggio la sessione verrà collegata al lead, che passerà a Prenotato.</p> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ClientCombobox clients={clients} onChange={(clientId) => setSessionForm({ ...sessionForm, clientId })} value={sessionForm.clientId} />
               <SelectField label="Servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceTypeId: value, serviceDetail: "" })} options={services} value={sessionForm.serviceTypeId} />

@@ -180,6 +180,8 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/pub
         service_name: entry.addon.name,
         price_cents: entry.addon.price_cents,
         quantity: entry.quantity,
+        line_total_cents: entry.addon.price_cents * entry.quantity,
+        category_snapshot: entry.addon.category,
         booking_addon_id: entry.addon.id,
       })),
     );

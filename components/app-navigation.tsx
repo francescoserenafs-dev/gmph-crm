@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Banknote, Calendar, Camera, ChevronDown, Home, MoreHorizontal, Plus, TicketPlus, Users, UserRoundPlus, X } from "lucide-react";
 import { GlobalSearch } from "@/components/shared/global-search";
 
@@ -18,9 +18,25 @@ const navigationItems = [
 
 const settingsLinks = [
   { href: "/config", label: "Configurazione" },
+  { href: "/extra", label: "Extra" },
   { href: "/mailerlite", label: "MailerLite" },
   { href: "/calendly", label: "Calendly" },
 ];
+
+const leadLinks = [
+  { href: "/leads", label: "Elenco" },
+  { href: "/leads/analisi", label: "Analisi" },
+];
+
+function isPathActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+// "Elenco" copre anche le schede /leads/[id], ma non /leads/analisi.
+function isLeadLinkActive(pathname: string, href: string) {
+  if (href === "/leads") return isPathActive(pathname, href) && !isPathActive(pathname, "/leads/analisi");
+  return isPathActive(pathname, href);
+}
 
 const mobileTabs = [
   { href: "/home", label: "Home", icon: Home },
@@ -30,10 +46,13 @@ const mobileTabs = [
 ];
 
 const moreLinks = [
+  { href: "/leads", label: "Lead" },
+  { href: "/leads/analisi", label: "Analisi Lead" },
   { href: "/vouchers", label: "Buoni regalo" },
   { href: "/prenotazioni", label: "Prenotazioni" },
   { href: "/pacchetti", label: "Pacchetti" },
   { href: "/config", label: "Configurazione" },
+  { href: "/extra", label: "Catalogo extra" },
   { href: "/mailerlite", label: "MailerLite" },
   { href: "/calendly", label: "Calendly" },
 ];
@@ -42,28 +61,8 @@ export function AppNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isSettingsOpen) return;
-    function handlePointer(event: MouseEvent) {
-      if (!settingsRef.current?.contains(event.target as Node)) setIsSettingsOpen(false);
-    }
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsSettingsOpen(false);
-    }
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [isSettingsOpen]);
 
   if (pathname === "/login" || pathname.startsWith("/prenota/")) return null;
-
-  const isSettingsActive = settingsLinks.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
@@ -82,53 +81,23 @@ export function AppNavigation() {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className={`border-b-2 py-1 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-[#9b5d43] text-[#9b5d43]"
-                    : "border-transparent text-[#675f57] hover:text-[#27231f]"
-                }`}
-                href={item.href}
-                key={item.href}
-              >
-                {item.label}
-              </Link>
+              <Fragment key={item.href}>
+                <Link
+                  aria-current={isActive ? "page" : undefined}
+                  className={`border-b-2 py-1 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "border-[#9b5d43] text-[#9b5d43]"
+                      : "border-transparent text-[#675f57] hover:text-[#27231f]"
+                  }`}
+                  href={item.href}
+                >
+                  {item.label}
+                </Link>
+                {item.href === "/home" ? <NavDropdown isLinkActive={isLeadLinkActive} label="Lead" links={leadLinks} pathname={pathname} widthClass="w-40" /> : null}
+              </Fragment>
             );
           })}
-          <div className="relative" ref={settingsRef}>
-            <button
-              aria-expanded={isSettingsOpen}
-              aria-haspopup="menu"
-              className={`flex items-center gap-1 border-b-2 py-1 text-sm font-medium transition-colors ${
-                isSettingsActive ? "border-[#9b5d43] text-[#9b5d43]" : "border-transparent text-[#675f57] hover:text-[#27231f]"
-              }`}
-              onClick={() => setIsSettingsOpen((open) => !open)}
-              type="button"
-            >
-              Impostazioni
-              <ChevronDown className={`size-4 transition-transform ${isSettingsOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
-            </button>
-            {isSettingsOpen ? (
-              <div className="absolute right-0 z-40 mt-2 w-48 border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg" role="menu">
-                {settingsLinks.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  return (
-                    <Link
-                      aria-current={isActive ? "page" : undefined}
-                      className={`block px-4 py-2 text-sm ${isActive ? "font-semibold text-[#9b5d43]" : "text-[#27231f] hover:bg-[#f1e3db]"}`}
-                      href={item.href}
-                      key={item.href}
-                      onClick={() => setIsSettingsOpen(false)}
-                      role="menuitem"
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
+          <NavDropdown isLinkActive={isPathActive} label="Impostazioni" links={settingsLinks} pathname={pathname} widthClass="w-48" />
           <button className="text-sm font-medium text-[#675f57] hover:text-[#27231f]" onClick={handleLogout} type="button">Esci</button>
         </div>
       </nav>
@@ -212,5 +181,64 @@ export function AppNavigation() {
         </div>
       ) : null}
     </>
+  );
+}
+
+function NavDropdown({ label, links, pathname, isLinkActive, widthClass }: { label: string; links: { href: string; label: string }[]; pathname: string; isLinkActive: (pathname: string, href: string) => boolean; widthClass: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handlePointer(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [isOpen]);
+
+  const isGroupActive = links.some((item) => isLinkActive(pathname, item.href));
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className={`flex items-center gap-1 border-b-2 py-1 text-sm font-medium transition-colors ${
+          isGroupActive ? "border-[#9b5d43] text-[#9b5d43]" : "border-transparent text-[#675f57] hover:text-[#27231f]"
+        }`}
+        onClick={() => setIsOpen((open) => !open)}
+        type="button"
+      >
+        {label}
+        <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
+      </button>
+      {isOpen ? (
+        <div className={`absolute right-0 z-40 mt-2 ${widthClass} border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg`} role="menu">
+          {links.map((item) => {
+            const isActive = isLinkActive(pathname, item.href);
+            return (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={`block px-4 py-2 text-sm ${isActive ? "font-semibold text-[#9b5d43]" : "text-[#27231f] hover:bg-[#f1e3db]"}`}
+                href={item.href}
+                key={item.href}
+                onClick={() => setIsOpen(false)}
+                role="menuitem"
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }

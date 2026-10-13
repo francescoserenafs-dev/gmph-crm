@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { SessionExtraDialog } from "@/components/extras/session-extra-dialog";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { calculateRemainingBalance } from "@/lib/sessions";
+import { EXTRA_CATEGORY_LABELS, type ExtraCategory } from "@/lib/extra-products";
 
 type Payment = {
   id: string;
@@ -25,7 +27,7 @@ type Payment = {
 
 type StageEvent = { id: string; stage_name: string; changed_at: string; notes: string | null };
 
-type Extra = { id: string; service_type_id: string | null; service_name: string; price_cents: number; quantity: number; notes: string | null; created_at: string };
+type Extra = { id: string; service_type_id: string | null; service_name: string; category_snapshot: ExtraCategory | null; price_cents: number; quantity: number; line_total_cents: number; unit_cost_cents: number | null; notes: string | null; created_at: string };
 
 type SentEmail = { id: string; template_code: string; to_email: string; subject: string; sent_at: string };
 type PackageOption = { id: string; service_type_id: string; name: string; included_photos: number; is_active: boolean };
@@ -58,7 +60,6 @@ type Session = {
 
 type Stage = { id: string; name: string; code: string };
 type Method = { id: string; name: string };
-type AddonService = { id: string; name: string };
 type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number | null };
 
 const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
@@ -86,7 +87,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
-  const [addonServices, setAddonServices] = useState<AddonService[]>([]);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
   const [selectedVoucher, setSelectedVoucher] = useState("");
   const [loading, setLoading] = useState(true);
@@ -100,7 +100,6 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const [stageForm, setStageForm] = useState({ stageId: "", changedAt: "", notes: "" });
   const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: "", paidDate: "", methodId: "", category: "balance", notes: "" });
   const [editForm, setEditForm] = useState({ scheduledAt: "", durationMinutes: "", priceEuros: "", location: "", serviceDetail: "", notes: "" });
-  const [extraForm, setExtraForm] = useState({ serviceTypeId: "", priceEuros: "", quantity: "1", notes: "" });
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -120,7 +119,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
-        if (stagesRes.ok) { setStages(stagesBody.stages); setAddonServices(stagesBody.addonServices ?? []); }
+        if (stagesRes.ok) setStages(stagesBody.stages);
         if (methodsRes.ok) setMethods(methodsBody.methods);
         if (packagesRes.ok) setPackages(packagesBody.packages);
       } catch (reason) {
@@ -133,13 +132,12 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   }, [sessionId, refreshKey]);
 
   const paid = session?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
-  const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0) ?? 0;
+  const extrasTotal = session?.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0) ?? 0;
   const due = (session?.agreed_price_cents ?? 0) + extrasTotal;
   const balance = calculateRemainingBalance(due, paid);
   const isCancelled = session?.current_stage?.code === "cancelled";
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
-  const extraServiceTypeId = extraForm.serviceTypeId || addonServices[0]?.id || "";
   const sessionPackages = packages.filter((item) => item.service_type_id === session?.service_type_id && (item.is_active || item.id === session?.package_id));
   const includedPhotos = session?.included_photos ?? session?.package?.included_photos ?? null;
 
@@ -182,19 +180,8 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   }
 
   function openExtraDialog() {
-    setExtraForm({ serviceTypeId: addonServices[0]?.id ?? "", priceEuros: "", quantity: "1", notes: "" });
     setError(null);
     setDialog("extra");
-  }
-
-  async function submitExtra(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError(null);
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}/extras`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...extraForm, serviceTypeId: extraServiceTypeId }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      setDialog(null); setRefreshKey((key) => key + 1);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiunta extra non riuscita."); } finally { setBusy(false); }
   }
 
   async function deleteExtra(extraId: string) {
@@ -476,7 +463,8 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             {session.extras.length === 0 ? <p className="p-6 text-sm text-[#675f57]">Nessun extra collegato a questa sessione.</p> : session.extras.map((extra) => (
               <article className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0" key={extra.id}>
                 <div>
-                  <p className="text-sm font-semibold">{extra.service_name}{extra.quantity > 1 ? ` × ${extra.quantity}` : ""} - {euro.format((extra.price_cents * extra.quantity) / 100)}</p>
+                  <p className="text-sm font-semibold">{extra.service_name}{extra.quantity > 1 ? ` × ${extra.quantity}` : ""} - {euro.format(extra.line_total_cents / 100)}</p>
+                  {extra.category_snapshot || extra.unit_cost_cents !== null ? <p className="mt-1 text-xs text-[#675f57]">{[extra.category_snapshot ? EXTRA_CATEGORY_LABELS[extra.category_snapshot] : null, extra.unit_cost_cents !== null ? `costo ${euro.format((extra.unit_cost_cents * extra.quantity) / 100)}` : null].filter(Boolean).join(" · ")}</p> : null}
                   {extra.notes ? <p className="mt-1 text-xs text-[#675f57]">{extra.notes}</p> : null}
                 </div>
                 <button className="text-sm font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => deleteExtra(extra.id)} type="button">Elimina</button>
@@ -626,38 +614,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
       ) : null}
 
       {dialog === "extra" ? (
-        <Modal onClose={() => setDialog(null)} title="Aggiungi extra">
-          <form onSubmit={submitExtra}>
-            {addonServices.length === 0 ? (
-              <p className="text-sm text-[#675f57]">Nessun servizio extra configurato. Aggiungine uno in Configurazione.</p>
-            ) : (
-              <>
-                <label className="flex flex-col gap-2 text-sm font-medium">Servizio extra
-                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, serviceTypeId: e.target.value })} required value={extraServiceTypeId}>
-                    <option value="">Seleziona</option>
-                    {addonServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-                  </select>
-                </label>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <label className="flex flex-col gap-2 text-sm font-medium">Prezzo unitario (EUR)
-                    <input className="h-11 border border-[#cfc5b8] bg-white px-3" min="0" onChange={(e) => setExtraForm({ ...extraForm, priceEuros: e.target.value })} required type="number" value={extraForm.priceEuros} />
-                  </label>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Quantita
-                    <input className="h-11 border border-[#cfc5b8] bg-white px-3" max="999" min="1" onChange={(e) => setExtraForm({ ...extraForm, quantity: e.target.value })} required type="number" value={extraForm.quantity} />
-                  </label>
-                </div>
-                <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note (facoltativo, es. formato e carta)
-                  <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setExtraForm({ ...extraForm, notes: e.target.value })} value={extraForm.notes} />
-                </label>
-              </>
-            )}
-            {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
-            <div className="mt-6 flex justify-end gap-3">
-              <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
-              <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy || addonServices.length === 0} type="submit">{busy ? "Salvataggio..." : "Aggiungi extra"}</button>
-            </div>
-          </form>
-        </Modal>
+        <SessionExtraDialog onClose={() => setDialog(null)} onSaved={() => { setDialog(null); setRefreshKey((key) => key + 1); }} sessionId={sessionId} />
       ) : null}
 
       {dialog === "delivery" ? (

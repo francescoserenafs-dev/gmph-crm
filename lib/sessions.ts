@@ -26,9 +26,13 @@ export type SessionPayment = {
 export type SessionExtra = {
   id: string;
   service_type_id: string | null;
+  extra_product_id: string | null;
   service_name: string;
+  category_snapshot: string | null;
   price_cents: number;
   quantity: number;
+  line_total_cents: number;
+  unit_cost_cents: number | null;
   notes: string | null;
   created_at: string;
 };
@@ -91,7 +95,7 @@ export type SessionExtra_CreateInput = {
  * Calculate total amount due for a session (agreed price + extras)
  */
 export function calculateSessionDue(session: Session): number {
-  const extrasCents = session.extras.reduce((sum, extra) => sum + extra.price_cents * extra.quantity, 0);
+  const extrasCents = session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
   return session.agreed_price_cents + extrasCents;
 }
 
