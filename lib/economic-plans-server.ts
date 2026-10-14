@@ -1,8 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { resolveAnnualTarget, type EconomicPlan, type MonthlyTarget, type ServiceTarget } from "@/lib/economic-plans";
+import { buildServiceTargets, resolveAnnualTarget, serviceTargetValueCents, type ActivePackage, type EconomicPlan, type MonthlyTarget, type ServiceTarget } from "@/lib/economic-plans";
 
 const MAX_CENTS = 1_000_000_000;
 const MAX_SESSIONS = 100_000;
+const MAX_TICKET_CENTS = 10_000_000;
 
 type PlanRow = {
   id: string;
@@ -11,7 +12,7 @@ type PlanRow = {
   expected_uplift_cents: number;
   notes: string | null;
   monthly: { month: number; target_cents: number }[];
-  services: { service_type_id: string; target_sessions: number; target_value_cents: number }[];
+  services: { service_type_id: string; target_sessions: number; planned_base_ticket_cents: number; target_value_cents: number }[];
   service_months: { service_type_id: string; month: number; target_sessions: number }[];
 };
 
@@ -25,7 +26,7 @@ const isAmount = (value: unknown, max: number): value is number => Number.isInte
 export async function loadPlan(year: number): Promise<{ id: string; plan: EconomicPlan } | null> {
   const { data, error } = await supabaseAdmin
     .from("annual_economic_plans")
-    .select("id, year, annual_target_cents, expected_uplift_cents, notes, monthly:economic_plan_monthly_targets(month, target_cents), services:economic_plan_service_targets(service_type_id, target_sessions, target_value_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions)")
+    .select("id, year, annual_target_cents, expected_uplift_cents, notes, monthly:economic_plan_monthly_targets(month, target_cents), services:economic_plan_service_targets(service_type_id, target_sessions, planned_base_ticket_cents, target_value_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions)")
     .eq("year", year)
     .maybeSingle();
   if (error) throw error;
@@ -40,13 +41,7 @@ export async function loadPlan(year: number): Promise<{ id: string; plan: Econom
       expectedUpliftCents: row.expected_uplift_cents,
       notes: row.notes,
       monthlyTargets: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, targetCents: monthly.get(index + 1) ?? 0 })),
-      serviceTargets: row.services.map((entry) => {
-        const monthlySessions = Array.from({ length: 12 }, () => 0);
-        for (const cell of row.service_months) {
-          if (cell.service_type_id === entry.service_type_id) monthlySessions[cell.month - 1] = cell.target_sessions;
-        }
-        return { serviceTypeId: entry.service_type_id, targetSessions: entry.target_sessions, targetValueCents: entry.target_value_cents, monthlySessions };
-      }),
+      serviceTargets: buildServiceTargets(row.services, row.service_months ?? []),
     },
   };
 }
@@ -55,6 +50,19 @@ export async function loadPlanYears(): Promise<number[]> {
   const { data, error } = await supabaseAdmin.from("annual_economic_plans").select("year").order("year", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((row) => row.year);
+}
+
+// Listino attuale: solo pacchetti attivi con prezzo configurato in /pacchetti.
+export async function loadActivePackages(): Promise<ActivePackage[]> {
+  const { data, error } = await supabaseAdmin
+    .from("session_packages")
+    .select("service_type_id, name, price_cents")
+    .eq("is_active", true)
+    .not("price_cents", "is", null)
+    .order("sort_order")
+    .order("price_cents");
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ serviceTypeId: row.service_type_id, name: row.name, priceCents: row.price_cents as number }));
 }
 
 export type PlanPayload = Omit<EconomicPlan, "year">;
@@ -81,10 +89,12 @@ export async function parsePlanPayload(body: unknown): Promise<PlanPayload | str
     const serviceTypeId = typeof entry?.serviceTypeId === "string" ? entry.serviceTypeId : "";
     if (!serviceTypeId || serviceTargets.some((item) => item.serviceTypeId === serviceTypeId)) return "Ogni servizio puo comparire una sola volta nel piano.";
     if (!isAmount(entry.targetSessions, MAX_SESSIONS)) return "Le sessioni target devono essere un numero intero valido.";
-    if (!isAmount(entry.targetValueCents, MAX_CENTS)) return "Il valore target deve essere un importo valido.";
+    if (!isAmount(entry.plannedBaseTicketCents, MAX_TICKET_CENTS)) return "Il ticket medio base pianificato deve essere un importo valido.";
     const monthlySessions = Array.isArray(entry.monthlySessions) ? (entry.monthlySessions as unknown[]) : Array.from({ length: 12 }, () => 0);
     if (monthlySessions.length !== 12 || !monthlySessions.every((value) => isAmount(value, MAX_SESSIONS))) return "La distribuzione mensile delle sessioni deve contenere 12 numeri interi validi.";
-    serviceTargets.push({ serviceTypeId, targetSessions: entry.targetSessions, targetValueCents: entry.targetValueCents, monthlySessions: monthlySessions as number[] });
+    const targetValueCents = serviceTargetValueCents(entry.targetSessions, entry.plannedBaseTicketCents);
+    if (targetValueCents > MAX_CENTS) return "Il valore base target risultante e troppo alto.";
+    serviceTargets.push({ serviceTypeId, targetSessions: entry.targetSessions, plannedBaseTicketCents: entry.plannedBaseTicketCents, targetValueCents, monthlySessions: monthlySessions as number[] });
   }
 
   if (serviceTargets.length > 0) {
@@ -125,13 +135,13 @@ export async function savePlanAtomic(year: number, create: boolean, payload: Pla
     p_expected_uplift_cents: payload.expectedUpliftCents,
     p_notes: payload.notes,
     p_monthly: payload.monthlyTargets.map((entry) => ({ month: entry.month, target_cents: entry.targetCents })),
-    p_services: payload.serviceTargets.map((entry) => ({ service_type_id: entry.serviceTypeId, target_sessions: entry.targetSessions, target_value_cents: entry.targetValueCents })),
+    p_services: payload.serviceTargets.map((entry) => ({ service_type_id: entry.serviceTypeId, target_sessions: entry.targetSessions, planned_base_ticket_cents: entry.plannedBaseTicketCents })),
     p_service_months: payload.serviceTargets.flatMap((entry) => entry.monthlySessions.map((sessions, index) => ({ service_type_id: entry.serviceTypeId, month: index + 1, target_sessions: sessions }))),
   });
   if (!error) return { ok: true };
   if (error.code === "23505") return { ok: false, status: 409, error: `Esiste gia un piano ${year}.` };
   if (error.code === "P0002") return { ok: false, status: 404, error: `Nessun piano ${year}.` };
-  if (error.code === "23514" || error.code === "23503" || error.code === "22023") return { ok: false, status: 400, error: "Dati del piano non validi: nessuna modifica e stata salvata." };
+  if (error.code === "23514" || error.code === "23503" || error.code === "22023" || error.code === "22003") return { ok: false, status: 400, error: "Dati del piano non validi: nessuna modifica e stata salvata." };
   return { ok: false, status: 500, error: "Salvataggio non riuscito: nessuna modifica e stata applicata." };
 }
 

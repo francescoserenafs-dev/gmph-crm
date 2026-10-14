@@ -3,7 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
-import { MONTH_NAMES, impliedTicketCents, planCoherence, type EconomicPlan } from "@/lib/economic-plans";
+import { MONTH_NAMES, planCoherence, priceListFor, serviceTargetValueCents, ticketAboveListMax, type ActivePackage, type EconomicPlan } from "@/lib/economic-plans";
+import { addDraftService, removeDraftService, updateDraftService, updateDraftServiceMonth, type DraftService } from "@/lib/economic-plan-draft";
 
 type Dashboard = {
   year: number;
@@ -28,7 +29,6 @@ type Dashboard = {
   cash: { collectedCents: number; receivableCents: number; voucherSalesCents: number; voucherSalesCount: number };
 };
 type Service = { id: string; name: string; is_active: boolean };
-type DraftService = { serviceTypeId: string; sessions: string; value: string; monthlySessions: string[] };
 type Draft = { annual: string; uplift: string; notes: string; months: string[]; services: DraftService[] };
 
 const SHORT_MONTHS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
@@ -40,6 +40,7 @@ const percent = new Intl.NumberFormat("it-IT", { style: "percent", maximumFracti
 const money = (cents: number | null) => (cents === null ? "—" : euro.format(cents / 100));
 const rate = (value: number | null) => (value === null ? "—" : percent.format(value));
 const toCents = (value: string) => Math.round(Number(value || 0) * 100);
+const wholeEuro = (cents: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
 const toEuros = (cents: number) => String(cents / 100);
 const selectClass = "h-11 border border-[#cfc5b8] bg-white px-3";
 const inputClass = "h-10 w-full border border-[#cfc5b8] bg-white px-3 text-right text-sm";
@@ -187,6 +188,7 @@ function DashboardView({ year, setYear, onOpenPlan }: { year: string; setYear: (
 function PlanView({ year, setYear }: { year: string; setYear: (value: string) => void }) {
   const [planYears, setPlanYears] = useState<number[] | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [packages, setPackages] = useState<ActivePackage[]>([]);
   const [loadedDraft, setLoadedDraft] = useState<{ year: number; draft: Draft } | null>(null);
   const [newYear, setNewYear] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -199,6 +201,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
     if (!response.ok) { setMessage({ kind: "error", text: body.error }); return null; }
     setPlanYears(body.years);
     setServices(body.services);
+    setPackages(body.packages ?? []);
     return body.years as number[];
   }, []);
 
@@ -332,33 +335,49 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
 
           <section className="mt-6 overflow-x-auto border border-[#d8d0c5] bg-white">
             <p className="border-b border-[#d8d0c5] bg-[#eee8df] px-4 py-2 text-sm font-semibold">Target per servizio</p>
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full min-w-[46rem] border-collapse text-sm">
               <thead><tr className="text-xs font-semibold uppercase tracking-[0.06em] text-[#675f57]">
-                <th className="px-4 py-2 text-left">Servizio</th><th className="px-4 py-2 text-right">Sessioni target</th><th className="px-4 py-2 text-right">Valore target (EUR)</th>
-                <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Ticket medio implicito<InfoTooltip label="Informazioni su Ticket medio implicito" text="Valore target / sessioni target. Calcolato, non salvato." /></span></th><th className="px-4 py-2" />
+                <th className="px-4 py-2 text-left">Servizio</th>
+                <th className="px-4 py-2 text-right">Sessioni target</th>
+                <th className="px-4 py-2 text-left"><span className="inline-flex items-center gap-1">Listino attuale<InfoTooltip label="Informazioni su Listino attuale" text="Prezzi dei pacchetti attivi oggi in /pacchetti. Solo riferimento: non modifica il piano." /></span></th>
+                <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Ticket medio base pianificato (EUR)<InfoTooltip label="Informazioni su Ticket medio base pianificato" text="Valore medio base che prevedi di generare per ogni sessione di questo servizio, prima degli Extra attesi." /></span></th>
+                <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Valore base target<InfoTooltip label="Informazioni su Valore base target" text="Valore pianificato del servizio calcolato come Sessioni target × Ticket medio base pianificato." /></span></th>
+                <th className="px-4 py-2" />
               </tr></thead>
               <tbody>
-                {draft.services.length === 0 ? <tr><td className="px-4 py-3 text-[#675f57]" colSpan={5}>Nessun servizio nel piano.</td></tr> : draft.services.map((row, index) => {
-                  const ticket = impliedTicketCents({ targetSessions: Number(row.sessions || 0), targetValueCents: toCents(row.value) });
-                  const change = (patch: Partial<Draft["services"][number]>) => update({ services: draft.services.map((item, position) => (position === index ? { ...item, ...patch } : item)) });
+                {draft.services.length === 0 ? <tr><td className="px-4 py-3 text-[#675f57]" colSpan={6}>Nessun servizio nel piano.</td></tr> : draft.services.map((row) => {
+                  const ticketCents = toCents(row.ticket);
+                  const priceList = priceListFor(row.serviceTypeId, packages);
+                  const change = (patch: Partial<Omit<DraftService, "serviceTypeId">>) => update({ services: updateDraftService(draft.services, row.serviceTypeId, patch) });
                   return (
-                    <tr className="border-t border-[#eee8df]" key={row.serviceTypeId}>
+                    <tr className="border-t border-[#eee8df] align-top" key={row.serviceTypeId}>
                       <td className="px-4 py-2 font-medium">{serviceName(row.serviceTypeId)}</td>
-                      <td className="px-4 py-2"><input aria-label={`Sessioni target ${serviceName(row.serviceTypeId)}`} className={`${inputClass} ml-auto max-w-28`} min={0} onChange={(event) => change({ sessions: event.target.value })} step={1} type="number" value={row.sessions} /></td>
-                      <td className="px-4 py-2"><input aria-label={`Valore target ${serviceName(row.serviceTypeId)}`} className={`${inputClass} ml-auto max-w-36`} min={0} onChange={(event) => change({ value: event.target.value })} step={0.01} type="number" value={row.value} /></td>
-                      <td className="px-4 py-2 text-right font-medium">{money(ticket)}</td>
-                      <td className="px-4 py-2 text-right"><button className="text-xs font-semibold text-[#a53e31] hover:underline" onClick={() => update({ services: draft.services.filter((_, position) => position !== index) })} type="button">Rimuovi</button></td>
+                      <td className="px-4 py-2"><input aria-label={`Sessioni target ${serviceName(row.serviceTypeId)}`} className={`${inputClass} ml-auto max-w-24`} min={0} onChange={(event) => change({ sessions: event.target.value })} step={1} type="number" value={row.sessions} /></td>
+                      <td className="whitespace-nowrap px-4 py-2 text-[#675f57]">
+                        {priceList ? (
+                          <span className="inline-flex items-center gap-1">
+                            {priceList.minCents === priceList.maxCents ? wholeEuro(priceList.minCents) : `${wholeEuro(priceList.minCents)}–${wholeEuro(priceList.maxCents)}`}
+                            <InfoTooltip label={`Pacchetti attivi ${serviceName(row.serviceTypeId)}`} text={priceList.packages.map((entry) => `${entry.name} — ${wholeEuro(entry.priceCents)}`).join(" · ")} />
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <input aria-label={`Ticket medio base pianificato ${serviceName(row.serviceTypeId)}`} className={`${inputClass} ml-auto max-w-32`} min={0} onChange={(event) => change({ ticket: event.target.value })} step={0.01} type="number" value={row.ticket} />
+                        {ticketAboveListMax(ticketCents, priceList) ? <p className="mt-1 max-w-56 text-right text-[11px] leading-snug text-[#7a5a17]">Il ticket medio pianificato supera il prezzo massimo del listino attuale. Potrebbe includere supplementi o condizioni non rappresentate dal listino.</p> : null}
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium">{money(serviceTargetValueCents(toSessions(row.sessions), ticketCents))}</td>
+                      <td className="px-4 py-2 text-right"><button className="text-xs font-semibold text-[#a53e31] hover:underline" onClick={() => update({ services: removeDraftService(draft.services, row.serviceTypeId) })} type="button">Rimuovi</button></td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot><tr className="border-t border-[#d8d0c5] font-semibold">
-                <td className="px-4 py-2">Totale</td><td className="px-4 py-2 text-right">{summary.serviceSessions}</td><td className="px-4 py-2 text-right">{money(summary.serviceValueCents)}</td><td colSpan={2} />
+                <td className="px-4 py-2">Totale</td><td className="px-4 py-2 text-right">{summary.serviceSessions}</td><td colSpan={2} /><td className="px-4 py-2 text-right">{money(summary.serviceValueCents)}</td><td />
               </tr></tfoot>
             </table>
             {available.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2 border-t border-[#eee8df] px-4 py-3">
-                <select aria-label="Servizio da aggiungere" className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" defaultValue="" onChange={(event) => { if (event.target.value) update({ services: [...draft.services, { serviceTypeId: event.target.value, sessions: "0", value: "0", monthlySessions: Array.from({ length: 12 }, () => "0") }] }); event.target.value = ""; }}>
+                <select aria-label="Servizio da aggiungere" className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" defaultValue="" onChange={(event) => { if (event.target.value) update({ services: addDraftService(draft.services, event.target.value) }); event.target.value = ""; }}>
                   <option value="">+ Aggiungi servizio…</option>
                   {available.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                 </select>
@@ -381,7 +400,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
                     <th className="px-3 py-2 text-right">Target</th>
                   </tr></thead>
                   <tbody>
-                    {draft.services.map((row, serviceIndex) => {
+                    {draft.services.map((row) => {
                       const total = row.monthlySessions.reduce((sum, value) => sum + toSessions(value), 0);
                       const target = toSessions(row.sessions);
                       return (
@@ -393,7 +412,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
                                 aria-label={`Sessioni ${serviceName(row.serviceTypeId)} ${MONTH_NAMES[monthIndex]}`}
                                 className="h-9 w-full min-w-11 border border-[#cfc5b8] bg-white px-1 text-center text-sm"
                                 min={0}
-                                onChange={(event) => update({ services: draft.services.map((item, position) => (position === serviceIndex ? { ...item, monthlySessions: item.monthlySessions.map((cell, cellIndex) => (cellIndex === monthIndex ? event.target.value : cell)) } : item)) })}
+                                onChange={(event) => update({ services: updateDraftServiceMonth(draft.services, row.serviceTypeId, monthIndex, event.target.value) })}
                                 step={1}
                                 type="number"
                                 value={value}
@@ -440,7 +459,7 @@ function toDraft(plan: EconomicPlan): Draft {
     uplift: toEuros(plan.expectedUpliftCents),
     notes: plan.notes ?? "",
     months: plan.monthlyTargets.map((entry) => toEuros(entry.targetCents)),
-    services: plan.serviceTargets.map((entry) => ({ serviceTypeId: entry.serviceTypeId, sessions: String(entry.targetSessions), value: toEuros(entry.targetValueCents), monthlySessions: entry.monthlySessions.map(String) })),
+    services: plan.serviceTargets.map((entry) => ({ serviceTypeId: entry.serviceTypeId, sessions: String(entry.targetSessions), ticket: toEuros(entry.plannedBaseTicketCents), monthlySessions: entry.monthlySessions.map(String) })),
   };
 }
 
@@ -450,7 +469,11 @@ function fromDraft(draft: Draft) {
     expectedUpliftCents: toCents(draft.uplift),
     notes: draft.notes,
     monthlyTargets: draft.months.map((value, index) => ({ month: index + 1, targetCents: toCents(value) })),
-    serviceTargets: draft.services.map((row) => ({ serviceTypeId: row.serviceTypeId, targetSessions: toSessions(row.sessions), targetValueCents: toCents(row.value), monthlySessions: row.monthlySessions.map(toSessions) })),
+    serviceTargets: draft.services.map((row) => {
+      const targetSessions = toSessions(row.sessions);
+      const plannedBaseTicketCents = toCents(row.ticket);
+      return { serviceTypeId: row.serviceTypeId, targetSessions, plannedBaseTicketCents, targetValueCents: serviceTargetValueCents(targetSessions, plannedBaseTicketCents), monthlySessions: row.monthlySessions.map(toSessions) };
+    }),
   };
 }
 

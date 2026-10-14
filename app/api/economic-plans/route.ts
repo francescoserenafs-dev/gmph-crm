@@ -1,17 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { EMPTY_PLAN_PAYLOAD, loadPlanYears, parseYear, savePlanAtomic } from "@/lib/economic-plans-server";
+import { EMPTY_PLAN_PAYLOAD, loadActivePackages, loadPlanYears, parseYear, savePlanAtomic } from "@/lib/economic-plans-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [years, services] = await Promise.all([
+    const [years, services, packages] = await Promise.all([
       loadPlanYears(),
       supabaseAdmin.from("service_types").select("id, name, is_active").eq("is_addon", false).order("sort_order").order("name"),
+      loadActivePackages(),
     ]);
     if (services.error) throw services.error;
-    return NextResponse.json({ years, services: services.data ?? [] });
+    return NextResponse.json({ years, services: services.data ?? [], packages });
   } catch {
     return NextResponse.json({ error: "Non e stato possibile caricare i piani economici." }, { status: 500 });
   }

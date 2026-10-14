@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computeEconomicDashboard, impliedTicketCents, planCoherence, resolveAnnualTarget } from "../lib/economic-plans.ts";
+import { computeEconomicDashboard, planCoherence, priceListFor, resolveAnnualTarget, serviceTargetValueCents, ticketAboveListMax } from "../lib/economic-plans.ts";
 
 test("Home target: plan first, legacy budget fallback, 0 if neither", () => {
   assert.deepEqual(resolveAnnualTarget(1500000, null), { targetCents: 1500000, source: "plan" });
@@ -28,10 +28,38 @@ const plan2027 = {
   notes: "Piano economico centrale GMPH 2027",
   monthlyTargets: [45000, 45000, 120000, 200000, 180000, 120000, 100000, 0, 150000, 170000, 370000, 0].map((targetCents, index) => ({ month: index + 1, targetCents })),
   serviceTargets: [
-    ["famiglia", 15, 360000], ["maternita", 10, 230000], ["kids", 8, 100000], ["ritratto", 6, 120000],
-    ["natale", 25, 337500], ["autunno", 8, 96000], ["mamma", 6, 75000], ["battesimo", 3, 105000],
-  ].map(([serviceTypeId, targetSessions, targetValueCents]) => ({ serviceTypeId, targetSessions, targetValueCents, monthlySessions: distribution2027[serviceTypeId] })),
+    ["famiglia", 15, 24000], ["maternita", 10, 23000], ["kids", 8, 12500], ["ritratto", 6, 20000],
+    ["natale", 25, 13500], ["autunno", 8, 12000], ["mamma", 6, 12500], ["battesimo", 3, 35000],
+  ].map(([serviceTypeId, targetSessions, plannedBaseTicketCents]) => ({ serviceTypeId, targetSessions, plannedBaseTicketCents, targetValueCents: serviceTargetValueCents(targetSessions, plannedBaseTicketCents), monthlySessions: distribution2027[serviceTypeId] })),
 };
+
+test("2027 base value = sessions x planned base ticket, per service and in total", () => {
+  const values = Object.fromEntries(plan2027.serviceTargets.map((entry) => [entry.serviceTypeId, entry.targetValueCents]));
+  assert.deepEqual(values, { famiglia: 360000, maternita: 230000, kids: 100000, ritratto: 120000, natale: 337500, autunno: 96000, mamma: 75000, battesimo: 105000 });
+  assert.equal(serviceTargetValueCents(18, 24000), 432000);
+  assert.equal(serviceTargetValueCents(15, 22500), 337500);
+  assert.equal(serviceTargetValueCents(0, 24000), 0);
+});
+
+test("current price list is reference only: active packages range, none for services without packages, warning above max", () => {
+  const packages = [
+    { serviceTypeId: "famiglia", name: "Momenti 2027", priceCents: 17000 },
+    { serviceTypeId: "famiglia", name: "Racconto 2027", priceCents: 22000 },
+    { serviceTypeId: "famiglia", name: "Ricordi", priceCents: 29000 },
+    { serviceTypeId: "famiglia", name: "Collezione 2027", priceCents: 39000 },
+  ];
+  const famiglia = priceListFor("famiglia", packages);
+  assert.equal(famiglia.minCents, 17000);
+  assert.equal(famiglia.maxCents, 39000);
+  assert.deepEqual(famiglia.packages.map((entry) => entry.name), ["Momenti 2027", "Racconto 2027", "Ricordi", "Collezione 2027"]);
+  assert.equal(priceListFor("battesimo", packages), null);
+  assert.equal(ticketAboveListMax(24000, famiglia), false);
+  assert.equal(ticketAboveListMax(39000, famiglia), false);
+  assert.equal(ticketAboveListMax(45000, famiglia), true);
+  assert.equal(ticketAboveListMax(999999, null), false);
+  // Il listino non altera il piano: il valore resta sessioni x ticket pianificato.
+  assert.equal(plan2027.serviceTargets[0].targetValueCents, 360000);
+});
 
 test("2027 monthly session distribution: per-service totals, monthly totals, Battesimo warning", () => {
   const summary = planCoherence(plan2027);
@@ -52,8 +80,6 @@ test("2027 seed values are coherent: 15.000 monthly, 14.235 services, 765 uplift
   assert.equal(summary.serviceSessions, 81);
   assert.equal(summary.plannedValueCents, 1500000);
   assert.equal(summary.plannedDifferenceCents, 0);
-  assert.equal(impliedTicketCents(plan2027.serviceTargets[0]), 24000);
-  assert.equal(impliedTicketCents({ serviceTypeId: "x", targetSessions: 0, targetValueCents: 1000 }), null);
 });
 
 test("warnings: monthly sum or services + uplift different from annual target", () => {

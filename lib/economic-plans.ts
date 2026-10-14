@@ -1,6 +1,25 @@
 export type MonthlyTarget = { month: number; targetCents: number };
 // monthlySessions: 12 valori (gen..dic) di sessioni target pianificate nel mese.
-export type ServiceTarget = { serviceTypeId: string; targetSessions: number; targetValueCents: number; monthlySessions: number[] };
+// targetValueCents e sempre derivato: targetSessions * plannedBaseTicketCents.
+export type ServiceTarget = { serviceTypeId: string; targetSessions: number; plannedBaseTicketCents: number; targetValueCents: number; monthlySessions: number[] };
+
+export function serviceTargetValueCents(targetSessions: number, plannedBaseTicketCents: number): number {
+  return targetSessions * plannedBaseTicketCents;
+}
+
+export type ActivePackage = { serviceTypeId: string; name: string; priceCents: number };
+
+// Listino attuale come solo riferimento visivo: non alimenta mai il piano.
+export function priceListFor(serviceTypeId: string, packages: ActivePackage[]) {
+  const own = packages.filter((entry) => entry.serviceTypeId === serviceTypeId);
+  if (own.length === 0) return null;
+  const prices = own.map((entry) => entry.priceCents);
+  return { minCents: Math.min(...prices), maxCents: Math.max(...prices), packages: own };
+}
+
+export function ticketAboveListMax(plannedBaseTicketCents: number, priceList: { maxCents: number } | null): boolean {
+  return priceList !== null && plannedBaseTicketCents > priceList.maxCents;
+}
 export type EconomicPlan = {
   year: number;
   annualTargetCents: number;
@@ -63,8 +82,19 @@ export function distributedTotal(target: Pick<ServiceTarget, "monthlySessions">)
   return target.monthlySessions.reduce((sum, value) => sum + value, 0);
 }
 
-export function impliedTicketCents(target: Pick<ServiceTarget, "targetSessions" | "targetValueCents">): number | null {
-  return target.targetSessions > 0 ? target.targetValueCents / target.targetSessions : null;
+// I servizi del piano sono la fonte unica: la distribuzione fornisce solo i valori mese -> sessioni.
+// Mesi mancanti valgono 0; righe mensili di servizi non (piu) nel piano vengono ignorate.
+export function buildServiceTargets(
+  services: { service_type_id: string; target_sessions: number; planned_base_ticket_cents: number; target_value_cents: number }[],
+  serviceMonths: { service_type_id: string; month: number; target_sessions: number }[],
+): ServiceTarget[] {
+  return services.map((service) => {
+    const monthlySessions = Array.from({ length: 12 }, () => 0);
+    for (const cell of serviceMonths) {
+      if (cell.service_type_id === service.service_type_id && cell.month >= 1 && cell.month <= 12) monthlySessions[cell.month - 1] = cell.target_sessions;
+    }
+    return { serviceTypeId: service.service_type_id, targetSessions: service.target_sessions, plannedBaseTicketCents: service.planned_base_ticket_cents, targetValueCents: service.target_value_cents, monthlySessions };
+  });
 }
 
 export function resolveAnnualTarget(planTargetCents: number | null, legacyBudgetCents: number | null): { targetCents: number; source: "plan" | "legacy_budget" } {
