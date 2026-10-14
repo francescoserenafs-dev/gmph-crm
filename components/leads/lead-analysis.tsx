@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LeadMonthlyChart } from "@/components/leads/lead-monthly-chart";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { LEAD_LOST_REASON_LABELS, LEAD_SOURCE_LABELS, type LeadLostReason, type LeadSource } from "@/lib/leads";
 
 type Rates = { leads: number; booked: number; bookedValueCents: number; conversionRate: number | null; averageTicketCents: number | null };
@@ -101,11 +102,11 @@ export function LeadAnalysis() {
         {data ? (
           <div className={loading ? "opacity-60" : ""}>
             <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-              <Metric label="Lead ricevuti" value={String(data.totals.leads)} />
-              <Metric label="Prenotazioni" value={String(data.totals.booked)} />
-              <Metric label="Conversion rate" value={formatRate(data.totals.conversionRate)} />
-              <Metric label="Valore prenotato" value={euro.format(data.totals.bookedValueCents / 100)} />
-              <Metric label="Ticket medio" value={formatCents(data.totals.averageTicketCents)} />
+              <Metric label="Lead ricevuti" tooltip="Numero di lead entrati nel periodo selezionato, in base alla data di ingresso del lead." value={String(data.totals.leads)} />
+              <Metric label="Prenotazioni" tooltip="Lead del periodo selezionato convertiti in una prenotazione. Una conversione successiva resta attribuita al periodo in cui il lead è entrato." value={String(data.totals.booked)} />
+              <Metric label="Conversion rate" tooltip="Percentuale di lead ricevuti che hanno generato una prenotazione. Formula: prenotazioni / lead ricevuti." value={formatRate(data.totals.conversionRate)} />
+              <Metric label="Valore prenotato" tooltip="Somma dei prezzi concordati delle sessioni collegate ai lead convertiti, extra esclusi. Non rappresenta necessariamente l'incassato." value={euro.format(data.totals.bookedValueCents / 100)} />
+              <Metric label="Ticket medio" tooltip="Valore medio delle prenotazioni generate dai lead convertiti. Formula: valore prenotato / prenotazioni." value={formatCents(data.totals.averageTicketCents)} />
             </div>
 
             <section className="mt-8 border border-[#d8d0c5] bg-white p-5">
@@ -143,10 +144,13 @@ export function LeadAnalysis() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
   return (
     <div className="border border-[#d8d0c5] bg-white px-4 py-3">
-      <p className="whitespace-nowrap text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="whitespace-nowrap text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
+        <InfoTooltip label={`Informazioni su ${label}`} text={tooltip} />
+      </div>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );

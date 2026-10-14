@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ExtraMonthlyChart } from "@/components/extras/extra-monthly-chart";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { EXTRA_CATEGORIES, EXTRA_CATEGORY_LABELS, type ExtraCategory } from "@/lib/extra-products";
 
 type Summary = {
@@ -82,6 +83,25 @@ export function ExtraAnalysis() {
 
   const selectClass = "h-11 border border-[#cfc5b8] bg-white px-3";
   const categoryLabel = category ? EXTRA_CATEGORY_LABELS[category as ExtraCategory] : null;
+  const onlyCategory = categoryLabel ? ` Con il filtro attivo considera solo gli extra "${categoryLabel}".` : "";
+  const tips = {
+    sessions: "Numero di sessioni valide (annullate escluse) comprese nel periodo e nei filtri selezionati.",
+    withExtras: categoryLabel
+      ? `Numero di sessioni con almeno un extra "${categoryLabel}" di valore positivo.`
+      : "Numero di sessioni che hanno almeno un extra con valore positivo.",
+    upsellRate: `Percentuale di sessioni che hanno generato almeno un extra. Formula: sessioni con extra / sessioni analizzate.${onlyCategory}`,
+    extrasTotal: `Somma del valore venduto tramite extra nel periodo, dai totali storici delle righe extra.${onlyCategory}`,
+    perSession: `Valore extra medio distribuito su tutte le sessioni analizzate, incluse quelle senza extra.${onlyCategory}`,
+    perBuyer: `Valore extra medio calcolato solo sulle sessioni che hanno acquistato almeno un extra.${onlyCategory}`,
+    initialTicket: "Prezzo concordato medio delle sessioni prima degli extra.",
+    finalTicket: categoryLabel
+      ? `Valore medio delle sessioni calcolato come prezzo base più i soli extra "${categoryLabel}".`
+      : "Valore medio delle sessioni dopo l'aggiunta di tutti gli extra.",
+    increase: categoryLabel
+      ? `Incremento medio del ticket generato dai soli extra "${categoryLabel}" rispetto al prezzo base.`
+      : "Incremento medio del ticket generato dagli extra rispetto al prezzo base della sessione.",
+    increaseRate: `Incremento percentuale medio del ticket rispetto al prezzo base.${onlyCategory}`,
+  };
 
   return (
     <main className="min-h-screen bg-[#f5f1eb] px-4 py-6 text-[#27231f] sm:px-8 lg:px-12">
@@ -119,22 +139,22 @@ export function ExtraAnalysis() {
         {data ? (
           <div className={loading ? "opacity-60" : ""}>
             <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <Metric hint="Sessioni del periodo, annullate escluse" label="Sessioni analizzate" value={String(data.totals.sessions)} />
-              <Metric hint="Sessioni con almeno un extra di valore > 0" label="Sessioni con extra" value={String(data.totals.withExtras)} />
-              <Metric hint="Sessioni con extra ÷ sessioni analizzate" label="Upsell rate" value={formatRate(data.totals.upsellRate)} />
-              <Metric hint="Somma dei totali delle righe extra vendute" label="Valore extra totale" value={euro.format(data.totals.extrasCents / 100)} />
-              <Metric hint="Valore extra totale ÷ sessioni analizzate" label="Extra medio per sessione" value={formatCents(data.totals.averageExtraPerSessionCents)} />
-              <Metric hint="Valore extra totale ÷ sessioni con extra" label="Extra medio tra acquirenti" value={formatCents(data.totals.averageExtraPerBuyerCents)} />
+              <Metric hint="Sessioni del periodo, annullate escluse" label="Sessioni analizzate" tooltip={tips.sessions} value={String(data.totals.sessions)} />
+              <Metric hint="Sessioni con almeno un extra di valore > 0" label="Sessioni con extra" tooltip={tips.withExtras} value={String(data.totals.withExtras)} />
+              <Metric hint="Sessioni con extra ÷ sessioni analizzate" label="Upsell rate" tooltip={tips.upsellRate} value={formatRate(data.totals.upsellRate)} />
+              <Metric hint="Somma dei totali delle righe extra vendute" label="Valore extra totale" tooltip={tips.extrasTotal} value={euro.format(data.totals.extrasCents / 100)} />
+              <Metric hint="Valore extra totale ÷ sessioni analizzate" label="Extra medio per sessione" tooltip={tips.perSession} value={formatCents(data.totals.averageExtraPerSessionCents)} />
+              <Metric hint="Valore extra totale ÷ sessioni con extra" label="Extra medio tra acquirenti" tooltip={tips.perBuyer} value={formatCents(data.totals.averageExtraPerBuyerCents)} />
             </div>
 
             <section className="mt-8 border border-[#d8d0c5] bg-white p-5">
               <h2 className="text-lg font-semibold">Ticket iniziale vs finale</h2>
               <p className="mt-1 text-sm text-[#675f57]">Iniziale = prezzo concordato. Finale = prezzo concordato + extra{categoryLabel ? ` "${categoryLabel}"` : ""}. Media sulle sessioni analizzate.</p>
               <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <Metric hint="Media dei prezzi concordati" label="Ticket iniziale medio" value={formatCents(data.totals.averageInitialTicketCents)} />
-                <Metric hint={categoryLabel ? `Media di prezzo concordato + solo extra "${categoryLabel}"` : "Media di prezzo concordato + extra"} label={categoryLabel ? `Ticket medio con ${categoryLabel}` : "Ticket finale medio"} value={formatCents(data.totals.averageFinalTicketCents)} />
-                <Metric hint={categoryLabel ? "Contributo medio della sola categoria" : "Ticket finale − ticket iniziale"} label={categoryLabel ? `Incremento medio da ${categoryLabel}` : "Incremento medio"} value={formatCents(data.totals.ticketIncreaseCents)} />
-                <Metric hint={categoryLabel ? "Incremento medio della categoria ÷ ticket iniziale" : "Ticket finale ÷ ticket iniziale − 1"} label={categoryLabel ? `Incremento % da ${categoryLabel}` : "Incremento %"} value={formatRate(data.totals.ticketIncreaseRate)} />
+                <Metric hint="Media dei prezzi concordati" label="Ticket iniziale medio" tooltip={tips.initialTicket} value={formatCents(data.totals.averageInitialTicketCents)} />
+                <Metric hint={categoryLabel ? `Media di prezzo concordato + solo extra "${categoryLabel}"` : "Media di prezzo concordato + extra"} label={categoryLabel ? `Ticket medio con ${categoryLabel}` : "Ticket finale medio"} tooltip={tips.finalTicket} value={formatCents(data.totals.averageFinalTicketCents)} />
+                <Metric hint={categoryLabel ? "Contributo medio della sola categoria" : "Ticket finale − ticket iniziale"} label={categoryLabel ? `Incremento medio da ${categoryLabel}` : "Incremento medio"} tooltip={tips.increase} value={formatCents(data.totals.ticketIncreaseCents)} />
+                <Metric hint={categoryLabel ? "Incremento medio della categoria ÷ ticket iniziale" : "Ticket finale ÷ ticket iniziale − 1"} label={categoryLabel ? `Incremento % da ${categoryLabel}` : "Incremento %"} tooltip={tips.increaseRate} value={formatRate(data.totals.ticketIncreaseRate)} />
               </div>
             </section>
 
@@ -174,11 +194,11 @@ export function ExtraAnalysis() {
               <section className="border border-[#d8d0c5] bg-white">
                 <p className="border-b border-[#d8d0c5] bg-[#eee8df] px-4 py-2 text-sm font-semibold">Margine diretto extra</p>
                 <dl className="divide-y divide-[#eee8df] text-sm">
-                  <MarginRow label="Ricavi extra" value={euro.format(data.margin.revenueCents / 100)} />
-                  <MarginRow label="Costi diretti registrati" value={euro.format(data.margin.registeredCostCents / 100)} />
-                  <MarginRow label="Margine diretto calcolato" value={euro.format(data.margin.marginCents / 100)} />
-                  <MarginRow label="Margine %" value={formatRate(data.margin.marginRate)} />
-                  <MarginRow label="Copertura costi" value={formatRate(data.margin.costCoverage)} />
+                  <MarginRow label="Ricavi extra" tooltip={`Valore commerciale totale degli extra venduti.${onlyCategory}`} value={euro.format(data.margin.revenueCents / 100)} />
+                  <MarginRow label="Costi diretti registrati" tooltip="Somma dei costi diretti registrati sulle righe extra. Non include costi mancanti o costi generali." value={euro.format(data.margin.registeredCostCents / 100)} />
+                  <MarginRow label="Margine diretto calcolato" tooltip="Differenza tra ricavi extra e costi diretti registrati. Se alcuni costi non sono valorizzati, il margine non è completo." value={euro.format(data.margin.marginCents / 100)} />
+                  <MarginRow label="Margine %" tooltip="Margine diretto sugli extra in percentuale dei ricavi extra, basato sui costi registrati." value={formatRate(data.margin.marginRate)} />
+                  <MarginRow label="Copertura costi" tooltip="Quota del valore extra per cui è registrato un costo diretto. Indica quanto è affidabile il dato di margine." value={formatRate(data.margin.costCoverage)} />
                 </dl>
                 {data.margin.costCoverage !== null && data.margin.costCoverage < 1 ? (
                   <p className="border-t border-[#eee8df] px-4 py-3 text-xs text-[#8a4f37]">Margine calcolato sui costi registrati: le vendite senza costo indicato pesano come se il costo fosse zero, quindi il margine reale può essere più basso.</p>
@@ -192,20 +212,23 @@ export function ExtraAnalysis() {
   );
 }
 
-function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Metric({ label, value, hint, tooltip }: { label: string; value: string; hint: string; tooltip: string }) {
   return (
-    <div className="border border-[#d8d0c5] bg-white px-4 py-3" title={hint}>
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
+    <div className="border border-[#d8d0c5] bg-white px-4 py-3">
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p>
+        <InfoTooltip label={`Informazioni su ${label}`} text={tooltip} />
+      </div>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-[#8a8178]">{hint}</p>
     </div>
   );
 }
 
-function MarginRow({ label, value }: { label: string; value: string }) {
+function MarginRow({ label, value, tooltip }: { label: string; value: string; tooltip: string }) {
   return (
     <div className="flex items-center justify-between px-4 py-2">
-      <dt>{label}</dt>
+      <dt className="flex items-center gap-1.5">{label}<InfoTooltip label={`Informazioni su ${label}`} text={tooltip} /></dt>
       <dd className="font-medium">{value}</dd>
     </div>
   );
