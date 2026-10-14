@@ -1,5 +1,6 @@
 export type MonthlyTarget = { month: number; targetCents: number };
-export type ServiceTarget = { serviceTypeId: string; targetSessions: number; targetValueCents: number };
+// monthlySessions: 12 valori (gen..dic) di sessioni target pianificate nel mese.
+export type ServiceTarget = { serviceTypeId: string; targetSessions: number; targetValueCents: number; monthlySessions: number[] };
 export type EconomicPlan = {
   year: number;
   annualTargetCents: number;
@@ -40,6 +41,8 @@ export function planCoherence(plan: Pick<EconomicPlan, "annualTargetCents" | "ex
   const serviceValueCents = plan.serviceTargets.reduce((sum, entry) => sum + entry.targetValueCents, 0);
   const serviceSessions = plan.serviceTargets.reduce((sum, entry) => sum + entry.targetSessions, 0);
   const plannedValueCents = serviceValueCents + plan.expectedUpliftCents;
+  const distributedByMonth = Array.from({ length: 12 }, (_, index) => plan.serviceTargets.reduce((sum, entry) => sum + (entry.monthlySessions[index] ?? 0), 0));
+  const distributedSessions = distributedByMonth.reduce((sum, value) => sum + value, 0);
   return {
     monthlySumCents,
     monthlyDifferenceCents: monthlySumCents - plan.annualTargetCents,
@@ -47,10 +50,20 @@ export function planCoherence(plan: Pick<EconomicPlan, "annualTargetCents" | "ex
     serviceSessions,
     plannedValueCents,
     plannedDifferenceCents: plannedValueCents - plan.annualTargetCents,
+    distributedByMonth,
+    distributedSessions,
+    distributionDifference: distributedSessions - serviceSessions,
+    undistributedServices: plan.serviceTargets
+      .map((entry) => ({ serviceTypeId: entry.serviceTypeId, targetSessions: entry.targetSessions, distributedSessions: distributedTotal(entry) }))
+      .filter((entry) => entry.distributedSessions !== entry.targetSessions),
   };
 }
 
-export function impliedTicketCents(target: ServiceTarget): number | null {
+export function distributedTotal(target: Pick<ServiceTarget, "monthlySessions">): number {
+  return target.monthlySessions.reduce((sum, value) => sum + value, 0);
+}
+
+export function impliedTicketCents(target: Pick<ServiceTarget, "targetSessions" | "targetValueCents">): number | null {
   return target.targetSessions > 0 ? target.targetValueCents / target.targetSessions : null;
 }
 
@@ -139,6 +152,8 @@ export function computeEconomicDashboard({
       return {
         month: index + 1,
         label: MONTH_NAMES[index],
+        targetSessions: plan ? plan.serviceTargets.reduce((sum, target) => sum + (target.monthlySessions[index] ?? 0), 0) : null,
+        acquiredSessions: bucket.realizedSessions + bucket.futureSessions,
         targetCents,
         realizedCents: bucket.realizedCents,
         futureCents: bucket.futureCents,
@@ -156,6 +171,7 @@ export function computeEconomicDashboard({
           name: serviceNames.get(target.serviceTypeId) ?? "Servizio non disponibile",
           inPlan: true,
           targetSessions: target.targetSessions as number | null,
+          distributedSessions: distributedTotal(target) as number | null,
           acquiredSessions: (actual?.realizedSessions ?? 0) + (actual?.futureSessions ?? 0),
           targetValueCents: target.targetValueCents as number | null,
           acquiredValueCents: acquiredValue,
@@ -169,6 +185,7 @@ export function computeEconomicDashboard({
           name: actual.name,
           inPlan: false,
           targetSessions: null,
+          distributedSessions: null,
           acquiredSessions: actual.realizedSessions + actual.futureSessions,
           targetValueCents: null,
           acquiredValueCents: actual.realizedCents + actual.futureCents,

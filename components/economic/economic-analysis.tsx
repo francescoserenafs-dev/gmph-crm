@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { MONTH_NAMES, impliedTicketCents, planCoherence, type EconomicPlan } from "@/lib/economic-plans";
 
@@ -22,13 +22,18 @@ type Dashboard = {
     realizedSessions: number;
     futureSessions: number;
   };
-  months: { month: number; label: string; targetCents: number | null; realizedCents: number; futureCents: number; acquiredCents: number; gapCents: number | null; coverage: number | null }[];
-  services: { serviceTypeId: string; name: string; inPlan: boolean; targetSessions: number | null; acquiredSessions: number; targetValueCents: number | null; acquiredValueCents: number; gapCents: number | null }[];
+  months: { month: number; label: string; targetSessions: number | null; acquiredSessions: number; targetCents: number | null; realizedCents: number; futureCents: number; acquiredCents: number; gapCents: number | null; coverage: number | null }[];
+  services: { serviceTypeId: string; name: string; inPlan: boolean; targetSessions: number | null; distributedSessions: number | null; acquiredSessions: number; targetValueCents: number | null; acquiredValueCents: number; gapCents: number | null }[];
   baseVsExtra: { baseCents: number; extrasCents: number; extraShare: number | null };
   cash: { collectedCents: number; receivableCents: number; voucherSalesCents: number; voucherSalesCount: number };
 };
 type Service = { id: string; name: string; is_active: boolean };
-type Draft = { annual: string; uplift: string; notes: string; months: string[]; services: { serviceTypeId: string; sessions: string; value: string }[] };
+type DraftService = { serviceTypeId: string; sessions: string; value: string; monthlySessions: string[] };
+type Draft = { annual: string; uplift: string; notes: string; months: string[]; services: DraftService[] };
+
+const SHORT_MONTHS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+const EXTRA_ATTESI_TOOLTIP = "Valore aggiuntivo previsto oltre ai target base dei servizi, ad esempio extra fotografici, supplementi o altri incrementi.";
+const toSessions = (value: string) => Math.max(0, Math.round(Number(value || 0)));
 
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const percent = new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1 });
@@ -142,15 +147,22 @@ function DashboardView({ year, setYear, onOpenPlan }: { year: string; setYear: (
           </div>
 
           <DataTable
-            columns={["Mese", "Target", "Realizzato", "Futuro", "Acquisito", "Scostamento", "Copertura"]}
-            rows={data.months.map((row) => [row.label, data.hasPlan ? money(row.targetCents) : "—", money(row.realizedCents), money(row.futureCents), money(row.acquiredCents), money(row.gapCents), rate(row.coverage)])}
-            title={`Target mensile vs reale ${data.year}`}
+            columns={["Mese", "Sessioni target", "Sessioni acquisite", "Target €", "Realizzato", "Futuro", "Acquisito €", "Scostamento", "Copertura"]}
+            rows={data.months.map((row) => [row.label, row.targetSessions === null ? "—" : String(row.targetSessions), String(row.acquiredSessions), data.hasPlan ? money(row.targetCents) : "—", money(row.realizedCents), money(row.futureCents), money(row.acquiredCents), money(row.gapCents), rate(row.coverage)])}
+            title={<span className="inline-flex items-center gap-1.5">Target mensile vs reale {data.year}<InfoTooltip label="Informazioni su Sessioni target" text="Sessioni target: numero di sessioni pianificate per il mese, sommando tutti i servizi del Piano Economico. Sessioni acquisite: sessioni non annullate del mese, svolte e future." /></span>}
           />
 
           <DataTable
             columns={["Servizio", "Sessioni target", "Sessioni acquisite", "Valore target", "Valore acquisito", "Gap"]}
             emptyLabel="Nessun servizio pianificato né sessione nell'anno."
-            rows={data.services.map((row) => [row.inPlan ? row.name : `${row.name} (fuori piano)`, row.targetSessions === null ? "—" : String(row.targetSessions), String(row.acquiredSessions), money(row.targetValueCents), money(row.acquiredValueCents), money(row.gapCents)])}
+            rows={data.services.map((row) => [
+              row.inPlan ? row.name : `${row.name} (fuori piano)`,
+              row.targetSessions === null ? "—" : row.distributedSessions !== null && row.distributedSessions !== row.targetSessions ? `${row.targetSessions} (${row.distributedSessions} nei mesi)` : String(row.targetSessions),
+              String(row.acquiredSessions),
+              money(row.targetValueCents),
+              money(row.acquiredValueCents),
+              money(row.gapCents),
+            ])}
             title="Target per servizio vs reale"
           />
 
@@ -289,18 +301,18 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
             <h3 className="text-lg font-semibold">Configurazione generale</h3>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <EuroField label="Target annuale (EUR)" onChange={(value) => update({ annual: value })} value={draft.annual} />
-              <EuroField label="Uplift atteso (EUR)" onChange={(value) => update({ uplift: value })} value={draft.uplift} />
+              <EuroField label="Extra attesi (EUR)" onChange={(value) => update({ uplift: value })} tooltip={EXTRA_ATTESI_TOOLTIP} value={draft.uplift} />
               <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Note
                 <textarea className="min-h-20 border border-[#cfc5b8] bg-white px-3 py-2 text-sm" maxLength={2000} onChange={(event) => update({ notes: event.target.value })} value={draft.notes} />
               </label>
             </div>
             <dl className="mt-4 divide-y divide-[#eee8df] border border-[#eee8df] text-sm">
               <SummaryRow label="Target servizi totale" value={money(summary.serviceValueCents)} />
-              <SummaryRow label="+ Uplift atteso" value={money(toCents(draft.uplift))} />
+              <SummaryRow label="+ Extra attesi" value={money(toCents(draft.uplift))} />
               <SummaryRow label="= Valore pianificato" strong value={money(summary.plannedValueCents)} />
               <SummaryRow label="Target annuale" value={money(toCents(draft.annual))} />
             </dl>
-            {summary.plannedDifferenceCents !== 0 ? <Warning>Servizi + uplift ({money(summary.plannedValueCents)}) non coincidono con il target annuale: differenza {money(summary.plannedDifferenceCents)}.</Warning> : null}
+            {summary.plannedDifferenceCents !== 0 ? <Warning>Servizi + extra attesi ({money(summary.plannedValueCents)}) non coincidono con il target annuale: differenza {money(summary.plannedDifferenceCents)}.</Warning> : null}
           </section>
 
           <section className="mt-6 border border-[#d8d0c5] bg-white p-5">
@@ -327,7 +339,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
               </tr></thead>
               <tbody>
                 {draft.services.length === 0 ? <tr><td className="px-4 py-3 text-[#675f57]" colSpan={5}>Nessun servizio nel piano.</td></tr> : draft.services.map((row, index) => {
-                  const ticket = impliedTicketCents({ serviceTypeId: row.serviceTypeId, targetSessions: Number(row.sessions || 0), targetValueCents: toCents(row.value) });
+                  const ticket = impliedTicketCents({ targetSessions: Number(row.sessions || 0), targetValueCents: toCents(row.value) });
                   const change = (patch: Partial<Draft["services"][number]>) => update({ services: draft.services.map((item, position) => (position === index ? { ...item, ...patch } : item)) });
                   return (
                     <tr className="border-t border-[#eee8df]" key={row.serviceTypeId}>
@@ -346,10 +358,69 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
             </table>
             {available.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2 border-t border-[#eee8df] px-4 py-3">
-                <select aria-label="Servizio da aggiungere" className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" defaultValue="" onChange={(event) => { if (event.target.value) update({ services: [...draft.services, { serviceTypeId: event.target.value, sessions: "0", value: "0" }] }); event.target.value = ""; }}>
+                <select aria-label="Servizio da aggiungere" className="h-10 border border-[#cfc5b8] bg-white px-3 text-sm" defaultValue="" onChange={(event) => { if (event.target.value) update({ services: [...draft.services, { serviceTypeId: event.target.value, sessions: "0", value: "0", monthlySessions: Array.from({ length: 12 }, () => "0") }] }); event.target.value = ""; }}>
                   <option value="">+ Aggiungi servizio…</option>
                   {available.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                 </select>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="mt-6 border border-[#d8d0c5] bg-white">
+            <div className="flex items-center gap-1.5 border-b border-[#d8d0c5] bg-[#eee8df] px-4 py-2">
+              <p className="text-sm font-semibold">Distribuzione mensile sessioni</p>
+              <InfoTooltip label="Informazioni su Distribuzione mensile sessioni" text="Indica quante sessioni di ciascun servizio prevedi di svolgere in ogni mese. La somma mensile può essere confrontata con il target annuale del servizio." />
+            </div>
+            {draft.services.length === 0 ? <p className="px-4 py-3 text-sm text-[#675f57]">Aggiungi un servizio al piano per distribuirne le sessioni nei mesi.</p> : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[56rem] border-collapse text-sm">
+                  <thead><tr className="text-xs font-semibold uppercase tracking-[0.06em] text-[#675f57]">
+                    <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left">Servizio</th>
+                    {SHORT_MONTHS.map((label) => <th className="px-1 py-2 text-center" key={label}>{label}</th>)}
+                    <th className="px-3 py-2 text-right">Tot</th>
+                    <th className="px-3 py-2 text-right">Target</th>
+                  </tr></thead>
+                  <tbody>
+                    {draft.services.map((row, serviceIndex) => {
+                      const total = row.monthlySessions.reduce((sum, value) => sum + toSessions(value), 0);
+                      const target = toSessions(row.sessions);
+                      return (
+                        <tr className="border-t border-[#eee8df]" key={row.serviceTypeId}>
+                          <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-1.5 font-medium">{serviceName(row.serviceTypeId)}</td>
+                          {row.monthlySessions.map((value, monthIndex) => (
+                            <td className="px-1 py-1.5" key={SHORT_MONTHS[monthIndex]}>
+                              <input
+                                aria-label={`Sessioni ${serviceName(row.serviceTypeId)} ${MONTH_NAMES[monthIndex]}`}
+                                className="h-9 w-full min-w-11 border border-[#cfc5b8] bg-white px-1 text-center text-sm"
+                                min={0}
+                                onChange={(event) => update({ services: draft.services.map((item, position) => (position === serviceIndex ? { ...item, monthlySessions: item.monthlySessions.map((cell, cellIndex) => (cellIndex === monthIndex ? event.target.value : cell)) } : item)) })}
+                                step={1}
+                                type="number"
+                                value={value}
+                              />
+                            </td>
+                          ))}
+                          <td className={`px-3 py-1.5 text-right font-semibold ${total !== target ? "text-[#7a5a17]" : ""}`}>{total}</td>
+                          <td className="px-3 py-1.5 text-right text-[#675f57]">{target}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot><tr className="border-t border-[#d8d0c5] font-semibold">
+                    <td className="sticky left-0 z-10 bg-white px-3 py-2">Sessioni distribuite</td>
+                    {summary.distributedByMonth.map((value, index) => <td className="px-1 py-2 text-center" key={SHORT_MONTHS[index]}>{value}</td>)}
+                    <td className="px-3 py-2 text-right">{summary.distributedSessions}</td>
+                    <td className="px-3 py-2 text-right">{summary.serviceSessions}</td>
+                  </tr></tfoot>
+                </table>
+              </div>
+            )}
+            {summary.undistributedServices.length > 0 || summary.distributionDifference !== 0 ? (
+              <div className="px-4 pb-4">
+                {summary.undistributedServices.map((entry) => (
+                  <Warning key={entry.serviceTypeId}>{serviceName(entry.serviceTypeId)} — distribuzione mensile: {entry.distributedSessions} sessioni su target annuale {entry.targetSessions}.</Warning>
+                ))}
+                {summary.distributionDifference !== 0 ? <Warning>Totale sessioni distribuite {summary.distributedSessions} su {summary.serviceSessions} sessioni target di tutti i servizi (differenza {summary.distributionDifference > 0 ? "+" : ""}{summary.distributionDifference}).</Warning> : null}
               </div>
             ) : null}
           </section>
@@ -369,7 +440,7 @@ function toDraft(plan: EconomicPlan): Draft {
     uplift: toEuros(plan.expectedUpliftCents),
     notes: plan.notes ?? "",
     months: plan.monthlyTargets.map((entry) => toEuros(entry.targetCents)),
-    services: plan.serviceTargets.map((entry) => ({ serviceTypeId: entry.serviceTypeId, sessions: String(entry.targetSessions), value: toEuros(entry.targetValueCents) })),
+    services: plan.serviceTargets.map((entry) => ({ serviceTypeId: entry.serviceTypeId, sessions: String(entry.targetSessions), value: toEuros(entry.targetValueCents), monthlySessions: entry.monthlySessions.map(String) })),
   };
 }
 
@@ -379,15 +450,17 @@ function fromDraft(draft: Draft) {
     expectedUpliftCents: toCents(draft.uplift),
     notes: draft.notes,
     monthlyTargets: draft.months.map((value, index) => ({ month: index + 1, targetCents: toCents(value) })),
-    serviceTargets: draft.services.map((row) => ({ serviceTypeId: row.serviceTypeId, targetSessions: Math.round(Number(row.sessions || 0)), targetValueCents: toCents(row.value) })),
+    serviceTargets: draft.services.map((row) => ({ serviceTypeId: row.serviceTypeId, targetSessions: toSessions(row.sessions), targetValueCents: toCents(row.value), monthlySessions: row.monthlySessions.map(toSessions) })),
   };
 }
 
-function EuroField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function EuroField({ label, value, onChange, tooltip }: { label: string; value: string; onChange: (value: string) => void; tooltip?: string }) {
+  const inputId = useId();
   return (
-    <label className="flex flex-col gap-1 text-sm font-medium">{label}
-      <input className={inputClass} min={0} onChange={(event) => onChange(event.target.value)} step={0.01} type="number" value={value} />
-    </label>
+    <div className="flex flex-col gap-1 text-sm font-medium">
+      <span className="inline-flex items-center gap-1.5"><label htmlFor={inputId}>{label}</label>{tooltip ? <InfoTooltip label={`Informazioni su ${label}`} text={tooltip} /> : null}</span>
+      <input className={inputClass} id={inputId} min={0} onChange={(event) => onChange(event.target.value)} step={0.01} type="number" value={value} />
+    </div>
   );
 }
 
@@ -434,7 +507,7 @@ function Warning({ children }: { children: ReactNode }) {
   return <p className="mt-3 border border-[#e6c98f] bg-[#fbf3e0] px-3 py-2 text-xs text-[#7a5a17]" role="status">{children}</p>;
 }
 
-function DataTable({ title, columns, rows, emptyLabel = "Nessun dato." }: { title: string; columns: string[]; rows: string[][]; emptyLabel?: string }) {
+function DataTable({ title, columns, rows, emptyLabel = "Nessun dato." }: { title: ReactNode; columns: string[]; rows: string[][]; emptyLabel?: string }) {
   return (
     <div className="mt-8 overflow-x-auto border border-[#d8d0c5] bg-white">
       <p className="border-b border-[#d8d0c5] bg-[#eee8df] px-4 py-2 text-sm font-semibold">{title}</p>

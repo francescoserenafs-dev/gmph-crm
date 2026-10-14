@@ -10,6 +10,17 @@ test("Home target: plan first, legacy budget fallback, 0 if neither", () => {
   assert.deepEqual(resolveAnnualTarget(null, null), { targetCents: 0, source: "legacy_budget" });
 });
 
+const distribution2027 = {
+  famiglia: [0, 0, 3, 3, 3, 0, 0, 0, 3, 3, 0, 0],
+  maternita: [1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0],
+  kids: [0, 0, 0, 0, 2, 3, 3, 0, 0, 0, 0, 0],
+  ritratto: [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+  natale: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 0],
+  autunno: [0, 0, 0, 0, 0, 0, 0, 0, 3, 5, 0, 0],
+  mamma: [0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0],
+  battesimo: Array(12).fill(0),
+};
+
 const plan2027 = {
   year: 2027,
   annualTargetCents: 1500000,
@@ -19,8 +30,19 @@ const plan2027 = {
   serviceTargets: [
     ["famiglia", 15, 360000], ["maternita", 10, 230000], ["kids", 8, 100000], ["ritratto", 6, 120000],
     ["natale", 25, 337500], ["autunno", 8, 96000], ["mamma", 6, 75000], ["battesimo", 3, 105000],
-  ].map(([serviceTypeId, targetSessions, targetValueCents]) => ({ serviceTypeId, targetSessions, targetValueCents })),
+  ].map(([serviceTypeId, targetSessions, targetValueCents]) => ({ serviceTypeId, targetSessions, targetValueCents, monthlySessions: distribution2027[serviceTypeId] })),
 };
+
+test("2027 monthly session distribution: per-service totals, monthly totals, Battesimo warning", () => {
+  const summary = planCoherence(plan2027);
+  const totals = Object.fromEntries(plan2027.serviceTargets.map((entry) => [entry.serviceTypeId, entry.monthlySessions.reduce((a, b) => a + b, 0)]));
+  assert.deepEqual(totals, { famiglia: 15, maternita: 10, kids: 8, ritratto: 6, natale: 25, autunno: 8, mamma: 6, battesimo: 0 });
+  assert.deepEqual(summary.distributedByMonth, [2, 2, 5, 11, 7, 5, 4, 0, 7, 9, 26, 0]);
+  assert.equal(summary.distributedSessions, 78);
+  assert.equal(summary.serviceSessions, 81);
+  assert.equal(summary.distributionDifference, -3);
+  assert.deepEqual(summary.undistributedServices, [{ serviceTypeId: "battesimo", targetSessions: 3, distributedSessions: 0 }]);
+});
 
 test("2027 seed values are coherent: 15.000 monthly, 14.235 services, 765 uplift, 15.000 planned", () => {
   const summary = planCoherence(plan2027);
@@ -75,6 +97,12 @@ test("dashboard with plan: cancelled excluded, extras included, future separated
   assert.deepEqual(result.baseVsExtra, { baseCents: 63500, extrasCents: 5000, extraShare: 5000 / 68500 });
 
   assert.equal(result.months[0].targetCents, 45000);
+  assert.equal(result.months[0].targetSessions, 2);
+  assert.equal(result.months[0].acquiredSessions, 1);
+  assert.equal(result.months[3].targetSessions, 11);
+  assert.equal(result.months[10].targetSessions, 26);
+  assert.equal(result.months[10].acquiredSessions, 1);
+  assert.equal(result.months[1].acquiredSessions, 0);
   assert.equal(result.months[0].acquiredCents, 25000);
   assert.equal(result.months[0].gapCents, -20000);
   assert.equal(result.months[1].acquiredCents, 0);
@@ -82,6 +110,8 @@ test("dashboard with plan: cancelled excluded, extras included, future separated
 
   const famiglia = result.services.find((row) => row.serviceTypeId === "famiglia");
   assert.equal(famiglia.acquiredSessions, 1);
+  assert.equal(famiglia.distributedSessions, 15);
+  assert.equal(result.services.find((row) => row.serviceTypeId === "battesimo").distributedSessions, 0);
   assert.equal(famiglia.acquiredValueCents, 25000);
   assert.equal(famiglia.gapCents, 25000 - 360000);
   const outside = result.services.find((row) => row.serviceTypeId === "commerciale");
@@ -98,5 +128,6 @@ test("year without plan still reports real values and no target KPIs", () => {
   assert.equal(result.kpis.acquiredCents, 68500);
   assert.equal(result.kpis.cashInCents, 48500);
   assert.equal(result.months[0].targetCents, null);
+  assert.equal(result.months[0].targetSessions, null);
   assert.ok(result.services.every((row) => !row.inPlan));
 });
