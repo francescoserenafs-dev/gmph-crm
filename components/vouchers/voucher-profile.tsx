@@ -14,6 +14,7 @@ type Voucher = {
   service_name: string | null;
   value_cents: number | null;
   purchase_price_cents: number;
+  is_complimentary: boolean;
   status: string;
   purchased_at: string;
   expires_at: string;
@@ -54,6 +55,7 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
     valueEuros: "",
     purchaseEuros: "",
     purchasedAt: "",
+    isComplimentary: false,
   });
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: "" });
@@ -82,6 +84,7 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
           valueEuros: voucherBody.voucher.value_cents ? String(voucherBody.voucher.value_cents / 100) : "",
           purchaseEuros: String(voucherBody.voucher.purchase_price_cents / 100),
           purchasedAt: toDateInput(voucherBody.voucher.purchased_at),
+          isComplimentary: voucherBody.voucher.is_complimentary === true,
         });
         if (optionsRes.ok) { setClients(optionsBody.clients); setServices(optionsBody.services); setMethods(optionsBody.methods); }
       } catch (reason) {
@@ -94,7 +97,7 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
   }, [voucherId, refreshKey]);
 
   const paid = voucher?.payments.reduce((sum, payment) => sum + payment.amount_cents, 0) ?? 0;
-  const balance = (voucher?.purchase_price_cents ?? 0) - paid;
+  const balance = voucher?.is_complimentary ? 0 : (voucher?.purchase_price_cents ?? 0) - paid;
 
   function openPaymentDialog() {
     setPaymentForm({ amountEuros: balance > 0 ? String(balance / 100) : "", paidAt: new Date().toISOString().slice(0, 10), methodId: methods[0]?.id ?? "" });
@@ -120,6 +123,7 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
           valueEuros: editForm.valueEuros,
           purchaseEuros: editForm.purchaseEuros,
           purchasedAt: editForm.purchasedAt,
+          ...(editForm.isComplimentary !== voucher?.is_complimentary ? { isComplimentary: editForm.isComplimentary } : {}),
         }),
       });
       const body = await response.json();
@@ -165,9 +169,9 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
         <header className="mt-6 flex flex-col gap-4 border-b border-[#d8d0c5] pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#9b5d43]">Scheda buono</p>
-            <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{voucher.code}</h1>
+            <h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold sm:text-4xl">{voucher.code}{voucher.is_complimentary ? <span className="border border-[#d8b7a5] bg-[#f1e3db] px-2 py-0.5 text-sm font-semibold text-[#8a4f37]">Omaggio</span> : null}</h1>
             <p className="mt-2 text-sm text-[#675f57]">
-              {voucher.purchaser ? `Acquistato da ${voucher.purchaser.first_name} ${voucher.purchaser.last_name}` : "Acquirente non disponibile"}
+              {voucher.purchaser ? `${voucher.is_complimentary ? "Emesso per" : "Acquistato da"} ${voucher.purchaser.first_name} ${voucher.purchaser.last_name}` : "Acquirente non disponibile"}
               {voucher.recipient ? ` - Beneficiario ${voucher.recipient.first_name} ${voucher.recipient.last_name}` : ""}
             </p>
           </div>
@@ -178,10 +182,10 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
 
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Tipo">{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</Card>
-          <Card label="Prezzo di acquisto">{euro.format(voucher.purchase_price_cents / 100)}</Card>
-          <Card label="Incassato">{euro.format(paid / 100)}</Card>
+          <Card label={voucher.is_complimentary ? "Valore omaggio" : "Prezzo di acquisto"}>{euro.format(voucher.purchase_price_cents / 100)}</Card>
+          <Card label="Incassato">{voucher.is_complimentary ? "Omaggio" : euro.format(paid / 100)}</Card>
           <Card label="Saldo residuo">{euro.format(balance / 100)}</Card>
-          <Card label="Acquistato il">{dateOnly.format(new Date(voucher.purchased_at))}</Card>
+          <Card label={voucher.is_complimentary ? "Emesso il" : "Acquistato il"}>{dateOnly.format(new Date(voucher.purchased_at))}</Card>
           <Card label="Scadenza">{dateOnly.format(new Date(voucher.expires_at))}</Card>
           <Card label="Stato">{statusLabels[voucher.status] ?? voucher.status}</Card>
         </div>
@@ -221,6 +225,11 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
             <ClientCombobox clients={clients} emptyLabel="Da assegnare" label="Beneficiario" onChange={(clientId) => setEditForm({ ...editForm, recipientClientId: clientId })} required={false} value={editForm.recipientClientId} />
             <label className="flex flex-col gap-2 text-sm font-medium">Scadenza
               <input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setEditForm({ ...editForm, expiresAt: e.target.value })} required type="date" value={editForm.expiresAt} />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+              <input checked={editForm.isComplimentary} className="size-4 accent-[#9b5d43]" disabled={paid > 0 && !editForm.isComplimentary} onChange={(e) => setEditForm({ ...editForm, isComplimentary: e.target.checked })} type="checkbox" />
+              Omaggio (nessun pagamento)
+              {paid > 0 && !editForm.isComplimentary ? <span className="text-xs font-normal text-[#675f57]">non disponibile: ci sono pagamenti registrati</span> : null}
             </label>
           </div>
           <label className="mt-5 flex flex-col gap-2 text-sm font-medium">Note

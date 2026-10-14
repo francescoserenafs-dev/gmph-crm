@@ -5,7 +5,7 @@ import { expireOverdueVouchers } from "@/lib/vouchers";
 export const dynamic = "force-dynamic";
 
 const voucherFields =
-  "id, code, voucher_type, service_type_id, service_name, value_cents, purchase_price_cents, status, purchased_at, expires_at, redeemed_session_id, notes, purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name), recipient:clients!gift_vouchers_recipient_client_id_fkey(id,first_name,last_name), payments!payments_voucher_id_fkey(id,amount_cents,paid_at,payment_method_name,notes)";
+  "id, code, voucher_type, service_type_id, service_name, value_cents, purchase_price_cents, is_complimentary, status, purchased_at, expires_at, redeemed_session_id, notes, purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name), recipient:clients!gift_vouchers_recipient_client_id_fkey(id,first_name,last_name), payments!payments_voucher_id_fkey(id,amount_cents,paid_at,payment_method_name,notes)";
 
 async function loadVoucher(id: string) {
   await expireOverdueVouchers();
@@ -41,6 +41,15 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/vo
 
   if ("notes" in body) {
     update.notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+  }
+
+  if ("isComplimentary" in body) {
+    const isComplimentary = body.isComplimentary === true;
+    if (isComplimentary) {
+      const { count } = await supabaseAdmin.from("payments").select("id", { count: "exact", head: true }).eq("voucher_id", id);
+      if ((count ?? 0) > 0) return NextResponse.json({ error: "Il buono ha gia pagamenti registrati: non puo diventare un omaggio." }, { status: 400 });
+    }
+    update.is_complimentary = isComplimentary;
   }
 
   if ("expiresAt" in body) {

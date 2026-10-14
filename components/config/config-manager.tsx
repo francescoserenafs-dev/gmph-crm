@@ -189,6 +189,7 @@ export function ConfigManager() {
               <section className="border border-[#d8d0c5] bg-white p-5">
                 <h2 className="text-lg font-semibold">Budget anno corrente</h2>
                 <p className="mt-2 text-sm text-[#675f57]">Stima di incasso annuale, usata per il progress gauge nella home.</p>
+                <p className="mt-1 text-xs text-[#8a8178]">Usato come fallback quando non esiste un Piano Economico per l&apos;anno corrente.</p>
                 <form className="mt-4 flex items-end gap-3" onSubmit={saveBudget}>
                   <label className="flex flex-col gap-2 text-sm font-medium">Budget (EUR)
                     <input className="h-10 w-32 border border-[#cfc5b8] bg-white px-3 text-sm" min="0" onChange={(e) => setBudgetEuros(e.target.value)} type="number" value={budgetEuros} />

@@ -52,6 +52,13 @@ export function addDaysToDateKey(dateKey: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+// Come l'interval di Postgres: se il giorno non esiste nel mese di arrivo si usa l'ultimo giorno del mese.
+export function addMonthsToDateKey(dateKey: string, months: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month - 1 + months + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month - 1 + months, Math.min(day, lastDay))).toISOString().slice(0, 10);
+}
+
 export function isWeekendDateKey(dateKey: string): boolean {
   const weekday = localWeekday(dateKey);
   return weekday === 0 || weekday === 6;

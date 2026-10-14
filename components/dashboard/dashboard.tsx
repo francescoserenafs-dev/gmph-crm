@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BudgetGaugeChart } from "@/components/dashboard/budget-gauge-chart";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { IncomeTrendChart } from "@/components/dashboard/income-trend-chart";
 
 type Dashboard = {
@@ -216,7 +217,10 @@ export function Dashboard() {
               <div className="flex w-full max-w-[320px] flex-col gap-4 lg:h-[420px]">
                 {budgetProgress ? (
                   <section className="flex min-h-0 flex-1 flex-col border border-[#d8d0c5] bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Budget {new Date().getFullYear()}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Target annuale {new Date().getFullYear()}</p>
+                      <InfoTooltip label="Informazioni su Target annuale" text="Obiettivo annuale del Piano Economico. Se non esiste un piano per l'anno corrente, viene usato il vecchio budget configurato come fallback." />
+                    </div>
                     <BudgetGaugeChart achievedCents={budgetProgress.achieved} budgetCents={budgetProgress.budget} />
                     <p className="mt-1 text-center text-xs text-[#675f57]">{euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
                   </section>

@@ -24,6 +24,10 @@ export async function POST(request: NextRequest, context: RouteContext<"/api/vou
   const { data: method } = await supabaseAdmin.from("payment_methods").select("id, code").eq("id", methodId).eq("is_active", true).maybeSingle();
   if (!method || method.code === "gift_voucher") return NextResponse.json({ error: "Metodo di pagamento non disponibile." }, { status: 400 });
 
+  const { data: voucher } = await supabaseAdmin.from("gift_vouchers").select("is_complimentary").eq("id", id).maybeSingle();
+  if (!voucher) return NextResponse.json({ error: "Buono non trovato." }, { status: 404 });
+  if (voucher.is_complimentary) return NextResponse.json({ error: "Il buono e un omaggio: non prevede pagamenti." }, { status: 400 });
+
   const { data, error } = await supabaseAdmin
     .from("payments")
     .insert({ voucher_id: id, payment_method_id: methodId, category: "voucher_purchase", amount_cents: amountEuros * 100, paid_at: paidAt.toISOString(), notes })

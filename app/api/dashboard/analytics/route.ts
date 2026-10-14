@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getAnnualTargetForYear } from "@/lib/economic-plans-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -48,13 +49,14 @@ export async function GET(request: NextRequest) {
     .gte("paid_at", yearStart)
     .lt("paid_at", yearEnd);
 
-  const { data: settings, error: settingsError } = await supabaseAdmin
-    .from("app_settings")
-    .select("annual_budget_cents")
-    .eq("id", true)
-    .maybeSingle();
+  let annualTarget: Awaited<ReturnType<typeof getAnnualTargetForYear>>;
+  try {
+    annualTarget = await getAnnualTargetForYear(year);
+  } catch {
+    return NextResponse.json({ error: "Non e stato possibile caricare le analisi." }, { status: 500 });
+  }
 
-  if (error || settingsError) {
+  if (error) {
     return NextResponse.json({ error: "Non e stato possibile caricare le analisi." }, { status: 500 });
   }
 
@@ -98,5 +100,5 @@ export async function GET(request: NextRequest) {
 
   const total = incomePayments.reduce((sum, payment) => sum + payment.amount_cents, 0);
 
-  return NextResponse.json({ year, years, total, byMonth, byServiceType, byMethod, cumulative, annualBudgetCents: settings?.annual_budget_cents ?? 0 });
+  return NextResponse.json({ year, years, total, byMonth, byServiceType, byMethod, cumulative, annualBudgetCents: annualTarget.targetCents, annualTargetSource: annualTarget.source });
 }

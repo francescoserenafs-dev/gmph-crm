@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
       supabaseAdmin
         .from("gift_vouchers")
         .select("purchaser_client_id, purchase_price_cents")
+        .eq("is_complimentary", false)
         .in("purchaser_client_id", clientIds),
     ]);
 

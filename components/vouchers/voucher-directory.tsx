@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
+import { addMonthsToDateKey } from "@/lib/datetime";
 
 type Client = { id: string; first_name: string; last_name: string; email: string };
 type Service = { id: string; name: string };
@@ -15,6 +16,7 @@ type Voucher = {
   service_name: string | null;
   value_cents: number | null;
   purchase_price_cents: number;
+  is_complimentary: boolean;
   status: string;
   purchased_at: string;
   expires_at: string;
@@ -43,7 +45,11 @@ export function VoucherDirectory() {
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [form, setForm] = useState({ code: "", voucherType: "value", purchaserClientId: preselectPurchaser, recipientClientId: "", serviceTypeId: "", valueEuros: "", purchaseEuros: "", purchaseMethodId: "", purchasedAt: "", notes: "" });
+  const [form, setForm] = useState({ code: "", voucherType: "value", purchaserClientId: preselectPurchaser, recipientClientId: "", serviceTypeId: "", valueEuros: "", purchaseEuros: "", purchaseMethodId: "", purchasedAt: new Date().toISOString().slice(0, 10), notes: "", isComplimentary: false, expiresAt: "" });
+  const [validityMonths, setValidityMonths] = useState(12);
+  // La scadenza segue la data di acquisto finche l'utente non la modifica a mano.
+  const suggestedExpiry = form.purchasedAt ? addMonthsToDateKey(form.purchasedAt, validityMonths) : "";
+  const expiresAt = form.expiresAt || suggestedExpiry;
   const [recipientValue, setRecipientValue] = useState("");
   const [paymentForm, setPaymentForm] = useState({ amountEuros: "", paidAt: new Date().toISOString().slice(0, 10), methodId: "" });
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -64,7 +70,7 @@ export function VoucherDirectory() {
     (async () => {
       const response = await fetch("/api/vouchers/options");
       const body = await response.json();
-      if (active && response.ok) { setClients(body.clients); setServices(body.services); setMethods(body.methods); }
+      if (active && response.ok) { setClients(body.clients); setServices(body.services); setMethods(body.methods); setValidityMonths(body.voucherValidityMonths ?? 12); }
     })().catch(() => {});
     return () => { active = false; };
   }, []);
@@ -88,7 +94,7 @@ export function VoucherDirectory() {
   }, [query, refreshKey]);
 
   function openNew() {
-    setForm({ code: "", voucherType: "value", purchaserClientId: "", recipientClientId: "", serviceTypeId: "", valueEuros: "", purchaseEuros: "", purchaseMethodId: methods[0]?.id ?? "", purchasedAt: new Date().toISOString().slice(0, 10), notes: "" });
+    setForm({ code: "", voucherType: "value", purchaserClientId: "", recipientClientId: "", serviceTypeId: "", valueEuros: "", purchaseEuros: "", purchaseMethodId: methods[0]?.id ?? "", purchasedAt: new Date().toISOString().slice(0, 10), notes: "", isComplimentary: false, expiresAt: "" });
     setError(null);
     setDialog("new");
   }
@@ -96,7 +102,7 @@ export function VoucherDirectory() {
   async function submitNew(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const response = await fetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, expiresAt, purchaseMethodId: form.isComplimentary ? "" : form.purchaseMethodId }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       setDialog(null); setRefreshKey((key) => key + 1);
@@ -175,13 +181,13 @@ export function VoucherDirectory() {
           </div>
           {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento buoni...</p> : vouchers.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessun buono da mostrare.</p> : vouchers.map((voucher) => {
             const paid = voucher.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-            const balance = voucher.purchase_price_cents - paid;
+            const balance = voucher.is_complimentary ? 0 : voucher.purchase_price_cents - paid;
             return (
               <article className="flex flex-col gap-2 border-t border-[#eee8df] px-5 py-4 text-left text-sm sm:grid sm:grid-cols-[0.8fr_0.9fr_0.9fr_0.9fr_0.8fr_0.7fr_150px] sm:items-center sm:gap-3" key={voucher.id}>
                 <Link className="font-semibold hover:underline" href={`/vouchers/${voucher.id}`}>
                   {voucher.code}
                 </Link>
-                  <span>{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</span>
+                  <span>{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}{voucher.is_complimentary ? <span className="ml-2 border border-[#d8b7a5] bg-[#f1e3db] px-1.5 py-0.5 text-[11px] font-semibold text-[#8a4f37]">Omaggio</span> : null}</span>
                   <span className="min-w-0 truncate"><span className="text-xs text-[#675f57] sm:hidden">Acquirente: </span>{voucher.purchaser ? <Link className="hover:underline" href={`/clients/${voucher.purchaser.id}`}>{voucher.purchaser.first_name} {voucher.purchaser.last_name}</Link> : "-"}</span>
                   <span className="min-w-0 truncate"><span className="text-xs text-[#675f57] sm:hidden">Beneficiario: </span>{voucher.recipient ? <Link className="hover:underline" href={`/clients/${voucher.recipient.id}`}>{voucher.recipient.first_name} {voucher.recipient.last_name}</Link> : "-"}</span>
                   <span><span className="text-xs text-[#675f57] sm:hidden">Scadenza: </span>{dateOnly.format(new Date(voucher.expires_at))}</span>
@@ -241,18 +247,32 @@ export function VoucherDirectory() {
                       {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Prezzo di acquisto (EUR)<input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setForm({ ...form, purchaseEuros: e.target.value })} required type="number" value={form.purchaseEuros} /></label>
+                  <label className="flex flex-col gap-2 text-sm font-medium">{form.isComplimentary ? "Valore della sessione (EUR)" : "Prezzo di acquisto (EUR)"}<input className="h-11 border border-[#cfc5b8] bg-white px-3" min="1" onChange={(e) => setForm({ ...form, purchaseEuros: e.target.value })} required type="number" value={form.purchaseEuros} /></label>
                 </>
               )}
-              <label className="flex flex-col gap-2 text-sm font-medium">Metodo di pagamento
-                <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, purchaseMethodId: e.target.value })} required value={form.purchaseMethodId}>
-                  <option value="">Seleziona</option>
-                  {methods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
-                </select>
+              <label className="flex items-center gap-2 self-end pb-3 text-sm font-medium sm:col-span-2">
+                <input checked={form.isComplimentary} className="size-4 accent-[#9b5d43]" onChange={(e) => setForm({ ...form, isComplimentary: e.target.checked })} type="checkbox" />
+                Omaggio (nessun pagamento)
               </label>
-              <label className="flex flex-col gap-2 text-sm font-medium">Data acquisto<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, purchasedAt: e.target.value })} required type="date" value={form.purchasedAt} /></label>
+              {form.isComplimentary ? null : (
+                <label className="flex flex-col gap-2 text-sm font-medium">Metodo di pagamento
+                  <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, purchaseMethodId: e.target.value })} required value={form.purchaseMethodId}>
+                    <option value="">Seleziona</option>
+                    {methods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="flex flex-col gap-2 text-sm font-medium">{form.isComplimentary ? "Data emissione" : "Data acquisto"}<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, purchasedAt: e.target.value })} required type="date" value={form.purchasedAt} /></label>
+              <label className="flex flex-col gap-2 text-sm font-medium">Scadenza
+                <input className="h-11 border border-[#cfc5b8] bg-white px-3" min={form.purchasedAt || undefined} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} required type="date" value={expiresAt} />
+                <span className="text-xs font-normal text-[#675f57]">
+                  {form.expiresAt && form.expiresAt !== suggestedExpiry
+                    ? <>Modificata a mano. <button className="font-semibold text-[#9b5d43] hover:underline" onClick={() => setForm({ ...form, expiresAt: "" })} type="button">Ripristina suggerita</button></>
+                    : `Suggerita: data ${form.isComplimentary ? "emissione" : "acquisto"} + ${validityMonths} mesi.`}
+                </span>
+              </label>
             </div>
-            <p className="mt-3 text-xs text-[#675f57]">La scadenza sara calcolata automaticamente in base alla validita configurata. L&apos;acquisto genera un pagamento con causale &quot;Pagamento completo&quot;.</p>
+            <p className="mt-3 text-xs text-[#675f57]">{form.isComplimentary ? "Il buono omaggio non genera pagamenti e non conta negli incassi; al riscatto vale come un buono normale." : <>L&apos;acquisto genera un pagamento con causale &quot;Pagamento completo&quot;.</>}</p>
             {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
             <div className="mt-6 flex justify-end gap-3">
               <button className="h-11 px-4 text-sm font-semibold" onClick={() => setDialog(null)} type="button">Annulla</button>
