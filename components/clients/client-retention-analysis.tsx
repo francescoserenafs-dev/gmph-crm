@@ -45,6 +45,7 @@ const monthLabels = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Se
 const thresholds = [6, 12, 18, 24];
 const formatMoney = (cents: number | null) => cents === null ? "—" : euro.format(cents / 100);
 const formatCount = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(value);
+const formatTwoDecimals = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
 const KPI_HINTS = {
   servedClients: "Numero di clienti distinti con almeno una sessione fotografica valida nel periodo selezionato. Le prenotazioni future non sono incluse.",
@@ -146,7 +147,7 @@ export function ClientRetentionAnalysis() {
               <Metric hint={KPI_HINTS.newClients} label="Nuovi clienti" value={String(data.totals.newClients)} />
               <Metric hint={KPI_HINTS.returningClients} label="Clienti di ritorno" value={String(data.totals.returningClients)} />
               <Metric hint={KPI_HINTS.repeatRate} label="Repeat Client Rate" value={data.totals.repeatClientRate === null ? "—" : percent.format(data.totals.repeatClientRate)} />
-              <Metric hint={KPI_HINTS.sessionsPerClient} label="Sessioni medie per cliente" value={formatCount(data.totals.averageSessionsPerClient)} />
+              <Metric hint={KPI_HINTS.sessionsPerClient} label="Sessioni medie per cliente" value={formatTwoDecimals(data.totals.averageSessionsPerClient)} />
               <Metric hint={KPI_HINTS.valuePerClient} label="Valore medio cliente" value={formatMoney(data.totals.averageCommercialValuePerClientCents)} />
             </div>
 
