@@ -22,6 +22,11 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/co
   if (typeof body.isActive === "boolean") update.is_active = body.isActive;
   if (typeof body.sortOrder === "number" && Number.isInteger(body.sortOrder)) update.sort_order = body.sortOrder;
   if (entity === "services" && typeof body.isAddon === "boolean") update.is_addon = body.isAddon;
+  if (entity === "services" && body.saturdaySurchargeEuros !== undefined) {
+    const surchargeEuros = Number(body.saturdaySurchargeEuros);
+    if (!Number.isInteger(surchargeEuros) || surchargeEuros < 0) return NextResponse.json({ error: "Il supplemento sabato deve essere un importo intero non negativo." }, { status: 400 });
+    update.saturday_surcharge_cents = surchargeEuros * 100;
+  }
 
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Nessuna modifica." }, { status: 400 });
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 
-type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number };
+type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number; saturday_surcharge_cents?: number };
 type Config = { services: Item[]; methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
 
 const entityLabels = { services: "Tipi di servizio", methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
@@ -16,6 +17,7 @@ export function ConfigManager() {
   const [newName, setNewName] = useState<Record<EntityKey, string>>({ services: "", methods: "", stages: "" });
   const [months, setMonths] = useState("12");
   const [budgetEuros, setBudgetEuros] = useState("0");
+  const [saturdaySurchargeEuros, setSaturdaySurchargeEuros] = useState<Record<string, string>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [dragItem, setDragItem] = useState<{ entity: EntityKey; index: number } | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -34,6 +36,7 @@ export function ConfigManager() {
         const body = await load();
         if (!active) return;
         setConfig(body);
+        setSaturdaySurchargeEuros(Object.fromEntries(body.services.map((service: Item) => [service.id, String((service.saturday_surcharge_cents ?? 0) / 100)])));
         setMonths(String(body.voucherValidityMonths));
         setBudgetEuros(String(body.annualBudgetCents / 100));
       } catch (reason) {
@@ -68,6 +71,15 @@ export function ConfigManager() {
 
   function toggleAddon(item: Item) {
     void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isAddon: !item.is_addon }) }));
+  }
+
+  function saveSaturdaySurcharge(item: Item) {
+    const surchargeEuros = Number(saturdaySurchargeEuros[item.id] ?? "0");
+    if (!Number.isInteger(surchargeEuros) || surchargeEuros < 0) {
+      setError("Il supplemento sabato deve essere un importo intero non negativo.");
+      return;
+    }
+    void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ saturdaySurchargeEuros: surchargeEuros }) }));
   }
 
   function rename(entity: EntityKey, item: Item) {
@@ -147,6 +159,15 @@ export function ConfigManager() {
                 {entity === "services" ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggleAddon(item)} type="button">{item.is_addon ? "Rendi sessione" : "Rendi extra"}</button> : null}
                 {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggle(entity, item)} type="button">{item.is_active ? "Disattiva" : "Attiva"}</button>}
               </div>
+              {entity === "services" ? (
+                <div className="ml-7 flex w-full flex-wrap items-end gap-3 pb-3">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-[#675f57]">
+                    <span className="flex items-center gap-1">Supplemento sabato (EUR)<InfoTooltip label="Informazioni sul supplemento sabato" text="Importo aggiuntivo suggerito per le Sessioni svolte di sabato. Non modifica il prezzo del pacchetto: viene applicato al prezzo concordato della singola Sessione." /></span>
+                    <input className="h-9 w-28 border border-[#cfc5b8] bg-white px-2 text-sm text-[#27231f]" min="0" onChange={(event) => setSaturdaySurchargeEuros((current) => ({ ...current, [item.id]: event.target.value }))} step="1" type="number" value={saturdaySurchargeEuros[item.id] ?? String((item.saturday_surcharge_cents ?? 0) / 100)} />
+                  </label>
+                  <button className="h-9 border border-[#cfc5b8] px-3 text-xs font-semibold hover:bg-[#eee8df] disabled:opacity-50" disabled={busy} onClick={() => saveSaturdaySurcharge(item)} type="button">Salva supplemento</button>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

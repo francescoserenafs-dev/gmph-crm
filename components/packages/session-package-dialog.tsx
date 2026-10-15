@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Modal } from "@/components/shared/modal";
+import { sessionSaturdaySurchargeCents, suggestedSessionPrice } from "@/lib/datetime";
 
 export type PackageChoice = { id: string; name: string; price_cents: number | null; duration_minutes: number | null; included_photos: number };
 
@@ -9,26 +10,29 @@ type Current = { packageId: string | null; packageName: string | null; agreedPri
 
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
-export function SessionPackageDialog({ sessionId, current, packages, onClose, onSaved }: { sessionId: string; current: Current; packages: PackageChoice[]; onClose: () => void; onSaved: (session: unknown) => void }) {
+export function SessionPackageDialog({ sessionId, current, packages, scheduledAt, saturdaySurchargeCents, onClose, onSaved }: { sessionId: string; current: Current; packages: PackageChoice[]; scheduledAt: string; saturdaySurchargeCents: number; onClose: () => void; onSaved: (session: unknown) => void }) {
   const [packageId, setPackageId] = useState(current.packageId ?? packages[0]?.id ?? "");
   const proposalFor = (id: string) => {
     const selected = packages.find((item) => item.id === id);
     return {
-      priceEuros: String((selected?.price_cents ?? current.agreedPriceCents) / 100),
+      priceEuros: String(current.agreedPriceCents / 100),
       durationMinutes: String(selected?.duration_minutes ?? current.durationMinutes),
       includedPhotos: String(selected?.included_photos ?? current.includedPhotos ?? 0),
     };
   };
   const [values, setValues] = useState(() => proposalFor(current.packageId ?? packages[0]?.id ?? ""));
+  const [priceManuallyEdited, setPriceManuallyEdited] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const removing = packageId === "";
   const selected = packages.find((item) => item.id === packageId) ?? null;
+  const suggestedPriceCents = selected ? suggestedSessionPrice({ packagePriceCents: selected.price_cents, scheduledAt, saturdaySurchargeCents }) : null;
+  const appliedSaturdaySurchargeCents = sessionSaturdaySurchargeCents(scheduledAt, saturdaySurchargeCents);
 
   function choose(id: string) {
     setPackageId(id);
-    if (id) setValues(proposalFor(id));
+    if (id) setValues((currentValues) => ({ ...proposalFor(id), priceEuros: priceManuallyEdited ? currentValues.priceEuros : String(current.agreedPriceCents / 100) }));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -71,7 +75,7 @@ export function SessionPackageDialog({ sessionId, current, packages, onClose, on
             <p className="mt-5 border border-[#d8b7a5] bg-[#f1e3db] px-4 py-3 text-sm text-[#8a4f37]">Applicare il pacchetto &quot;{selected.name}&quot;? Verranno aggiornati i dati del pacchetto e le inclusioni della sessione. Controlla i valori proposti prima di confermare.</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="flex flex-col gap-2 text-sm font-medium">Prezzo concordato (EUR)
-                <input className={inputClass} min="0" onChange={(e) => setValues({ ...values, priceEuros: e.target.value })} required type="number" value={values.priceEuros} />
+                <input className={inputClass} min="0" onChange={(e) => { setPriceManuallyEdited(true); setValues({ ...values, priceEuros: e.target.value }); }} required type="number" value={values.priceEuros} />
                 <span className="text-xs font-normal text-[#675f57]">Attuale: {euro.format(current.agreedPriceCents / 100)}</span>
               </label>
               <label className="flex flex-col gap-2 text-sm font-medium">Durata (minuti)
@@ -83,6 +87,16 @@ export function SessionPackageDialog({ sessionId, current, packages, onClose, on
                 <span className="text-xs font-normal text-[#675f57]">Attuale: {current.includedPhotos ?? "-"}</span>
               </label>
             </div>
+            {selected && suggestedPriceCents !== null ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-[#d8b7a5] pl-3 text-xs text-[#675f57]">
+                <div>
+                  <p>Prezzo pacchetto: {selected.price_cents === null ? "—" : euro.format(selected.price_cents / 100)}</p>
+                  <p>Supplemento sabato: {appliedSaturdaySurchargeCents > 0 ? `+${euro.format(appliedSaturdaySurchargeCents / 100)}` : "—"}</p>
+                  <p className="font-semibold text-[#27231f]">Prezzo suggerito: {euro.format(suggestedPriceCents / 100)}</p>
+                </div>
+                {Number(values.priceEuros) * 100 !== suggestedPriceCents ? <button className="h-9 border border-[#9b5d43] px-3 text-xs font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" onClick={() => { setPriceManuallyEdited(true); setValues({ ...values, priceEuros: String(suggestedPriceCents / 100) }); }} type="button">Applica prezzo suggerito</button> : null}
+              </div>
+            ) : null}
           </>
         ) : null}
 

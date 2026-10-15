@@ -10,6 +10,7 @@ import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
+import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
 import { calculateRemainingBalance, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 import { EXTRA_CATEGORY_LABELS, type ExtraCategory } from "@/lib/extra-products";
 import type { PackageInclusionSnapshot } from "@/lib/packages";
@@ -66,6 +67,7 @@ type Session = {
 };
 
 type Stage = { id: string; name: string; code: string };
+type Service = { id: string; name: string; saturday_surcharge_cents: number };
 type Method = { id: string; name: string };
 type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number | null };
 
@@ -83,8 +85,7 @@ const categoryLabels: Record<string, string> = {
 
 function toLocalInput(iso: string) {
   const date = new Date(iso);
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+  return `${toLocalDateKey(date)}T${toLocalTimeLabel(date)}`;
 }
 
 export function SessionProfile({ sessionId }: { sessionId: string }) {
@@ -92,6 +93,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const searchParams = useSearchParams();
   const openExtrasDialogOnMount = searchParams.get("extras") === "1";
   const [session, setSession] = useState<Session | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
   const [eligibleVouchers, setEligibleVouchers] = useState<EligibleVoucher[]>([]);
@@ -126,6 +128,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         if (!active) return;
         if (!sessionRes.ok) throw new Error(sessionBody.error);
         setSession(sessionBody.session as Session);
+        if (stagesRes.ok) setServices(stagesBody.services as Service[]);
         if (stagesRes.ok) setStages(stagesBody.stages);
         if (methodsRes.ok) setMethods(methodsBody.methods);
         if (packagesRes.ok) setPackages(packagesBody.packages);
@@ -146,6 +149,14 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
   const hasPayments = (session?.payments.length ?? 0) > 0;
   const imageConsentActive = session?.image_consent_granted_at != null && session.image_consent_revoked_at == null;
   const sessionPackages = packages.filter((item) => item.service_type_id === session?.service_type_id && item.is_active);
+  const serviceSaturdaySurchargeCents = services.find((service) => service.id === session?.service_type_id)?.saturday_surcharge_cents ?? 0;
+  const editSuggestedPriceCents = session?.package_price_cents_snapshot === null || !session
+    ? null
+    : suggestedSessionPrice({ packagePriceCents: session.package_price_cents_snapshot, scheduledAt: editForm.scheduledAt, saturdaySurchargeCents: serviceSaturdaySurchargeCents });
+  const editScheduleChanged = Boolean(session && editForm.scheduledAt !== toLocalInput(session.scheduled_at));
+  const editFormPriceCents = Number(editForm.priceEuros) * 100;
+  const editSaturdaySurchargeCents = sessionSaturdaySurchargeCents(editForm.scheduledAt, serviceSaturdaySurchargeCents);
+  const showSuggestedPriceWarning = editScheduleChanged && editSuggestedPriceCents !== null && editSuggestedPriceCents !== editFormPriceCents;
   // Storico: si usa sempre lo snapshot, mai il catalogo corrente.
   const includedPhotos = session?.included_photos ?? session?.package_included_photos_snapshot ?? null;
 
@@ -566,6 +577,12 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
                 </label>
               ) : null}
             </div>
+            {showSuggestedPriceWarning ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-[#d8d0c5] bg-[#faf7f2] p-3 text-sm">
+                <p className="text-[#514a43]">La nuova data è di {editSaturdaySurchargeCents > 0 ? "sabato" : "un giorno feriale"}. Prezzo attuale: {euro.format(editFormPriceCents / 100)}. Prezzo suggerito: {euro.format(editSuggestedPriceCents / 100)}.</p>
+                <button className="h-9 border border-[#9b5d43] px-3 text-xs font-semibold text-[#9b5d43] hover:bg-[#f1e3db]" onClick={() => setEditForm({ ...editForm, priceEuros: String(editSuggestedPriceCents / 100) })} type="button">Applica prezzo suggerito</button>
+              </div>
+            ) : null}
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Note
               <textarea className="min-h-20 border border-[#cfc5b8] bg-white p-3" onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} value={editForm.notes} />
             </label>
@@ -662,6 +679,8 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           onClose={() => setDialog(null)}
           onSaved={() => { setDialog(null); setRefreshKey((key) => key + 1); }}
           packages={sessionPackages}
+          saturdaySurchargeCents={serviceSaturdaySurchargeCents}
+          scheduledAt={session.scheduled_at}
           sessionId={sessionId}
         />
       ) : null}

@@ -8,10 +8,11 @@ import { ExportButton } from "@/components/shared/export-button";
 import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
+import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
 import { canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 
 type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
-type Service = { id: string; name: string };
+type Service = { id: string; name: string; saturday_surcharge_cents: number };
 type Stage = { id: string; name: string; code: string };
 type Method = { id: string; name: string };
 type Session = {
@@ -100,8 +101,7 @@ function localDayKey(iso: string) {
 }
 
 function toLocalInput(date: Date) {
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+  return `${toLocalDateKey(date)}T${toLocalTimeLabel(date)}`;
 }
 
 function totalDue(session: { agreed_price_cents: number; extras: { line_total_cents: number }[] }) {
@@ -138,6 +138,7 @@ export function SessionDirectory() {
   const [nowTimestamp] = useState(() => Date.now());
 
   const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient, serviceTypeId: leadService } : emptySession);
+  const [priceManuallyEdited, setPriceManuallyEdited] = useState(false);
   const [conversionLeadId, setConversionLeadId] = useState(preselectClient ? leadToConvert : "");
   const [quickClientOpen, setQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState<QuickClient>({ firstName: "", lastName: "", email: "" });
@@ -268,17 +269,28 @@ export function SessionDirectory() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedService = services.find((service) => service.id === sessionForm.serviceTypeId);
   const servicePackages = packages.filter((item) => item.is_active && item.service_type_id === sessionForm.serviceTypeId);
+  const selectedPackage = servicePackages.find((item) => item.id === sessionForm.packageId) ?? null;
+  const saturdaySurchargeCents = selectedService?.saturday_surcharge_cents ?? 0;
+  const appliedSaturdaySurchargeCents = sessionSaturdaySurchargeCents(sessionForm.scheduledAt, saturdaySurchargeCents);
+  const suggestedPriceCents = suggestedSessionPrice({ packagePriceCents: selectedPackage?.price_cents ?? null, scheduledAt: sessionForm.scheduledAt, saturdaySurchargeCents });
+
+  function keepSuggestedPrice(form: SessionForm): SessionForm {
+    if (priceManuallyEdited) return form;
+    const packageForForm = packages.find((item) => item.id === form.packageId);
+    const serviceForForm = services.find((item) => item.id === form.serviceTypeId);
+    const suggestion = suggestedSessionPrice({ packagePriceCents: packageForForm?.price_cents ?? null, scheduledAt: form.scheduledAt, saturdaySurchargeCents: serviceForForm?.saturday_surcharge_cents ?? 0 });
+    return suggestion === null ? form : { ...form, priceEuros: String(suggestion / 100) };
+  }
 
   // Il pacchetto propone prezzo, durata e foto; restano modificabili prima del salvataggio.
   function selectPackage(packageId: string) {
     const selected = packages.find((item) => item.id === packageId);
-    setSessionForm((current) => selected ? {
+    setSessionForm((current) => keepSuggestedPrice(selected ? {
       ...current,
       packageId,
-      priceEuros: selected.price_cents === null ? current.priceEuros : String(selected.price_cents / 100),
       durationMinutes: selected.duration_minutes === null ? current.durationMinutes : String(selected.duration_minutes),
       includedPhotos: String(selected.included_photos),
-    } : { ...current, packageId: "", includedPhotos: "" });
+    } : { ...current, packageId: "", includedPhotos: "", priceEuros: priceManuallyEdited ? current.priceEuros : "" }));
   }
   const endTime = sessionForm.scheduledAt && Number(sessionForm.durationMinutes) > 0 ? new Date(new Date(sessionForm.scheduledAt).getTime() + Number(sessionForm.durationMinutes) * 60_000) : null;
 
@@ -359,7 +371,7 @@ export function SessionDirectory() {
       .slice(0, 5);
   }, [expiringVouchers, nowTimestamp]);
 
-  function openNewSession() { setSessionForm(emptySession); setConversionLeadId(""); setQuickClientOpen(false); setError(null); setDialog("new"); }
+  function openNewSession() { setSessionForm(emptySession); setPriceManuallyEdited(false); setConversionLeadId(""); setQuickClientOpen(false); setError(null); setDialog("new"); }
 
   async function openDuplicateSession(id: string) {
     try {
@@ -367,6 +379,7 @@ export function SessionDirectory() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
       const source = body.session;
+      setPriceManuallyEdited(false);
       setConversionLeadId("");
       setSessionForm({
         clientId: source.client?.id ?? "",
@@ -847,7 +860,7 @@ export function SessionDirectory() {
             {conversionLeadId ? <p className="mb-4 border border-[#d8b7a5] bg-[#f1e3db] px-3 py-2 text-sm text-[#8a4f37]">Al salvataggio la sessione verrà collegata al lead, che passerà a Prenotato.</p> : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <ClientCombobox clients={clients} onChange={(clientId) => setSessionForm({ ...sessionForm, clientId })} value={sessionForm.clientId} />
-              <SelectField label="Servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceTypeId: value, serviceDetail: "", packageId: "", includedPhotos: "" })} options={services} value={sessionForm.serviceTypeId} />
+              <SelectField label="Servizio" onChange={(value) => setSessionForm((current) => keepSuggestedPrice({ ...current, serviceTypeId: value, serviceDetail: "", packageId: "", includedPhotos: "", priceEuros: priceManuallyEdited ? current.priceEuros : "" }))} options={services} value={sessionForm.serviceTypeId} />
               {servicePackages.length > 0 ? (
                 <label className="flex flex-col gap-2 text-sm font-medium">Pacchetto (facoltativo)
                   <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => selectPackage(e.target.value)} value={sessionForm.packageId}>
@@ -856,13 +869,20 @@ export function SessionDirectory() {
                   </select>
                 </label>
               ) : null}
-              <InputField label="Data e ora" onChange={(value) => setSessionForm({ ...sessionForm, scheduledAt: value })} type="datetime-local" value={sessionForm.scheduledAt} />
+              <InputField label="Data e ora" onChange={(value) => setSessionForm((current) => keepSuggestedPrice({ ...current, scheduledAt: value }))} type="datetime-local" value={sessionForm.scheduledAt} />
               <InputField label="Durata (minuti)" min="1" onChange={(value) => setSessionForm({ ...sessionForm, durationMinutes: value })} type="number" value={sessionForm.durationMinutes} />
-              <InputField label="Prezzo concordato (EUR)" min="0" onChange={(value) => setSessionForm({ ...sessionForm, priceEuros: value })} type="number" value={sessionForm.priceEuros} />
+              <InputField label="Prezzo concordato (EUR)" min="0" onChange={(value) => { setPriceManuallyEdited(true); setSessionForm((current) => ({ ...current, priceEuros: value })); }} type="number" value={sessionForm.priceEuros} />
               {sessionForm.packageId ? <InputField label="Foto incluse" min="0" onChange={(value) => setSessionForm({ ...sessionForm, includedPhotos: value })} type="number" value={sessionForm.includedPhotos} /> : null}
               <InputField label="Luogo" optional onChange={(value) => setSessionForm({ ...sessionForm, location: value })} value={sessionForm.location} />
               {selectedService?.name === "Altro" ? <InputField label="Specifica il servizio" onChange={(value) => setSessionForm({ ...sessionForm, serviceDetail: value })} value={sessionForm.serviceDetail} /> : null}
             </div>
+            {selectedPackage && suggestedPriceCents !== null ? (
+              <div className="mt-3 border-l-2 border-[#d8b7a5] pl-3 text-xs text-[#675f57]">
+                <p>Prezzo pacchetto: {euro.format(selectedPackage.price_cents! / 100)}</p>
+                <p>Supplemento sabato: {appliedSaturdaySurchargeCents > 0 ? `+${euro.format(appliedSaturdaySurchargeCents / 100)}` : "—"}</p>
+                <p className="font-semibold text-[#27231f]">Prezzo suggerito: {euro.format(suggestedPriceCents / 100)}</p>
+              </div>
+            ) : null}
             {endTime ? <p className="mt-3 text-sm text-[#675f57]">Fine prevista: {dateTime.format(endTime)}</p> : null}
 
             <div className="mt-4 border-t border-[#d8d0c5] pt-4">

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const [packages, services] = await Promise.all([
     supabaseAdmin.from("session_packages").select(PACKAGE_COLUMNS).order("sort_order"),
-    supabaseAdmin.from("service_types").select("id, name").eq("is_active", true).eq("is_addon", false).order("sort_order"),
+    supabaseAdmin.from("service_types").select("id, name, saturday_surcharge_cents").eq("is_active", true).eq("is_addon", false).order("sort_order"),
   ]);
 
   const error = packages.error ?? services.error;

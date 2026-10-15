@@ -14,6 +14,7 @@ export function canUsePrintFulfillmentStages(currentStageCode: string | null | u
   return hasPrintExtras(extras) && (currentStageCode === "delivered" || (PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(currentStageCode ?? ""));
 }
 
+
 export type SessionClient = {
   id: string;
   first_name: string;

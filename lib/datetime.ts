@@ -63,3 +63,22 @@ export function isWeekendDateKey(dateKey: string): boolean {
   const weekday = localWeekday(dateKey);
   return weekday === 0 || weekday === 6;
 }
+
+export function sessionSaturdaySurchargeCents(scheduledAt: string, saturdaySurchargeCents: number): number {
+  if (!scheduledAt) return 0;
+  const instant = new Date(scheduledAt);
+  if (Number.isNaN(instant.valueOf())) return 0;
+  const dateKey = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduledAt)
+    ? scheduledAt.slice(0, 10)
+    : toLocalDateKey(instant);
+  return localWeekday(dateKey) === 6 ? saturdaySurchargeCents : 0;
+}
+
+export function suggestedSessionPrice({ packagePriceCents, scheduledAt, saturdaySurchargeCents }: {
+  packagePriceCents: number | null;
+  scheduledAt: string;
+  saturdaySurchargeCents: number;
+}): number | null {
+  if (packagePriceCents === null) return null;
+  return packagePriceCents + sessionSaturdaySurchargeCents(scheduledAt, saturdaySurchargeCents);
+}

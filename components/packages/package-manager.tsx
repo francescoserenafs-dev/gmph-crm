@@ -6,7 +6,7 @@ import { Modal } from "@/components/shared/modal";
 import { EXTRA_CATEGORY_LABELS, type ExtraProduct } from "@/lib/extra-products";
 import type { SessionPackage } from "@/lib/packages";
 
-type Service = { id: string; name: string };
+type Service = { id: string; name: string; saturday_surcharge_cents: number };
 type InclusionRow = { extraProductId: string; quantity: string };
 type PackageForm = { id: string | null; serviceTypeId: string; name: string; priceEuros: string; durationMinutes: string; includedPhotos: string; description: string; isActive: boolean; inclusions: InclusionRow[] };
 
@@ -100,6 +100,7 @@ export function PackageManager() {
             <section key={service.id}>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">{service.name}</h2>
+                {service.saturday_surcharge_cents > 0 ? <span className="text-xs text-[#675f57]">Supplemento sabato: +{euro.format(service.saturday_surcharge_cents / 100)}</span> : null}
                 <button className="text-sm font-semibold text-[#9b5d43] hover:underline" onClick={() => openForm(undefined, service.id)} type="button">Aggiungi</button>
               </div>
               <div className="mt-3 overflow-hidden border border-[#d8d0c5] bg-white">

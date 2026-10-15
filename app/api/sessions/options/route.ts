@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   const [clientsResult, servicesResult, stagesResult] = await Promise.all([
     clientsQuery,
-    supabaseAdmin.from("service_types").select("id, name, is_addon").eq("is_active", true).order("sort_order"),
+    supabaseAdmin.from("service_types").select("id, name, is_addon, saturday_surcharge_cents").eq("is_active", true).order("sort_order"),
     supabaseAdmin.from("session_stages").select("id, name, code").eq("is_active", true).order("sort_order"),
   ]);
 
