@@ -2,12 +2,16 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
+import { Modal } from "@/components/shared/modal";
 
 type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number; saturday_surcharge_cents?: number };
 type Config = { services: Item[]; methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
 
 const entityLabels = { services: "Tipi di servizio", methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
 type EntityKey = keyof typeof entityLabels;
+type ServiceEditor = { id: string; name: string; saturdaySurchargeEuros: string };
+const SATURDAY_SURCHARGE_TOOLTIP = "Importo aggiuntivo suggerito per le sessioni svolte di sabato. Non modifica il prezzo del pacchetto: viene applicato al prezzo concordato della singola Sessione.";
+const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 
 export function ConfigManager() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -17,7 +21,7 @@ export function ConfigManager() {
   const [newName, setNewName] = useState<Record<EntityKey, string>>({ services: "", methods: "", stages: "" });
   const [months, setMonths] = useState("12");
   const [budgetEuros, setBudgetEuros] = useState("0");
-  const [saturdaySurchargeEuros, setSaturdaySurchargeEuros] = useState<Record<string, string>>({});
+  const [serviceEditor, setServiceEditor] = useState<ServiceEditor | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dragItem, setDragItem] = useState<{ entity: EntityKey; index: number } | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -36,7 +40,6 @@ export function ConfigManager() {
         const body = await load();
         if (!active) return;
         setConfig(body);
-        setSaturdaySurchargeEuros(Object.fromEntries(body.services.map((service: Item) => [service.id, String((service.saturday_surcharge_cents ?? 0) / 100)])));
         setMonths(String(body.voucherValidityMonths));
         setBudgetEuros(String(body.annualBudgetCents / 100));
       } catch (reason) {
@@ -73,19 +76,41 @@ export function ConfigManager() {
     void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isAddon: !item.is_addon }) }));
   }
 
-  function saveSaturdaySurcharge(item: Item) {
-    const surchargeEuros = Number(saturdaySurchargeEuros[item.id] ?? "0");
-    if (!Number.isInteger(surchargeEuros) || surchargeEuros < 0) {
-      setError("Il supplemento sabato deve essere un importo intero non negativo.");
+  function rename(entity: EntityKey, item: Item) {
+    if (entity === "services") {
+      setError(null);
+      setServiceEditor({ id: item.id, name: item.name, saturdaySurchargeEuros: String((item.saturday_surcharge_cents ?? 0) / 100) });
       return;
     }
-    void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ saturdaySurchargeEuros: surchargeEuros }) }));
-  }
-
-  function rename(entity: EntityKey, item: Item) {
     const name = window.prompt("Nuovo nome", item.name);
     if (!name || name.trim() === item.name) return;
     void run(() => fetch(`/api/config/${entity}/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }) }));
+  }
+
+  async function saveServiceEditor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!serviceEditor) return;
+    const name = serviceEditor.name.trim();
+    const saturdaySurchargeEuros = Number(serviceEditor.saturdaySurchargeEuros);
+    if (!name || name.length > 120) { setError("Inserisci un nome servizio valido."); return; }
+    if (!Number.isInteger(saturdaySurchargeEuros) || saturdaySurchargeEuros < 0) { setError("Il supplemento sabato deve essere un importo intero non negativo."); return; }
+
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/config/services/${serviceEditor.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, saturdaySurchargeEuros }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setServiceEditor(null);
+      setRefreshKey((key) => key + 1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Aggiornamento servizio non riuscito.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function reorder(entity: EntityKey, items: Item[]) {
@@ -150,24 +175,16 @@ export function ConfigManager() {
               onDrop={(event) => { event.preventDefault(); handleDrop(entity, items, index); }}
             >
               <span aria-hidden className={`shrink-0 text-[#958b80] ${item.is_system ? "opacity-30" : "cursor-grab"}`}>&#9776;</span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-40">
                 <p className={`truncate text-sm font-medium ${item.is_active ? "" : "text-[#958b80] line-through"}`}>{item.name}</p>
                 {item.is_system ? <p className="text-xs text-[#675f57]">Voce di sistema</p> : entity === "services" && item.is_addon ? <p className="text-xs text-[#675f57]">Servizio extra (non prenotabile da solo)</p> : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => rename(entity, item)} type="button">Rinomina</button>}
+              {entity === "services" && (item.saturday_surcharge_cents ?? 0) > 0 ? <span className="shrink-0 border border-[#d8d0c5] bg-[#faf7f2] px-2 py-1 text-xs font-medium text-[#675f57]">Sabato +{euro.format((item.saturday_surcharge_cents ?? 0) / 100)}</span> : null}
+              <div className="flex shrink-0 flex-wrap items-center gap-1">
+                {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => rename(entity, item)} type="button">{entity === "services" ? "Modifica" : "Rinomina"}</button>}
                 {entity === "services" ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggleAddon(item)} type="button">{item.is_addon ? "Rendi sessione" : "Rendi extra"}</button> : null}
                 {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => toggle(entity, item)} type="button">{item.is_active ? "Disattiva" : "Attiva"}</button>}
               </div>
-              {entity === "services" ? (
-                <div className="ml-7 flex w-full flex-wrap items-end gap-3 pb-3">
-                  <label className="flex flex-col gap-1 text-xs font-medium text-[#675f57]">
-                    <span className="flex items-center gap-1">Supplemento sabato (EUR)<InfoTooltip label="Informazioni sul supplemento sabato" text="Importo aggiuntivo suggerito per le Sessioni svolte di sabato. Non modifica il prezzo del pacchetto: viene applicato al prezzo concordato della singola Sessione." /></span>
-                    <input className="h-9 w-28 border border-[#cfc5b8] bg-white px-2 text-sm text-[#27231f]" min="0" onChange={(event) => setSaturdaySurchargeEuros((current) => ({ ...current, [item.id]: event.target.value }))} step="1" type="number" value={saturdaySurchargeEuros[item.id] ?? String((item.saturday_surcharge_cents ?? 0) / 100)} />
-                  </label>
-                  <button className="h-9 border border-[#cfc5b8] px-3 text-xs font-semibold hover:bg-[#eee8df] disabled:opacity-50" disabled={busy} onClick={() => saveSaturdaySurcharge(item)} type="button">Salva supplemento</button>
-                </div>
-              ) : null}
             </div>
           ))}
         </div>
@@ -222,6 +239,25 @@ export function ConfigManager() {
           </div>
         )}
       </section>
+
+      {serviceEditor ? (
+        <Modal onClose={() => setServiceEditor(null)} title="Modifica servizio">
+          <form onSubmit={saveServiceEditor}>
+            <label className="flex flex-col gap-2 text-sm font-medium">Nome servizio
+              <input autoFocus className="h-11 border border-[#cfc5b8] bg-white px-3" maxLength={120} onChange={(event) => setServiceEditor({ ...serviceEditor, name: event.target.value })} required value={serviceEditor.name} />
+            </label>
+            <label className="mt-4 flex flex-col gap-2 text-sm font-medium">
+              <span className="flex items-center gap-1">Supplemento sabato (EUR)<InfoTooltip label="Informazioni sul supplemento sabato" text={SATURDAY_SURCHARGE_TOOLTIP} /></span>
+              <input className="h-11 w-36 border border-[#cfc5b8] bg-white px-3" min="0" onChange={(event) => setServiceEditor({ ...serviceEditor, saturdaySurchargeEuros: event.target.value })} required step="1" type="number" value={serviceEditor.saturdaySurchargeEuros} />
+            </label>
+            {error ? <p className="mt-4 text-sm text-[#a53e31]">{error}</p> : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="h-11 px-4 text-sm font-semibold" disabled={busy} onClick={() => setServiceEditor(null)} type="button">Annulla</button>
+              <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">{busy ? "Salvataggio..." : "Salva"}</button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </main>
   );
 }
