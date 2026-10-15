@@ -8,8 +8,9 @@ import { ExportButton } from "@/components/shared/export-button";
 import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
+import { canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 
-type Client = { id: string; first_name: string; last_name: string; email: string };
+type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 type Service = { id: string; name: string };
 type Stage = { id: string; name: string; code: string };
 type Method = { id: string; name: string };
@@ -22,7 +23,7 @@ type Session = {
   client: { id: string; first_name: string; last_name: string } | null;
   current_stage: { id: string; name: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { line_total_cents: number }[];
+  extras: { line_total_cents: number; category_snapshot: string | null; quantity: number }[];
 };
 type PaymentStatus = "unpaid" | "partial" | "paid";
 
@@ -54,18 +55,28 @@ const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 type BallOwner = "you" | "client";
+type ColumnOwner = BallOwner | "done";
+type PipelineStage = { code: string; label: string; owner: ColumnOwner };
 // Colonne del pipeline mostrate nella board (esclude "Foto consegnate" e "Annullata").
-const PIPELINE_STAGES: { code: string; label: string; owner: BallOwner }[] = [
+const PIPELINE_STAGES: PipelineStage[] = [
   { code: "booked", label: "Prenotata", owner: "you" },
   { code: "completed", label: "Sessione svolta", owner: "you" },
   { code: "proofs_sent", label: "Provini inviati", owner: "client" },
   { code: "selection_received", label: "Selezione ricevuta", owner: "you" },
+];
+const PRINT_PIPELINE_STAGES: PipelineStage[] = [
+  { code: PRINT_FULFILLMENT_STAGE_CODES[0], label: "In attesa scelta stampe", owner: "client" },
+  { code: PRINT_FULFILLMENT_STAGE_CODES[1], label: "Scelta stampe ricevuta", owner: "you" },
+  { code: PRINT_FULFILLMENT_STAGE_CODES[2], label: "Stampe completate", owner: "done" },
 ];
 const stageColors: Record<string, { text: string; bg: string; border: string }> = {
   booked: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
   completed: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
   proofs_sent: { text: "#35608a", bg: "#e0e8f1", border: "#a9c1de" },
   selection_received: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
+  awaiting_print_selection: { text: "#35608a", bg: "#e0e8f1", border: "#a9c1de" },
+  print_selection_received: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
+  prints_completed: { text: "#367e4a", bg: "#e2efe5", border: "#a9d3b5" },
   delivered: { text: "#367e4a", bg: "#e2efe5", border: "#a9d3b5" },
   cancelled: { text: "#6b6b6b", bg: "#ececec", border: "#cfcfcf" },
 };
@@ -73,14 +84,14 @@ const ballMeta: Record<BallOwner, { label: string; color: string; bg: string }> 
   you: { label: "Palla a te", color: "#9b5d43", bg: "#f1e3db" },
   client: { label: "Palla al cliente", color: "#3f6f9b", bg: "#e0e8f1" },
 };
-type ColumnOwner = BallOwner | "done";
 const columnStyles: Record<ColumnOwner, { color: string; bg: string }> = {
   you: { color: "#9b5d43", bg: "#f1e3db" },
   client: { color: "#3f6f9b", bg: "#e0e8f1" },
   done: { color: "#367e4a", bg: "#e2efe5" },
 };
 function stageOwner(code: string | undefined | null): BallOwner | null {
-  return PIPELINE_STAGES.find((stage) => stage.code === code)?.owner ?? null;
+  const owner = [...PIPELINE_STAGES, ...PRINT_PIPELINE_STAGES].find((stage) => stage.code === code)?.owner;
+  return owner === "you" || owner === "client" ? owner : null;
 }
 
 function localDayKey(iso: string) {
@@ -103,6 +114,7 @@ export function SessionDirectory() {
   const preselectClient = searchParams.get("newSession") ?? "";
   const leadToConvert = searchParams.get("lead") ?? "";
   const leadService = leadToConvert ? searchParams.get("service") ?? "" : "";
+  const [includeArchivedClients] = useState(() => Boolean(leadToConvert) && searchParams.get("includeArchived") === "1");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -179,7 +191,8 @@ export function SessionDirectory() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const [optionsResponse, paymentResponse, packagesResponse] = await Promise.all([fetch("/api/sessions/options"), fetch("/api/payments/options"), fetch("/api/packages")]);
+      const optionsUrl = includeArchivedClients ? "/api/sessions/options?includeArchived=1" : "/api/sessions/options";
+      const [optionsResponse, paymentResponse, packagesResponse] = await Promise.all([fetch(optionsUrl), fetch("/api/payments/options"), fetch("/api/packages")]);
       const optionsBody = await optionsResponse.json();
       const paymentBody = await paymentResponse.json();
       const packagesBody = await packagesResponse.json();
@@ -189,7 +202,7 @@ export function SessionDirectory() {
       if (packagesResponse.ok) setPackages(packagesBody.packages);
     })().catch(() => {});
     return () => { active = false; };
-  }, [optionsKey]);
+  }, [optionsKey, includeArchivedClients]);
 
   useEffect(() => {
     let active = true;
@@ -247,7 +260,7 @@ export function SessionDirectory() {
         collected.push(...(body.sessions as Session[]));
         if (collected.length >= (body.total as number) || (body.sessions as Session[]).length === 0) break;
       }
-      if (active) setPipelineSessions(collected.filter((session) => session.current_stage?.code !== "delivered"));
+      if (active) setPipelineSessions(collected);
     })().catch(() => {});
     return () => { active = false; };
   }, [filters.clientId, filters.serviceTypeIds, filters.paymentStatuses, refreshKey]);
@@ -280,9 +293,12 @@ export function SessionDirectory() {
   const boardColumns = useMemo<BoardColumn[]>(() => {
     const openColumns: BoardColumn[] = PIPELINE_STAGES
       .filter((column) => !ballFilter || column.owner === ballFilter)
-      .map((column) => ({ code: column.code, label: column.label, owner: column.owner as ColumnOwner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
-    const deliveredColumn: BoardColumn = { code: "delivered", label: "Foto consegnate", owner: "done", sessions: pipelineSessions.filter((session) => session.current_stage?.code === "delivered") };
-    return [...openColumns, deliveredColumn];
+      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
+    const deliveredColumn: BoardColumn = { code: "delivered", label: "Foto consegnate", owner: "done", sessions: pipelineSessions.filter((session) => session.current_stage?.code === "delivered" && canUsePrintFulfillmentStages("delivered", session.extras)) };
+    const printColumns = PRINT_PIPELINE_STAGES
+      .filter((column) => column.owner === "done" || !ballFilter || column.owner === ballFilter)
+      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
+    return [...openColumns, deliveredColumn, ...printColumns];
   }, [pipelineSessions, ballFilter]);
 
   const ballCounts = useMemo(() => {
@@ -582,6 +598,10 @@ export function SessionDirectory() {
     const stageId = stageIdByCode.get(targetCode);
     const session = pipelineSessions.find((item) => item.id === sessionId);
     if (!stageId || !session || session.current_stage?.code === targetCode) return;
+    if ((PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(targetCode) && !canUsePrintFulfillmentStages(session.current_stage?.code, session.extras)) {
+      setError("Gli avanzamenti stampe sono disponibili dopo la consegna delle foto finali, per sessioni con extra stampe.");
+      return;
+    }
     const previous = pipelineSessions;
     const targetStage = stages.find((item) => item.id === stageId) ?? null;
     setMovingId(sessionId);
@@ -895,7 +915,7 @@ export function SessionDirectory() {
             <label className="flex flex-col gap-2 text-sm font-medium">Avanzamento
               <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setStageForm({ ...stageForm, stageId: e.target.value })} required value={stageForm.stageId}>
                 <option value="">Seleziona</option>
-                {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                {stages.filter((stage) => !(PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code) || canUsePrintFulfillmentStages(inline.session.current_stage?.code, inline.session.extras)).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
               </select>
             </label>
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Data e ora<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setStageForm({ ...stageForm, changedAt: e.target.value })} required type="datetime-local" value={stageForm.changedAt} /></label>
@@ -1059,32 +1079,34 @@ type BoardColumn = { code: string; label: string; owner: ColumnOwner; sessions: 
 
 function PipelineBoard({ columns, onMove, draggingId, setDraggingId, movingId }: { columns: BoardColumn[]; onMove: (sessionId: string, targetCode: string) => void; draggingId: string | null; setDraggingId: (id: string | null) => void; movingId: string | null }) {
   return (
-    <div className="mt-4 flex gap-3 pb-4">
-      {columns.map((column) => (
-        <section
-          className="flex min-w-0 flex-1 flex-col"
-          key={column.code}
-          onDragOver={(event) => { if (draggingId) event.preventDefault(); }}
-          onDrop={(event) => {
-            event.preventDefault();
-            const id = event.dataTransfer.getData("text/plain") || draggingId;
-            if (id) onMove(id, column.code);
-            setDraggingId(null);
-          }}
-        >
-          <div className="flex items-center justify-between border-b-2 px-1 pb-2" style={{ borderColor: columnStyles[column.owner].color }}>
-            <span className="text-sm font-semibold">{column.label}</span>
-            <span className="grid size-6 place-items-center rounded-full text-xs font-semibold" style={{ backgroundColor: columnStyles[column.owner].bg, color: columnStyles[column.owner].color }}>{column.sessions.length}</span>
-          </div>
-          <div className="mt-3 flex min-h-24 flex-1 flex-col gap-2 rounded bg-[#efe9e0]/50 p-2">
-            {column.sessions.length === 0 ? (
-              <p className="px-1 py-6 text-center text-xs text-[#a49a8d]">{column.owner === "done" ? "Trascina qui per completare" : "Nessuna sessione"}</p>
-            ) : column.sessions.map((session) => (
-              <BoardCard dragging={draggingId === session.id} key={session.id} moving={movingId === session.id} owner={column.owner} session={session} setDraggingId={setDraggingId} />
-            ))}
-          </div>
-        </section>
-      ))}
+    <div className="mt-4 overflow-x-auto pb-4">
+      <div className="flex min-w-max gap-3">
+        {columns.map((column) => (
+          <section
+            className="flex w-56 shrink-0 flex-col"
+            key={column.code}
+            onDragOver={(event) => { if (draggingId) event.preventDefault(); }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const id = event.dataTransfer.getData("text/plain") || draggingId;
+              if (id) onMove(id, column.code);
+              setDraggingId(null);
+            }}
+          >
+            <div className="flex items-center justify-between border-b-2 px-1 pb-2" style={{ borderColor: columnStyles[column.owner].color }}>
+              <span className="text-sm font-semibold">{column.label}</span>
+              <span className="grid size-6 place-items-center rounded-full text-xs font-semibold" style={{ backgroundColor: columnStyles[column.owner].bg, color: columnStyles[column.owner].color }}>{column.sessions.length}</span>
+            </div>
+            <div className="mt-3 flex min-h-24 flex-1 flex-col gap-2 rounded bg-[#efe9e0]/50 p-2">
+              {column.sessions.length === 0 ? (
+                <p className="px-1 py-6 text-center text-xs text-[#a49a8d]">{column.owner === "done" ? "Trascina qui per completare" : "Nessuna sessione"}</p>
+              ) : column.sessions.map((session) => (
+                <BoardCard dragging={draggingId === session.id} key={session.id} moving={movingId === session.id} owner={column.owner} session={session} setDraggingId={setDraggingId} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

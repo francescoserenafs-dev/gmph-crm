@@ -7,7 +7,7 @@ import { LEAD_OPEN_STATUSES, type LeadStatus } from "@/lib/leads";
 
 export const dynamic = "force-dynamic";
 
-const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents)";
+const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents,category_snapshot,quantity)";
 
 type SessionRow = {
   id: string;
@@ -18,7 +18,7 @@ type SessionRow = {
   client: { id: string } | null;
   current_stage: { id: string; code: string } | null;
   payments: { amount_cents: number }[];
-  extras: { line_total_cents: number }[];
+  extras: { line_total_cents: number; category_snapshot: string | null; quantity: number }[];
 };
 
 export async function GET(request: NextRequest) {
@@ -83,8 +83,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Compila tutti i campi obbligatori con valori validi." }, { status: 400 });
   }
 
+  let leadContactType: string | null = null;
+  let linkedLeadClientId: string | null = null;
+  if (leadId) {
+    const { data: lead, error: leadError } = await supabaseAdmin.from("leads").select("status, contact_type, client_id").eq("id", leadId).maybeSingle();
+    if (leadError) return NextResponse.json({ error: "Non e stato possibile verificare il lead." }, { status: 500 });
+    if (!lead) return NextResponse.json({ error: "Lead non trovato." }, { status: 404 });
+    if (!LEAD_OPEN_STATUSES.includes(lead.status as LeadStatus)) return NextResponse.json({ error: "Il lead e gia stato convertito o chiuso." }, { status: 409 });
+    if (lead.contact_type === "existing_client" && (!lead.client_id || lead.client_id !== clientId)) {
+      return NextResponse.json({ error: "La sessione deve usare il cliente già collegato al lead." }, { status: 409 });
+    }
+    leadContactType = lead.contact_type;
+    linkedLeadClientId = lead.client_id;
+  }
+
+  let clientQuery = supabaseAdmin.from("clients").select("id").eq("id", clientId);
+  if (leadContactType !== "existing_client") clientQuery = clientQuery.eq("is_archived", false);
   const [{ data: client }, { data: service }, { data: stage }] = await Promise.all([
-    supabaseAdmin.from("clients").select("id").eq("id", clientId).eq("is_archived", false).maybeSingle(),
+    clientQuery.maybeSingle(),
     supabaseAdmin.from("service_types").select("id,name").eq("id", serviceTypeId).eq("is_active", true).eq("is_addon", false).maybeSingle(),
     supabaseAdmin.from("session_stages").select("id").eq("code", scheduledAt < new Date() ? "completed" : "booked").maybeSingle(),
   ]);
@@ -94,12 +110,6 @@ export async function POST(request: NextRequest) {
   if (packageId) {
     const { data: selectedPackage } = await supabaseAdmin.from("session_packages").select("id").eq("id", packageId).eq("service_type_id", service.id).eq("is_active", true).maybeSingle();
     if (!selectedPackage) return NextResponse.json({ error: "Pacchetto non disponibile per questo servizio." }, { status: 400 });
-  }
-
-  if (leadId) {
-    const { data: lead } = await supabaseAdmin.from("leads").select("status").eq("id", leadId).maybeSingle();
-    if (!lead) return NextResponse.json({ error: "Lead non trovato." }, { status: 404 });
-    if (!LEAD_OPEN_STATUSES.includes(lead.status as LeadStatus)) return NextResponse.json({ error: "Il lead e gia stato convertito o chiuso." }, { status: 409 });
   }
 
   const { data, error } = await supabaseAdmin.from("sessions").insert({ client_id: client.id, service_type_id: service.id, service_name: service.name, scheduled_at: scheduledAt.toISOString(), duration_minutes: durationMinutes, agreed_price_cents: priceEuros * 100, location, notes, service_detail: serviceDetail, current_stage_id: stage.id, included_photos: includedPhotos, image_consent_granted_at: imageConsentGranted ? new Date().toISOString() : null }).select(sessionFields).single();
@@ -118,13 +128,15 @@ export async function POST(request: NextRequest) {
 
   if (leadId) {
     const now = new Date().toISOString();
-    const { data: linked, error: linkError } = await supabaseAdmin
+    let leadUpdate = supabaseAdmin
       .from("leads")
       .update({ status: "booked", client_id: client.id, session_id: created.id, converted_at: now, closed_at: now })
       .eq("id", leadId)
-      .in("status", LEAD_OPEN_STATUSES)
-      .select("id")
-      .maybeSingle();
+      .in("status", LEAD_OPEN_STATUSES);
+    if (leadContactType === null) leadUpdate = leadUpdate.is("contact_type", null);
+    else leadUpdate = leadUpdate.eq("contact_type", leadContactType);
+    if (leadContactType === "existing_client") leadUpdate = leadUpdate.eq("client_id", linkedLeadClientId);
+    const { data: linked, error: linkError } = await leadUpdate.select("id").maybeSingle();
     if (linkError || !linked) {
       // Compensazione: senza lead collegato la sessione appena creata non deve restare.
       await supabaseAdmin.from("sessions").delete().eq("id", created.id);

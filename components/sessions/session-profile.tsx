@@ -10,7 +10,7 @@ import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
-import { calculateRemainingBalance } from "@/lib/sessions";
+import { calculateRemainingBalance, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 import { EXTRA_CATEGORY_LABELS, type ExtraCategory } from "@/lib/extra-products";
 import type { PackageInclusionSnapshot } from "@/lib/packages";
 
@@ -428,7 +428,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         <section className="mt-9">
           <h2 className="text-lg font-semibold">Avanzamento</h2>
           <div className="mt-4 bg-white p-6 border border-[#d8d0c5]">
-            <StageTimeline allStages={stages} currentStageId={session.current_stage?.id} stageHistory={session.stage_history} />
+            <StageTimeline allStages={stages.filter((stage) => !(PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code) || hasPrintExtras(session.extras))} currentStageId={session.current_stage?.id} stageHistory={session.stage_history} />
           </div>
         </section>
 
@@ -581,7 +581,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
             <label className="flex flex-col gap-2 text-sm font-medium">Avanzamento
               <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setStageForm({ ...stageForm, stageId: e.target.value })} required value={stageForm.stageId}>
                 <option value="">Seleziona</option>
-                {stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                {stages.filter((stage) => !(PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code) || canUsePrintFulfillmentStages(session.current_stage?.code, session.extras)).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
               </select>
             </label>
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Data e ora

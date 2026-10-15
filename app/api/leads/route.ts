@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { toLocalDateKey } from "@/lib/datetime";
-import { LEAD_LIST_FIELDS, LEAD_SOURCES, type LeadSource, type LeadStatus, type LeadWithService, compareLeads, isLeadOpen } from "@/lib/leads";
+import { LEAD_CONTACT_TYPES, LEAD_LIST_FIELDS, LEAD_SOURCES, type LeadContactType, type LeadSource, type LeadStatus, type LeadWithService, compareLeads, isLeadOpen } from "@/lib/leads";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -53,19 +53,30 @@ export async function POST(request: NextRequest) {
   const contact = readText(body.contact, 200);
   const serviceTypeId = readText(body.serviceTypeId, 64);
   const source = readText(body.source, 32);
+  const contactType = readText(body.contactType, 32);
+  const clientId = readText(body.clientId, 64);
   const requestedPeriod = readText(body.requestedPeriod, 200) || null;
   const notes = readText(body.notes, 2000) || null;
 
-  if (!name || !contact || !serviceTypeId || !(LEAD_SOURCES as readonly string[]).includes(source)) {
+  if (!name || !contact || !serviceTypeId || !(LEAD_SOURCES as readonly string[]).includes(source) || !(LEAD_CONTACT_TYPES as readonly string[]).includes(contactType)) {
     return NextResponse.json({ error: "Compila nome, servizio, contatto e origine." }, { status: 400 });
   }
+  if (contactType === "existing_client" && !clientId) {
+    return NextResponse.json({ error: "Seleziona il cliente collegato al lead." }, { status: 400 });
+  }
 
-  const { data: service } = await supabaseAdmin.from("service_types").select("id").eq("id", serviceTypeId).eq("is_active", true).eq("is_addon", false).maybeSingle();
+  const [{ data: service }, clientResult] = await Promise.all([
+    supabaseAdmin.from("service_types").select("id").eq("id", serviceTypeId).eq("is_active", true).eq("is_addon", false).maybeSingle(),
+    contactType === "existing_client"
+      ? supabaseAdmin.from("clients").select("id").eq("id", clientId).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
   if (!service) return NextResponse.json({ error: "Servizio non disponibile." }, { status: 400 });
+  if (contactType === "existing_client" && !clientResult.data) return NextResponse.json({ error: "Cliente non disponibile. Seleziona un cliente attivo." }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from("leads")
-    .insert({ name, last_name: lastName, contact, service_type_id: service.id, source: source as LeadSource, requested_period: requestedPeriod, notes, status: "to_handle" satisfies LeadStatus })
+    .insert({ name, last_name: lastName, contact, contact_type: contactType as LeadContactType, client_id: contactType === "existing_client" ? clientResult.data!.id : null, service_type_id: service.id, source: source as LeadSource, requested_period: requestedPeriod, notes, status: "to_handle" satisfies LeadStatus })
     .select(LEAD_LIST_FIELDS)
     .single();
 

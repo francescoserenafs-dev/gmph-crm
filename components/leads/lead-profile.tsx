@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { LeadConversionDialog } from "@/components/leads/lead-conversion-dialog";
 import { FollowUpLabel, LeadActionDialog, type LeadActionMode, LeadStatusBadge, formatDateKey, patchLead } from "@/components/leads/lead-ui";
+import { ClientCombobox } from "@/components/shared/client-combobox";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { Modal } from "@/components/shared/modal";
-import { LEAD_LOST_REASON_LABELS, LEAD_SOURCE_LABELS, type LeadDetail, isLeadOpen, leadFullName } from "@/lib/leads";
+import { LEAD_CONTACT_TYPE_LABELS, LEAD_CONTACT_TYPE_TOOLTIP, LEAD_CONTACT_TYPES, LEAD_LOST_REASON_LABELS, LEAD_SOURCE_LABELS, type LeadContactType, type LeadDetail, isLeadOpen, leadFullName } from "@/lib/leads";
 
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
 const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
+type ClientOption = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 
 export function LeadProfile({ leadId }: { leadId: string }) {
   const router = useRouter();
@@ -21,6 +24,11 @@ export function LeadProfile({ leadId }: { leadId: string }) {
   const [mode, setMode] = useState<LeadActionMode | null>(null);
   const [converting, setConverting] = useState(searchParams.get("convert") === "1");
   const [showConverted, setShowConverted] = useState(searchParams.get("converted") === "1");
+  const [editingContactType, setEditingContactType] = useState(false);
+  const [contactType, setContactType] = useState<LeadContactType | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [savingContactType, setSavingContactType] = useState(false);
 
   useEffect(() => {
     if (searchParams.has("convert") || searchParams.has("converted")) router.replace(`/leads/${leadId}`, { scroll: false });
@@ -56,6 +64,35 @@ export function LeadProfile({ leadId }: { leadId: string }) {
     }
   }
 
+  async function editContactType() {
+    setContactType(lead?.contact_type ?? null);
+    setSelectedClientId(lead?.client_id ?? "");
+    setEditingContactType(true);
+    try {
+      const response = await fetch("/api/sessions/options?includeArchived=1");
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setClients(body.clients as ClientOption[]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ricerca clienti non riuscita.");
+    }
+  }
+
+  async function saveContactType(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!contactType) return;
+    setSavingContactType(true);
+    try {
+      setLead(await patchLead(leadId, { action: "contact_type", contactType, clientId: contactType === "existing_client" ? selectedClientId : "" }));
+      setEditingContactType(false);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Aggiornamento non riuscito.");
+    } finally {
+      setSavingContactType(false);
+    }
+  }
+
   if (loading) return <main className="p-8 text-sm text-[#675f57]">Caricamento lead...</main>;
   if (!lead) return <main className="p-8"><p className="text-sm text-[#a53e31]">{error ?? "Lead non trovato."}</p><Link className="mt-4 inline-block text-sm font-semibold text-[#9b5d43]" href="/leads">Torna ai lead</Link></main>;
 
@@ -70,7 +107,7 @@ export function LeadProfile({ leadId }: { leadId: string }) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-[#9b5d43]">Scheda lead</p>
             <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{leadFullName(lead)}</h1>
-            <div className="mt-3"><LeadStatusBadge status={lead.status} /></div>
+            <div className="mt-3 flex flex-wrap items-center gap-2"><LeadStatusBadge status={lead.status} /><span className="border border-[#d8d0c5] bg-white px-2 py-0.5 text-xs">{lead.contact_type ? LEAD_CONTACT_TYPE_LABELS[lead.contact_type] : "Non classificato"}</span></div>
           </div>
           {open ? (
             <div className="flex flex-wrap gap-2">
@@ -80,6 +117,7 @@ export function LeadProfile({ leadId }: { leadId: string }) {
               <button className="h-11 border border-[#a53e31] px-4 text-sm font-semibold text-[#a53e31] hover:bg-[#f6e4e1] disabled:opacity-60" disabled={busy} onClick={() => setMode("lost")} type="button">Perso</button>
             </div>
           ) : null}
+          {lead.status !== "booked" ? <button className="h-10 border border-[#cfc5b8] px-3 text-sm font-semibold text-[#675f57] hover:bg-white" onClick={() => void editContactType()} type="button">Modifica tipo contatto</button> : null}
         </header>
 
         {error ? <p className="mt-5 text-sm text-[#a53e31]">{error}</p> : null}
@@ -88,6 +126,7 @@ export function LeadProfile({ leadId }: { leadId: string }) {
           <Card label="Servizio">{lead.service?.name ?? "-"}</Card>
           <Card label="Contatto"><span className="break-words">{lead.contact}</span></Card>
           <Card label="Origine">{LEAD_SOURCE_LABELS[lead.source]}</Card>
+          <Card label="Tipo contatto">{lead.contact_type ? LEAD_CONTACT_TYPE_LABELS[lead.contact_type] : "Non classificato"}</Card>
           <Card label="Data ingresso">{dateOnly.format(new Date(lead.created_at))}</Card>
           <Card label="Periodo richiesto">{lead.requested_period ?? "-"}</Card>
           {lead.info_sent_at ? <Card label="Info inviate il">{dateTime.format(new Date(lead.info_sent_at))}</Card> : null}
@@ -111,6 +150,25 @@ export function LeadProfile({ leadId }: { leadId: string }) {
           onClose={() => setMode(null)}
           onSaved={(updated) => { setLead(updated); setMode(null); }}
         />
+      ) : null}
+
+      {editingContactType ? (
+        <Modal onClose={() => setEditingContactType(false)} title="Modifica tipo contatto">
+          <form onSubmit={saveContactType}>
+            <div className="flex flex-col gap-2 text-sm font-medium">
+              <span className="flex items-center gap-1.5">Tipo contatto <InfoTooltip label="Informazioni sul cliente esistente" text={LEAD_CONTACT_TYPE_TOOLTIP} /></span>
+              <div className="flex w-fit border border-[#cfc5b8]" role="group">
+                {LEAD_CONTACT_TYPES.map((value) => <button aria-pressed={contactType === value} className={`h-10 px-4 text-sm ${contactType === value ? "bg-[#9b5d43] font-semibold text-white" : "bg-white text-[#675f57] hover:bg-[#eee8df]"}`} key={value} onClick={() => setContactType(value)} type="button">{LEAD_CONTACT_TYPE_LABELS[value]}</button>)}
+                {lead.contact_type === null ? <span className="grid h-10 place-items-center border-l border-[#cfc5b8] px-3 text-xs text-[#675f57]">Non classificato</span> : null}
+              </div>
+            </div>
+            {contactType === "existing_client" ? <div className="mt-4"><ClientCombobox clients={clients} onChange={setSelectedClientId} value={selectedClientId} /></div> : null}
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="h-11 px-4 text-sm font-semibold" onClick={() => setEditingContactType(false)} type="button">Annulla</button>
+              <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={savingContactType || !contactType || (contactType === "existing_client" && !selectedClientId)} type="submit">{savingContactType ? "Salvataggio..." : "Salva"}</button>
+            </div>
+          </form>
+        </Modal>
       ) : null}
 
       {converting && open ? <LeadConversionDialog lead={lead} onClose={() => setConverting(false)} /> : null}

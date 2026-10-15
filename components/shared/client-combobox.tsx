@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type ClientOption = { id: string; first_name: string; last_name: string; email: string };
+type ClientOption = { id: string; first_name: string; last_name: string; email: string; is_archived?: boolean };
 
 export function ClientCombobox({
   clients,
@@ -22,7 +22,7 @@ export function ClientCombobox({
   required?: boolean;
 }) {
   const selected = clients.find((client) => client.id === value) ?? null;
-  const selectedLabel = selected ? `${selected.last_name} ${selected.first_name}` : "";
+  const selectedLabel = selected ? `${selected.last_name} ${selected.first_name}${selected.is_archived ? " - Archiviata" : ""}` : "";
   const [inputState, setInputState] = useState<{ value: string; query: string } | null>(null);
   const query = inputState?.value === value ? inputState.query : selectedLabel;
   const [open, setOpen] = useState(false);
@@ -78,7 +78,7 @@ export function ClientCombobox({
                 onMouseDown={(event) => event.preventDefault()}
                 type="button"
               >
-                {client.last_name} {client.first_name} - {client.email}
+                {client.last_name} {client.first_name} - {client.email}{client.is_archived ? " - Archiviata" : ""}
               </button>
             </li>
           ))}

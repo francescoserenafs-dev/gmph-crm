@@ -5,15 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { FollowUpLabel, LeadActionDialog, type LeadActionMode, LeadStatusBadge, leadStatusColor, patchLead } from "@/components/leads/lead-ui";
 import { ActionMenu } from "@/components/shared/action-menu";
+import { ClientCombobox } from "@/components/shared/client-combobox";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { Modal } from "@/components/shared/modal";
-import { LEAD_SOURCES, LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadWithService, isLeadOpen, leadFullName } from "@/lib/leads";
+import { LEAD_CONTACT_TYPE_LABELS, LEAD_CONTACT_TYPE_TOOLTIP, LEAD_CONTACT_TYPES, LEAD_SOURCES, LEAD_SOURCE_LABELS, LEAD_STATUSES, LEAD_STATUS_LABELS, type LeadContactType, type LeadWithService, isLeadOpen, leadFullName } from "@/lib/leads";
 
 type Service = { id: string; name: string; is_active: boolean };
+type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 type Counts = { toHandle: number; infoSent: number; followUp: number; open: number };
 type Filters = { status: string; serviceTypeId: string; source: string; year: string };
 
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
-const emptyForm = { name: "", lastName: "", serviceTypeId: "", contact: "", source: "", requestedPeriod: "", notes: "" };
+const emptyForm = { name: "", lastName: "", serviceTypeId: "", contact: "", contactType: "new_contact" as LeadContactType, clientId: "", source: "", requestedPeriod: "", notes: "" };
 const gridColumns = "sm:grid-cols-[1.1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_44px]";
 
 export function LeadDirectory() {
@@ -22,6 +25,8 @@ export function LeadDirectory() {
   const [leads, setLeads] = useState<LeadWithService[]>([]);
   const [counts, setCounts] = useState<Counts>({ toHandle: 0, infoSent: 0, followUp: 0, open: 0 });
   const [services, setServices] = useState<Service[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
   const [years, setYears] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filters>(() => ({
     status: searchParams.get("status") ?? "",
@@ -71,10 +76,20 @@ export function LeadDirectory() {
     return () => { active = false; };
   }, [query, refreshKey]);
 
-  function openNew() {
+  async function openNew() {
     setForm(emptyForm);
     setFormError(null);
     setDialog("new");
+    if (clientsLoaded) return;
+    try {
+      const response = await fetch("/api/sessions/options?includeArchived=1");
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setClients(body.clients as Client[]);
+      setClientsLoaded(true);
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : "Ricerca clienti non riuscita.");
+    }
   }
 
   async function submitNew(event: FormEvent<HTMLFormElement>) {
@@ -178,7 +193,13 @@ export function LeadDirectory() {
           {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento lead...</p> : leads.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessun lead da mostrare.</p> : leads.map((lead) => (
             <article className={`flex flex-col gap-2 border-t border-[#eee8df] px-5 py-4 text-sm sm:grid sm:items-center sm:gap-3 ${gridColumns}`} key={lead.id}>
               <div className="flex items-start justify-between gap-3 sm:contents">
-                <Link className="min-w-0 truncate font-semibold hover:underline" href={`/leads/${lead.id}`}>{leadFullName(lead)}</Link>
+                <div className="min-w-0">
+                  <Link className="truncate font-semibold hover:underline" href={`/leads/${lead.id}`}>{leadFullName(lead)}</Link>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#675f57]">
+                    <span className="border border-[#d8d0c5] px-1.5 py-0.5">{lead.contact_type ? (lead.contact_type === "new_contact" ? "Nuovo" : "Cliente") : "Non classificato"}</span>
+                    {lead.contact_type === "existing_client" && lead.client ? <Link className="hover:underline" href={`/clients/${lead.client.id}`}>{lead.client.first_name} {lead.client.last_name}</Link> : null}
+                  </div>
+                </div>
                 <span className="sm:hidden"><LeadStatusBadge status={lead.status} /></span>
               </div>
               <span className="min-w-0 truncate">{lead.service?.name ?? "-"}</span>
@@ -197,6 +218,20 @@ export function LeadDirectory() {
         <Modal onClose={() => setDialog(null)} title="Nuovo Lead">
           <form onSubmit={submitNew}>
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">
+                <span className="flex items-center gap-1.5">Tipo contatto <InfoTooltip label="Informazioni sul cliente esistente" text={LEAD_CONTACT_TYPE_TOOLTIP} /></span>
+                <div aria-label="Tipo contatto" className="flex w-fit border border-[#cfc5b8]" role="group">
+                  {LEAD_CONTACT_TYPES.map((contactType) => <button aria-pressed={form.contactType === contactType} className={`h-10 px-4 text-sm ${form.contactType === contactType ? "bg-[#9b5d43] font-semibold text-white" : "bg-white text-[#675f57] hover:bg-[#eee8df]"}`} key={contactType} onClick={() => setForm({ ...form, contactType, clientId: contactType === "new_contact" ? "" : form.clientId })} type="button">{LEAD_CONTACT_TYPE_LABELS[contactType]}</button>)}
+                </div>
+              </div>
+              {form.contactType === "existing_client" ? (
+                <div className="sm:col-span-2">
+                  <ClientCombobox clients={clients} onChange={(clientId) => {
+                    const selected = clients.find((client) => client.id === clientId);
+                    setForm({ ...form, clientId, name: selected?.first_name ?? form.name, lastName: selected?.last_name ?? form.lastName, contact: form.contact || selected?.email || "" });
+                  }} value={form.clientId} />
+                </div>
+              ) : null}
               <label className="flex flex-col gap-2 text-sm font-medium">Nome
                 <input autoFocus className="h-11 border border-[#cfc5b8] bg-white px-3" maxLength={120} onChange={(e) => setForm({ ...form, name: e.target.value })} required value={form.name} />
               </label>

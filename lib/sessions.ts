@@ -4,6 +4,16 @@ export type SessionStage = {
   code: string;
 };
 
+export const PRINT_FULFILLMENT_STAGE_CODES = ["awaiting_print_selection", "print_selection_received", "prints_completed"] as const;
+
+export function hasPrintExtras(extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {
+  return extras.some((extra) => extra.category_snapshot === "print" && extra.quantity > 0);
+}
+
+export function canUsePrintFulfillmentStages(currentStageCode: string | null | undefined, extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {
+  return hasPrintExtras(extras) && (currentStageCode === "delivered" || (PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(currentStageCode ?? ""));
+}
+
 export type SessionClient = {
   id: string;
   first_name: string;

@@ -4,14 +4,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LeadMonthlyChart } from "@/components/leads/lead-monthly-chart";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
-import { LEAD_LOST_REASON_LABELS, LEAD_SOURCE_LABELS, type LeadLostReason, type LeadSource } from "@/lib/leads";
+import { LEAD_CONTACT_TYPE_LABELS, LEAD_LOST_REASON_LABELS, LEAD_SOURCE_LABELS, type LeadContactType, type LeadLostReason, type LeadSource } from "@/lib/leads";
 
 type Rates = { leads: number; booked: number; bookedValueCents: number; conversionRate: number | null; averageTicketCents: number | null };
 type Analysis = {
   year: number;
   years: number[];
+  contactType: LeadContactType | "";
   services: { id: string; name: string }[];
   totals: Rates;
+  byContactType: (Rates & { contactType: LeadContactType | null })[];
   byMonth: { month: number; leads: number; booked: number }[];
   byService: (Rates & { id: string; label: string })[];
   bySource: (Rates & { source: LeadSource })[];
@@ -31,6 +33,7 @@ export function LeadAnalysis() {
   const searchParams = useSearchParams();
   const [year, setYear] = useState(searchParams.get("year") ?? "");
   const [serviceTypeId, setServiceTypeId] = useState(searchParams.get("serviceTypeId") ?? "");
+  const [contactType, setContactType] = useState(searchParams.get("contactType") ?? "");
   const [data, setData] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +42,9 @@ export function LeadAnalysis() {
     const params = new URLSearchParams();
     if (year) params.set("year", year);
     if (serviceTypeId) params.set("serviceTypeId", serviceTypeId);
+    if (contactType) params.set("contactType", contactType);
     return params.toString();
-  }, [year, serviceTypeId]);
+  }, [year, serviceTypeId, contactType]);
 
   useEffect(() => {
     router.replace(`/leads/analisi${query ? `?${query}` : ""}`, { scroll: false });
@@ -93,6 +97,13 @@ export function LeadAnalysis() {
                 {(data?.services ?? []).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
               </select>
             </label>
+            <label className="flex flex-col gap-2 text-sm font-medium">Tipo contatto
+              <select className={selectClass} onChange={(event) => setContactType(event.target.value)} value={contactType}>
+                <option value="">Tutti</option>
+                <option value="new_contact">Nuovo contatto</option>
+                <option value="existing_client">Cliente esistente</option>
+              </select>
+            </label>
           </div>
         </header>
 
@@ -102,7 +113,7 @@ export function LeadAnalysis() {
         {data ? (
           <div className={loading ? "opacity-60" : ""}>
             <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-              <Metric label="Lead ricevuti" tooltip="Numero di lead entrati nel periodo selezionato, in base alla data di ingresso del lead." value={String(data.totals.leads)} />
+              <Metric label="Lead ricevuti" tooltip="Numero di richieste o opportunità commerciali ricevute nel periodo. Può includere sia nuovi contatti sia clienti già acquisiti; la stessa persona può generare più Lead in momenti diversi." value={String(data.totals.leads)} />
               <Metric label="Prenotazioni" tooltip="Lead del periodo selezionato convertiti in una prenotazione. Una conversione successiva resta attribuita al periodo in cui il lead è entrato." value={String(data.totals.booked)} />
               <Metric label="Conversion rate" tooltip="Percentuale di lead ricevuti che hanno generato una prenotazione. Formula: prenotazioni / lead ricevuti." value={formatRate(data.totals.conversionRate)} />
               <Metric label="Valore prenotato" tooltip="Somma dei prezzi concordati delle sessioni collegate ai lead convertiti, extra esclusi. Non rappresenta necessariamente l'incassato." value={euro.format(data.totals.bookedValueCents / 100)} />
@@ -118,6 +129,12 @@ export function LeadAnalysis() {
             </section>
 
             <div className="mt-8 grid gap-6 lg:grid-cols-2">
+              <DataTable
+                columns={["Tipo", "Lead", "Prenotazioni", "Conversion rate", "Valore prenotato"]}
+                emptyLabel="Nessun lead nel periodo."
+                rows={data.byContactType.map((row) => [row.contactType ? LEAD_CONTACT_TYPE_LABELS[row.contactType] : "Non classificato", String(row.leads), String(row.booked), formatRate(row.conversionRate), euro.format(row.bookedValueCents / 100)])}
+                title="Nuovi vs clienti esistenti"
+              />
               <DataTable
                 columns={["Servizio", "Lead", "Prenotazioni", "Conversione", "Valore prenotato"]}
                 emptyLabel="Nessun lead."

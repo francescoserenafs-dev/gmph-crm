@@ -34,6 +34,7 @@ export function LeadConversionDialog({ lead, onClose }: { lead: LeadDetail; onCl
 
   function continueToSession(clientId: string) {
     const params = new URLSearchParams({ newSession: clientId, lead: lead.id, service: lead.service_type_id });
+    if (lead.contact_type === "existing_client") params.set("includeArchived", "1");
     router.push(`/sessions?${params.toString()}`);
   }
 
@@ -74,6 +75,26 @@ export function LeadConversionDialog({ lead, onClose }: { lead: LeadDetail; onCl
 
   const inputClass = "h-11 border border-[#cfc5b8] bg-white px-3";
   const matched = matchIsCurrent ? match.client : null;
+
+  if (lead.contact_type === "existing_client") {
+    const linkedClient = lead.client;
+    return (
+      <Modal onClose={onClose} title="Nuova prenotazione">
+        <p className="text-sm text-[#675f57]">La nuova sessione sarà associata al cliente già collegato a questo Lead.</p>
+        {linkedClient ? (
+          <div className="mt-4 border border-[#d8d0c5] bg-white p-4">
+            <p className="font-semibold">{linkedClient.first_name} {linkedClient.last_name}</p>
+            {linkedClient.email ? <p className="mt-1 text-sm text-[#675f57]">{linkedClient.email}</p> : null}
+            {linkedClient.is_archived ? <p className="mt-3 text-sm text-[#675f57]">Il cliente è archiviato ma conservato nel CRM; la sessione resterà collegata a questa anagrafica.</p> : null}
+          </div>
+        ) : <p className="mt-4 text-sm text-[#a53e31]">Il Lead non ha un cliente collegato. Modifica il tipo contatto e seleziona un cliente prima della conversione.</p>}
+        <div className="mt-6 flex justify-end gap-3">
+          <button className="h-11 px-4 text-sm font-semibold" onClick={onClose} type="button">Annulla</button>
+          <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white disabled:opacity-60" disabled={!linkedClient} onClick={() => linkedClient && continueToSession(linkedClient.id)} type="button">Continua alla sessione</button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal onClose={onClose} title="Converti in prenotazione">

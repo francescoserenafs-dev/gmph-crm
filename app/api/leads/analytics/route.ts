@@ -1,12 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
-import { LEAD_LOST_REASONS, LEAD_SOURCES, type LeadLostReason, type LeadSource, type LeadStatus } from "@/lib/leads";
+import { LEAD_CONTACT_TYPES, LEAD_LOST_REASONS, LEAD_SOURCES, filterLeadsByContactType, summarizeLeadContactTypes, type LeadContactType, type LeadLostReason, type LeadSource, type LeadStatus } from "@/lib/leads";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 type CohortLead = {
   status: LeadStatus;
+  contact_type: LeadContactType | null;
   source: LeadSource;
   lost_reason: LeadLostReason | null;
   service_type_id: string;
@@ -41,6 +42,11 @@ export async function GET(request: NextRequest) {
   const requestedYear = Number(request.nextUrl.searchParams.get("year"));
   const year = Number.isInteger(requestedYear) && requestedYear >= 2000 && requestedYear <= 2100 ? requestedYear : currentYear;
   const serviceTypeId = request.nextUrl.searchParams.get("serviceTypeId") ?? "";
+  const requestedContactType = request.nextUrl.searchParams.get("contactType") ?? "";
+  if (requestedContactType && !(LEAD_CONTACT_TYPES as readonly string[]).includes(requestedContactType)) {
+    return NextResponse.json({ error: "Filtro tipo contatto non valido." }, { status: 400 });
+  }
+  const contactType = requestedContactType as LeadContactType | "";
 
   // Coorte di ingresso: lead creati nell'anno (Europe/Rome), qualunque sia la data di conversione.
   const cohortStart = parseLocalDateTime(`${year}-01-01T00:00`).toISOString();
@@ -48,7 +54,7 @@ export async function GET(request: NextRequest) {
 
   let cohortQuery = supabaseAdmin
     .from("leads")
-    .select("status, source, lost_reason, service_type_id, created_at, session:sessions!leads_session_id_fkey(agreed_price_cents)")
+    .select("status, contact_type, source, lost_reason, service_type_id, created_at, session:sessions!leads_session_id_fkey(agreed_price_cents)")
     .gte("created_at", cohortStart)
     .lt("created_at", cohortEnd);
   if (serviceTypeId) cohortQuery = cohortQuery.eq("service_type_id", serviceTypeId);
@@ -64,6 +70,7 @@ export async function GET(request: NextRequest) {
   }
 
   const leads = (cohortResult.data ?? []) as unknown as CohortLead[];
+  const filteredLeads = filterLeadsByContactType(leads, contactType);
   const services = servicesResult.data ?? [];
   const serviceNames = new Map(services.map((service) => [service.id, service.name]));
 
@@ -78,7 +85,7 @@ export async function GET(request: NextRequest) {
   const lostByReason = new Map<LeadLostReason, number>(LEAD_LOST_REASONS.map((reason) => [reason, 0]));
   let lostTotal = 0;
 
-  for (const lead of leads) {
+  for (const lead of filteredLeads) {
     addLead(total, lead);
     addLead(byMonth[Number(toLocalDateKey(new Date(lead.created_at)).slice(5, 7)) - 1], lead);
     if (!byService.has(lead.service_type_id)) byService.set(lead.service_type_id, emptyBucket());
@@ -94,8 +101,10 @@ export async function GET(request: NextRequest) {
     year,
     years,
     serviceTypeId,
+    contactType,
     services: services.filter((service) => !service.is_addon).map(({ id, name }) => ({ id, name })),
     totals: withRates(total),
+    byContactType: summarizeLeadContactTypes(leads),
     byMonth: byMonth.map((bucket, index) => ({ month: index + 1, leads: bucket.leads, booked: bucket.booked })),
     byService: Array.from(byService.entries())
       .map(([id, bucket]) => ({ id, label: serviceNames.get(id) ?? "Servizio non disponibile", ...withRates(bucket) }))

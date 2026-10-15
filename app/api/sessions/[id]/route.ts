@@ -5,6 +5,7 @@ import { promotePastBookedSessions } from "@/lib/sessions-server";
 import { parseLocalDateTime } from "@/lib/datetime";
 import { isHttpsUrl } from "@/lib/email";
 import { SESSION_PACKAGE_SNAPSHOT_FIELDS } from "@/lib/packages";
+import { canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,19 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
 
     const { data: stage } = await supabaseAdmin.from("session_stages").select("id,name,code").eq("id", stageId).eq("is_active", true).maybeSingle();
     if (!stage) return NextResponse.json({ error: "Avanzamento non disponibile." }, { status: 400 });
+
+    if ((PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code)) {
+      const { data: session, error: sessionError } = await supabaseAdmin.from("sessions")
+        .select("id, current_stage:session_stages!sessions_current_stage_id_fkey(code), extras:session_extras(category_snapshot,quantity)")
+        .eq("id", id)
+        .maybeSingle();
+      if (sessionError) return NextResponse.json({ error: "Non è stato possibile verificare le stampe della sessione." }, { status: 500 });
+      if (!session) return NextResponse.json({ error: "Sessione non trovata." }, { status: 404 });
+      const currentStageCode = session.current_stage[0]?.code;
+      if (!canUsePrintFulfillmentStages(currentStageCode, session.extras ?? [])) {
+        return NextResponse.json({ error: "Gli avanzamenti stampe richiedono un’extra stampa e la consegna delle foto finali." }, { status: 400 });
+      }
+    }
 
     const { error: updateError } = await supabaseAdmin.from("sessions").update({ current_stage_id: stageId }).eq("id", id);
     if (updateError) {

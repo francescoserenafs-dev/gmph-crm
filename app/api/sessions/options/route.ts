@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const includeArchived = request.nextUrl.searchParams.get("includeArchived") === "1";
+  let clientsQuery = supabaseAdmin.from("clients").select("id, first_name, last_name, email, is_archived");
+  if (!includeArchived) clientsQuery = clientsQuery.eq("is_archived", false);
+  clientsQuery = clientsQuery.order("last_name").order("first_name");
+
   const [clientsResult, servicesResult, stagesResult] = await Promise.all([
-    supabaseAdmin.from("clients").select("id, first_name, last_name, email").eq("is_archived", false).order("last_name").order("first_name"),
+    clientsQuery,
     supabaseAdmin.from("service_types").select("id, name, is_addon").eq("is_active", true).order("sort_order"),
     supabaseAdmin.from("session_stages").select("id, name, code").eq("is_active", true).order("sort_order"),
   ]);
