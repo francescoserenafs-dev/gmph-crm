@@ -309,7 +309,7 @@ export function SessionDirectory() {
     const deliveredColumn: BoardColumn = { code: "delivered", label: "Foto consegnate", owner: "done", sessions: pipelineSessions.filter((session) => session.current_stage?.code === "delivered" && canUsePrintFulfillmentStages("delivered", session.extras)) };
     const printColumns = PRINT_PIPELINE_STAGES
       .filter((column) => column.owner === "done" || !ballFilter || column.owner === ballFilter)
-      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
+      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => column.code !== "prints_completed" && session.current_stage?.code === column.code) }));
     return [...openColumns, deliveredColumn, ...printColumns];
   }, [pipelineSessions, ballFilter]);
 

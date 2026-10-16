@@ -24,6 +24,38 @@ test("print fulfillment starts only after delivery and can continue through its 
   assert.equal(canUsePrintFulfillmentStages("delivered", []), false);
 });
 
+test("pipeline keeps completion drop targets but hides finished sessions with every owner filter", () => {
+  const source = ts.createSourceFile("session-directory.tsx", readFileSync(new URL("../components/sessions/session-directory.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = new Map();
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      declarations.set(node.name.text, node.initializer.getText(source));
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  const code = ts.transpileModule(
+    ["PIPELINE_STAGES", "PRINT_PIPELINE_STAGES", "boardColumns"].map((name) => `const ${name} = ${declarations.get(name)};`).join("\n") + "\nboardColumns;",
+    { compilerOptions: { target: ts.ScriptTarget.ES2020 } },
+  ).outputText;
+  const prints = [{ category_snapshot: "print", quantity: 1 }];
+  const pipelineSessions = [
+    { id: "standard-finished", current_stage: { code: "delivered" }, extras: [] },
+    { id: "prints-pending", current_stage: { code: "delivered" }, extras: prints },
+    ...PRINT_FULFILLMENT_STAGE_CODES.map((stage) => ({ id: stage, current_stage: { code: stage }, extras: prints })),
+  ];
+  for (const ballFilter of [null, "you", "client"]) {
+    const columns = runInNewContext(code, { useMemo: (calculate) => calculate(), pipelineSessions, ballFilter, canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES });
+    assert.ok(columns.some((column) => column.code === "prints_completed"));
+    const visibleIds = Array.from(columns.flatMap((column) => column.sessions.map((session) => session.id)));
+    assert.equal(visibleIds.includes("prints_completed"), false);
+    assert.equal(visibleIds.includes("standard-finished"), false);
+    assert.equal(visibleIds.includes("prints-pending"), true);
+    assert.equal(visibleIds.includes("awaiting_print_selection"), ballFilter !== "you");
+    assert.equal(visibleIds.includes("print_selection_received"), ballFilter !== "client");
+  }
+});
+
 test("stage PATCH accepts to-one current-stage relations for print fulfillment", async (context) => {
   const source = readFileSync(new URL("../app/api/sessions/[id]/route.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
