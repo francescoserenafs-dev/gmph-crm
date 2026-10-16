@@ -52,7 +52,8 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
         .maybeSingle();
       if (sessionError) return NextResponse.json({ error: "Non è stato possibile verificare le stampe della sessione." }, { status: 500 });
       if (!session) return NextResponse.json({ error: "Sessione non trovata." }, { status: 404 });
-      const currentStageCode = session.current_stage[0]?.code;
+      const currentStage = session.current_stage as unknown as { code: string } | null;
+      const currentStageCode = currentStage?.code;
       if (!canUsePrintFulfillmentStages(currentStageCode, session.extras ?? [])) {
         return NextResponse.json({ error: "Gli avanzamenti stampe richiedono un’extra stampa e la consegna delle foto finali." }, { status: 400 });
       }
