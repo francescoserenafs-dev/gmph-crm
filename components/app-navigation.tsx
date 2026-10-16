@@ -205,7 +205,12 @@ function NavDropdown({ label, links, activeHref }: { label: string; links: NavLi
   const isGroupActive = links.some((item) => item.href === activeHref);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div
+      className="relative"
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") setIsOpen(true); }}
+      onPointerLeave={(event) => { if (event.pointerType === "mouse") setIsOpen(false); }}
+      ref={containerRef}
+    >
       <button
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -219,7 +224,8 @@ function NavDropdown({ label, links, activeHref }: { label: string; links: NavLi
         <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} strokeWidth={1.8} />
       </button>
       {isOpen ? (
-        <div className="absolute right-0 z-40 mt-2 w-48 border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg" role="menu">
+        <div className="absolute right-0 z-40 w-48 pt-2">
+          <div className="border border-[#d8d0c5] bg-[#fdfbf8] py-1 shadow-lg" role="menu">
           {links.map((item) => {
             const isActive = item.href === activeHref;
             return (
@@ -235,6 +241,7 @@ function NavDropdown({ label, links, activeHref }: { label: string; links: NavLi
               </Link>
             );
           })}
+          </div>
         </div>
       ) : null}
     </div>
