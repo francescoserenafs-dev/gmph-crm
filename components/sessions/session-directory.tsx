@@ -9,7 +9,7 @@ import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
-import { canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
+import { calculateSessionDue, canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 
 type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 type Service = { id: string; name: string; saturday_surcharge_cents: number };
@@ -104,9 +104,7 @@ function toLocalInput(date: Date) {
   return `${toLocalDateKey(date)}T${toLocalTimeLabel(date)}`;
 }
 
-function totalDue(session: { agreed_price_cents: number; extras: { line_total_cents: number }[] }) {
-  return session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
-}
+const totalDue = calculateSessionDue;
 
 export function SessionDirectory() {
   const router = useRouter();
@@ -755,6 +753,19 @@ export function SessionDirectory() {
                           <StageChip stage={session.current_stage} />
                         </p>
                       </Link>
+                    </div>
+                    <div className="flex items-center gap-3 sm:w-40 sm:shrink-0 sm:justify-end">
+                      <div className="sm:text-right" title="Valore commerciale complessivo della sessione: prezzo concordato più eventuali Extra acquistati.">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#958b80]">Valore</p>
+                        <p className="text-sm font-semibold tabular-nums">{euro.format(due / 100)}</p>
+                      </div>
+                      <span className="w-12 text-center text-xs">
+                        {session.extras.length > 0 ? (
+                          <span className="rounded-full border border-[#d8d0c5] bg-[#f5f1eb] px-2 py-0.5 font-semibold text-[#675f57]" title="Indica che alla sessione sono associati uno o più Extra.">Extra</span>
+                        ) : (
+                          <span aria-label="Nessun extra" className="text-[#a49a8d]">—</span>
+                        )}
+                      </span>
                     </div>
                     <div className="flex gap-2">
                       <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openInlineEdit(session)} type="button">Modifica</button>

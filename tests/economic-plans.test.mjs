@@ -1,6 +1,127 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+import ts from "typescript";
+import * as datetime from "../lib/datetime.ts";
+import * as economicPlans from "../lib/economic-plans.ts";
 import { computeEconomicDashboard, planCoherence, priceListFor, resolveAnnualTarget, serviceTargetValueCents, ticketAboveListMax } from "../lib/economic-plans.ts";
+
+function loadModule(path, dependencies) {
+  const source = readFileSync(new URL(path, import.meta.url), "utf8");
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const context = { exports: {}, require: (name) => { assert.ok(name in dependencies, name); return dependencies[name]; } };
+  runInNewContext(code, context);
+  return context.exports;
+}
+
+// Query builder Supabase minimale: registra i filtri e risolve con resolve(calls).
+function fakeSupabase(resolve) {
+  return {
+    from(table) {
+      const calls = { table };
+      const builder = {
+        select(columns) { calls.select = columns; return builder; },
+        gte(column, value) { calls.gte = [column, value]; return builder; },
+        lt(column, value) { calls.lt = [column, value]; return builder; },
+        order() { return builder; },
+        limit(value) { calls.limit = value; return builder; },
+        range(from, to) { calls.range = [from, to]; return builder; },
+        then(onFulfilled, onRejected) { return Promise.resolve(resolve(calls)).then(onFulfilled, onRejected); },
+      };
+      return builder;
+    },
+  };
+}
+
+const homeSessions = [
+  { scheduledAt: "2026-03-10T09:00:00.000Z", serviceTypeId: "famiglia", serviceName: "Famiglia", agreedPriceCents: 20000, extrasCents: 4000, paidCents: 10000, isCancelled: false },
+  { scheduledAt: "2026-12-10T09:00:00.000Z", serviceTypeId: "maternita", serviceName: "Maternità", agreedPriceCents: 30000, extrasCents: 0, paidCents: 0, isCancelled: false },
+  { scheduledAt: "2026-05-10T09:00:00.000Z", serviceTypeId: "ritratto", serviceName: "Ritratto", agreedPriceCents: 30000, extrasCents: 0, paidCents: 0, isCancelled: true },
+  // Sabato: 220 di pacchetto + 15 di supplemento già inclusi nel prezzo concordato; saldata con buono.
+  { scheduledAt: "2026-06-13T08:00:00.000Z", serviceTypeId: "famiglia", serviceName: "Famiglia", agreedPriceCents: 23500, extrasCents: 0, paidCents: 23500, isCancelled: false },
+];
+const homePayments = [
+  { amount_cents: 10000, paid_at: "2026-03-01T11:00:00.000Z", payment_method_name: "Wise", category: "deposit", session: { service_name: "Famiglia" }, voucher_id: null },
+  { amount_cents: 15000, paid_at: "2026-04-01T11:00:00.000Z", payment_method_name: "Wise", category: "voucher_purchase", session: null, voucher_id: "v1" },
+  { amount_cents: 23500, paid_at: "2026-06-13T11:00:00.000Z", payment_method_name: "Buono regalo", category: "voucher_redemption", session: { service_name: "Famiglia" }, voucher_id: null },
+];
+
+async function callHomeAnalytics({ sessions = homeSessions, payments = homePayments, target }) {
+  const route = loadModule("../app/api/dashboard/analytics/route.ts", {
+    "next/server": { NextResponse: { json: (body, init) => ({ body, status: init?.status ?? 200 }) } },
+    "@/lib/economic-plans": economicPlans,
+    "@/lib/economic-plans-server": { getAnnualTargetForYear: async () => target, loadEconomicSessions: async () => sessions },
+    "@/lib/supabase/admin": { supabaseAdmin: fakeSupabase((calls) => ({ data: calls.limit ? [{ paid_at: "2025-01-10T10:00:00.000Z" }] : payments, error: null })) },
+  });
+  return route.GET({ nextUrl: { searchParams: new URLSearchParams("year=2026") } });
+}
+
+test("Home gauge: acquired commercial value with plan target; cash stays separate", async () => {
+  const { status, body } = await callHomeAnalytics({ target: { targetCents: 1000000, source: "plan" } });
+  assert.equal(status, 200);
+  // 200+40 realizzata, 300 futura, 235 sabato (supplemento già nel prezzo); annullata, pagamenti e buoni esclusi.
+  assert.equal(body.annualAcquiredCents, 24000 + 30000 + 23500);
+  assert.equal(body.annualBudgetCents, 1000000);
+  assert.equal(body.annualTargetSource, "plan");
+  // Incassato invariato: caparra + vendita buono, riscatto escluso.
+  assert.equal(body.total, 25000);
+});
+
+test("Home gauge with legacy fallback target still compares against acquired value", async () => {
+  const { body } = await callHomeAnalytics({ target: { targetCents: 500000, source: "legacy_budget" } });
+  assert.equal(body.annualBudgetCents, 500000);
+  assert.equal(body.annualTargetSource, "legacy_budget");
+  assert.equal(body.annualAcquiredCents, 77500);
+});
+
+test("Home gauge: payments and voucher sales never change acquired value", async () => {
+  const withoutPayments = await callHomeAnalytics({ payments: [], target: { targetCents: 0, source: "legacy_budget" } });
+  const withPayments = await callHomeAnalytics({ target: { targetCents: 0, source: "legacy_budget" } });
+  assert.equal(withoutPayments.body.annualAcquiredCents, withPayments.body.annualAcquiredCents);
+  assert.equal(withoutPayments.body.total, 0);
+});
+
+test("Home acquired equals Analisi Economico acquired on the same dataset", async () => {
+  const plan = { year: 2026, annualTargetCents: 1000000, expectedUpliftCents: 0, notes: null, monthlyTargets: [], serviceTargets: [] };
+  const economicPayments = homePayments.map((payment) => ({ amountCents: payment.amount_cents, paidDate: payment.paid_at.slice(0, 10), category: payment.category, isVoucherRedemption: payment.category === "voucher_redemption", voucherId: payment.voucher_id }));
+  const economic = computeEconomicDashboard({ year: 2026, now: new Date(), plan, sessions: homeSessions, payments: economicPayments, serviceNames: new Map() });
+  const { body } = await callHomeAnalytics({ target: { targetCents: 1000000, source: "plan" } });
+  assert.equal(body.annualAcquiredCents, economic.kpis.acquiredCents);
+  assert.equal(economic.kpis.coverage, body.annualAcquiredCents / body.annualBudgetCents);
+});
+
+test("shared loader: Europe/Rome year bounds and historical extra line totals", async () => {
+  let sessionQuery;
+  const server = loadModule("../lib/economic-plans-server.ts", {
+    "@/lib/datetime": datetime,
+    "@/lib/economic-plans": economicPlans,
+    "@/lib/supabase/admin": { supabaseAdmin: fakeSupabase((calls) => {
+      sessionQuery = calls;
+      return { data: [
+        { scheduled_at: "2026-03-10T09:00:00.000Z", service_type_id: "famiglia", service_name: "Famiglia", agreed_price_cents: 22000, current_stage: { code: "delivered" }, extras: [{ line_total_cents: 4000 }, { line_total_cents: 1500 }], payments: [{ amount_cents: 10000 }] },
+        { scheduled_at: "2026-05-10T09:00:00.000Z", service_type_id: "ritratto", service_name: "Ritratto", agreed_price_cents: 30000, current_stage: { code: "cancelled" }, extras: [], payments: [] },
+      ], error: null };
+    }) },
+  });
+  const sessions = await server.loadEconomicSessions(2026);
+  assert.deepEqual(sessionQuery.gte, ["scheduled_at", "2025-12-31T23:00:00.000Z"]);
+  assert.deepEqual(sessionQuery.lt, ["scheduled_at", "2026-12-31T23:00:00.000Z"]);
+  assert.match(sessionQuery.select, /extras:session_extras\(line_total_cents\)/);
+  assert.equal(sessions[0].extrasCents, 5500);
+  assert.equal(sessions[0].isCancelled, false);
+  assert.equal(sessions[1].isCancelled, true);
+  const acquired = computeEconomicDashboard({ year: 2026, now: new Date(), plan: null, sessions, payments: [], serviceNames: new Map() }).kpis.acquiredCents;
+  assert.equal(acquired, 27500);
+});
+
+test("acquired year follows Europe/Rome, not UTC", () => {
+  // 31/12 23:30 UTC = 1/1 00:30 a Roma.
+  const sessions = [{ scheduledAt: "2026-12-31T23:30:00.000Z", serviceTypeId: "natale", serviceName: "Natale", agreedPriceCents: 13500, extrasCents: 0, paidCents: 0, isCancelled: false }];
+  const acquired = (year) => computeEconomicDashboard({ year, now: new Date("2026-10-19T12:00:00Z"), plan: null, sessions, payments: [], serviceNames: new Map() }).kpis.acquiredCents;
+  assert.equal(acquired(2026), 0);
+  assert.equal(acquired(2027), 13500);
+});
 
 test("Home target: plan first, legacy budget fallback, 0 if neither", () => {
   assert.deepEqual(resolveAnnualTarget(1500000, null), { targetCents: 1500000, source: "plan" });

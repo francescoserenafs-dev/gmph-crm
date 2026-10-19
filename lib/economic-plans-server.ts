@@ -1,5 +1,51 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { buildServiceTargets, resolveAnnualTarget, serviceTargetValueCents, type ActivePackage, type EconomicPlan, type MonthlyTarget, type ServiceTarget } from "@/lib/economic-plans";
+import { parseLocalDateTime } from "@/lib/datetime";
+import { buildServiceTargets, resolveAnnualTarget, serviceTargetValueCents, type ActivePackage, type EconomicPlan, type EconomicSession, type MonthlyTarget, type ServiceTarget } from "@/lib/economic-plans";
+
+const PAGE_SIZE = 1000;
+
+export async function loadPaged<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await build(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as T[];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
+}
+
+type EconomicSessionRow = {
+  scheduled_at: string;
+  service_type_id: string;
+  service_name: string;
+  agreed_price_cents: number;
+  current_stage: { code: string } | null;
+  extras: { line_total_cents: number }[];
+  payments: { amount_cents: number }[];
+};
+
+// Sessioni dell'anno (confini Europe/Rome) nella forma usata da computeEconomicDashboard: unica fonte del valore commerciale.
+export async function loadEconomicSessions(year: number): Promise<EconomicSession[]> {
+  const start = parseLocalDateTime(`${year}-01-01T00:00`).toISOString();
+  const end = parseLocalDateTime(`${year + 1}-01-01T00:00`).toISOString();
+  const rows = await loadPaged<EconomicSessionRow>((from, to) => supabaseAdmin
+    .from("sessions")
+    .select("scheduled_at, service_type_id, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), extras:session_extras(line_total_cents), payments(amount_cents)")
+    .gte("scheduled_at", start)
+    .lt("scheduled_at", end)
+    .order("scheduled_at")
+    .range(from, to));
+  return rows.map((row) => ({
+    scheduledAt: row.scheduled_at,
+    serviceTypeId: row.service_type_id,
+    serviceName: row.service_name,
+    agreedPriceCents: row.agreed_price_cents,
+    extrasCents: (row.extras ?? []).reduce((sum, extra) => sum + extra.line_total_cents, 0),
+    paidCents: (row.payments ?? []).reduce((sum, payment) => sum + payment.amount_cents, 0),
+    isCancelled: row.current_stage?.code === "cancelled",
+  }));
+}
 
 const MAX_CENTS = 1_000_000_000;
 const MAX_SESSIONS = 100_000;

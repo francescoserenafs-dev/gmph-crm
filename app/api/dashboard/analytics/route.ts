@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getAnnualTargetForYear } from "@/lib/economic-plans-server";
+import { computeEconomicDashboard } from "@/lib/economic-plans";
+import { getAnnualTargetForYear, loadEconomicSessions } from "@/lib/economic-plans-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -50,8 +51,12 @@ export async function GET(request: NextRequest) {
     .lt("paid_at", yearEnd);
 
   let annualTarget: Awaited<ReturnType<typeof getAnnualTargetForYear>>;
+  let annualAcquiredCents: number;
   try {
-    annualTarget = await getAnnualTargetForYear(year);
+    const [target, sessions] = await Promise.all([getAnnualTargetForYear(year), loadEconomicSessions(year)]);
+    annualTarget = target;
+    // Stessa definizione di Analisi -> Economico: valore commerciale acquisito (realizzato + futuro), non cassa.
+    annualAcquiredCents = computeEconomicDashboard({ year, now, plan: null, sessions, payments: [], serviceNames: new Map() }).kpis.acquiredCents;
   } catch {
     return NextResponse.json({ error: "Non e stato possibile caricare le analisi." }, { status: 500 });
   }
@@ -100,5 +105,5 @@ export async function GET(request: NextRequest) {
 
   const total = incomePayments.reduce((sum, payment) => sum + payment.amount_cents, 0);
 
-  return NextResponse.json({ year, years, total, byMonth, byServiceType, byMethod, cumulative, annualBudgetCents: annualTarget.targetCents, annualTargetSource: annualTarget.source });
+  return NextResponse.json({ year, years, total, byMonth, byServiceType, byMethod, cumulative, annualBudgetCents: annualTarget.targetCents, annualTargetSource: annualTarget.source, annualAcquiredCents });
 }

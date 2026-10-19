@@ -113,7 +113,7 @@ export function Dashboard() {
         const response = await fetch(`/api/dashboard/analytics?year=${new Date().getFullYear()}`);
         const body = await response.json();
         if (active && response.ok) {
-          setBudgetProgress({ achieved: body.total, budget: body.annualBudgetCents });
+          setBudgetProgress({ achieved: body.annualAcquiredCents, budget: body.annualBudgetCents });
         }
       } catch {
         if (active) setBudgetProgress(null);
@@ -219,10 +219,10 @@ export function Dashboard() {
                   <section className="flex min-h-0 flex-1 flex-col border border-[#d8d0c5] bg-white p-4">
                     <div className="flex items-center gap-1.5">
                       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Target annuale {new Date().getFullYear()}</p>
-                      <InfoTooltip label="Informazioni su Target annuale" text="Obiettivo annuale del Piano Economico. Se non esiste un piano per l'anno corrente, viene usato il vecchio budget configurato come fallback." />
+                      <InfoTooltip label="Informazioni su Target annuale" text="Mostra quanto del target annuale è già coperto dal valore commerciale delle sessioni acquisite nell'anno, comprese quelle future già prenotate. Il valore comprende il prezzo concordato e gli eventuali Extra. L'incassato è calcolato separatamente. Il target è quello del Piano Economico; senza piano si usa il budget configurato." />
                     </div>
                     <BudgetGaugeChart achievedCents={budgetProgress.achieved} budgetCents={budgetProgress.budget} />
-                    <p className="mt-1 text-center text-xs text-[#675f57]">{euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
+                    <p className="mt-1 text-center text-xs text-[#675f57]">Acquisito {euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
                   </section>
                 ) : null}
                 <section className="min-h-0 flex-1 border border-[#d8d0c5] bg-white p-4">

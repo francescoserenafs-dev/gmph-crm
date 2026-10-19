@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "../lib/sessions.ts";
+import { calculateSessionDue, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "../lib/sessions.ts";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice } from "../lib/datetime.ts";
 
 test("print fulfillment applies only to sessions with positive print extras", () => {
@@ -109,6 +109,26 @@ test("stage PATCH accepts to-one current-stage relations for print fulfillment",
       assert.equal(stageUpdates.length, scenario.status === 200 ? 1 : 0);
       if (scenario.status === 200) assert.equal(stageUpdates[0].values.current_stage_id, scenario.target);
     });
+  }
+});
+
+test("session value = agreed price + historical extra line totals only", () => {
+  const extra = (line_total_cents) => ({ line_total_cents, unit_price_cents: 99999, quantity: 3 });
+  const hasExtras = (session) => session.extras.length > 0;
+  const cases = [
+    [{ agreed_price_cents: 17000, extras: [] }, 17000, false],
+    [{ agreed_price_cents: 17000, extras: [extra(0)] }, 17000, true],
+    [{ agreed_price_cents: 17000, extras: [extra(4000)] }, 21000, true],
+    [{ agreed_price_cents: 22000, extras: [extra(4000), extra(1500)] }, 27500, true],
+    // Sabato: snapshot pacchetto 220, prezzo concordato 235 già comprensivo del supplemento.
+    [{ agreed_price_cents: 23500, package_price_snapshot_cents: 22000, extras: [extra(4000)] }, 27500, true],
+    [{ agreed_price_cents: 23500, extras: [extra(4000), extra(1800)] }, 29300, true],
+    // Inclusioni del pacchetto non sono session_extras.
+    [{ agreed_price_cents: 29000, package_inclusions: [{ quantity: 1 }, { quantity: 3 }], extras: [] }, 29000, false],
+  ];
+  for (const [session, value, badge] of cases) {
+    assert.equal(calculateSessionDue(session), value);
+    assert.equal(hasExtras(session), badge);
   }
 });
 

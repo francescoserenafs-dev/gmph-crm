@@ -105,7 +105,7 @@ export type SessionExtra_CreateInput = {
 /**
  * Calculate total amount due for a session (agreed price + extras)
  */
-export function calculateSessionDue(session: Session): number {
+export function calculateSessionDue(session: { agreed_price_cents: number; extras: readonly { line_total_cents: number }[] }): number {
   const extrasCents = session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
   return session.agreed_price_cents + extrasCents;
 }
