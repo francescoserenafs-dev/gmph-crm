@@ -1,6 +1,6 @@
 <?php
 /**
- * Pagine statiche (modificabili dall'editor o con Elementor).
+ * Pagine semplici ed editoriali (privacy, cookie, pagine informative).
  *
  * @package gmph
  */
@@ -10,14 +10,14 @@ get_header();
 while ( have_posts() ) :
 	the_post();
 	?>
-	<section class="page-hero">
-		<div class="container">
-			<h1><?php the_title(); ?></h1>
-		</div>
-	</section>
+	<article id="post-<?php the_ID(); ?>" <?php post_class(); ?>>
+		<header class="page-hero">
+			<div class="container">
+				<h1><?php the_title(); ?></h1>
+			</div>
+		</header>
 
-	<section class="page-content">
-		<div class="container">
+		<div class="page-content entry-content">
 			<?php
 			the_content();
 
@@ -29,7 +29,7 @@ while ( have_posts() ) :
 			);
 			?>
 		</div>
-	</section>
+	</article>
 	<?php
 endwhile;
 

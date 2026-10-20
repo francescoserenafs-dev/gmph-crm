@@ -10,41 +10,46 @@
 <head>
 	<meta charset="<?php bloginfo( 'charset' ); ?>">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="profile" href="https://gmpg.org/xfn/11">
+	<script>document.documentElement.classList.add('js');</script>
 	<?php wp_head(); ?>
 </head>
 <body <?php body_class(); ?>>
 <?php wp_body_open(); ?>
+<a class="skip-link" href="#content"><?php esc_html_e( 'Salta al contenuto', 'gmph' ); ?></a>
 
 <header class="site-header">
 	<div class="container site-header__inner">
-		<a class="site-brand" href="<?php echo esc_url( home_url( '/' ) ); ?>">
-			<?php
-			if ( has_custom_logo() ) {
-				the_custom_logo();
-			} else {
-				echo 'Giulia <span>Malosso</span>';
-			}
-			?>
-		</a>
+		<div class="site-brand">
+			<?php if ( has_custom_logo() ) : ?>
+				<?php the_custom_logo(); ?>
+			<?php else : ?>
+				<a class="site-brand__link" href="<?php echo esc_url( home_url( '/' ) ); ?>" rel="home">Giulia <span>Malosso</span></a>
+			<?php endif; ?>
+		</div>
 
-		<nav class="main-nav" aria-label="<?php esc_attr_e( 'Navigazione principale', 'gmph' ); ?>">
-			<?php
-			wp_nav_menu(
-				array(
-					'theme_location' => 'primary',
-					'container'      => false,
-					'fallback_cb'    => 'gmph_fallback_menu',
-					'depth'          => 1,
-				)
-			);
-			?>
-		</nav>
+		<?php if ( has_nav_menu( 'primary' ) ) : ?>
+			<button class="nav-toggle" type="button" aria-controls="primary-nav" aria-expanded="false" data-label-open="<?php esc_attr_e( 'Apri menu', 'gmph' ); ?>" data-label-close="<?php esc_attr_e( 'Chiudi menu', 'gmph' ); ?>">
+				<span class="screen-reader-text"><?php esc_html_e( 'Apri menu', 'gmph' ); ?></span>
+				<span class="nav-toggle__bar" aria-hidden="true"></span>
+				<span class="nav-toggle__bar" aria-hidden="true"></span>
+				<span class="nav-toggle__bar" aria-hidden="true"></span>
+			</button>
 
-		<button class="nav-toggle" aria-label="<?php esc_attr_e( 'Apri menu', 'gmph' ); ?>" aria-expanded="false">
-			<span></span><span></span><span></span>
-		</button>
+			<nav class="main-nav" id="primary-nav" aria-label="<?php esc_attr_e( 'Navigazione principale', 'gmph' ); ?>">
+				<?php
+				wp_nav_menu(
+					array(
+						'theme_location' => 'primary',
+						'container'      => false,
+						'menu_class'     => 'menu',
+						'fallback_cb'    => false,
+						'depth'          => 2,
+					)
+				);
+				?>
+			</nav>
+		<?php endif; ?>
 	</div>
 </header>
 
-<main id="content" class="site-main">
+<main id="content" class="site-main" tabindex="-1">

@@ -4,46 +4,62 @@
 (function () {
 	'use strict';
 
-	document.addEventListener('DOMContentLoaded', function () {
-		// Menu mobile.
-		var toggle = document.querySelector('.nav-toggle');
-		var nav = document.querySelector('.main-nav');
+	// Menu mobile.
+	var toggle = document.querySelector('.nav-toggle');
+	var nav = document.getElementById('primary-nav');
 
-		if (toggle && nav) {
-			toggle.addEventListener('click', function () {
-				var isOpen = nav.classList.toggle('is-open');
-				toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-			});
+	if (toggle && nav) {
+		var label = toggle.querySelector('.screen-reader-text');
 
-			nav.addEventListener('click', function (event) {
-				if (event.target.tagName === 'A') {
-					nav.classList.remove('is-open');
-					toggle.setAttribute('aria-expanded', 'false');
-				}
-			});
-		}
+		var setOpen = function (open) {
+			nav.classList.toggle('is-open', open);
+			toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+			if (label) {
+				label.textContent = toggle.getAttribute(open ? 'data-label-close' : 'data-label-open');
+			}
+		};
 
-		// Filtro portfolio.
-		var filterButtons = document.querySelectorAll('.filter-btn');
-		var galleryItems = document.querySelectorAll('.gallery__item');
+		toggle.addEventListener('click', function () {
+			setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+		});
 
-		if (filterButtons.length && galleryItems.length) {
-			filterButtons.forEach(function (button) {
-				button.addEventListener('click', function () {
-					var filter = button.getAttribute('data-filter');
+		nav.addEventListener('click', function (event) {
+			if (event.target.closest('a')) {
+				setOpen(false);
+			}
+		});
 
-					filterButtons.forEach(function (b) {
-						b.classList.remove('is-active');
-					});
-					button.classList.add('is-active');
+		document.addEventListener('keydown', function (event) {
+			if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+				setOpen(false);
+				toggle.focus();
+			}
+		});
+	}
 
-					galleryItems.forEach(function (item) {
-						var category = item.getAttribute('data-category');
-						var show = filter === 'all' || category === filter;
-						item.classList.toggle('is-hidden', !show);
-					});
-				});
-			});
-		}
+	// Sottomenu desktop (aperti da :hover / :focus-within): Escape li chiude e riporta il focus sulla voce padre.
+	document.querySelectorAll('.main-nav .menu-item-has-children').forEach(function (item) {
+		var parentLink = item.querySelector(':scope > a');
+
+		item.addEventListener('keydown', function (event) {
+			if (event.key === 'Escape' && parentLink) {
+				item.classList.add('is-dismissed');
+				parentLink.focus();
+			}
+		});
+		item.addEventListener('focusout', function (event) {
+			if (!item.contains(event.relatedTarget)) {
+				item.classList.remove('is-dismissed');
+			}
+		});
+		item.addEventListener('mouseleave', function () {
+			item.classList.remove('is-dismissed');
+		});
 	});
+
+	// Esito del modulo contatti: porta il focus sul messaggio.
+	var notice = document.getElementById('gmph-contact-notice');
+	if (notice) {
+		notice.focus();
+	}
 })();

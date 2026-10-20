@@ -1,0 +1,114 @@
+/*
+ * Stili dell'editor a blocchi: coerenza ragionevole con il frontend.
+ * WordPress applica queste regole dentro .editor-styles-wrapper.
+ */
+:root {
+  --cream: #fdfbf8;
+  --cream-soft: #efe6dc;
+  --terracotta: #9b5d43;
+  --terracotta-dark: #7f4934;
+  --ink: #27231f;
+  --muted: #675f57;
+  --border: #d8d0c5;
+  --radius: 0.375rem;
+  --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+h1 { font-size: clamp(2.4rem, 5vw, 3.8rem); }
+h2 { font-size: clamp(1.9rem, 3.5vw, 2.7rem); }
+h3 { font-size: clamp(1.3rem, 2.2vw, 1.6rem); }
+
+p {
+  font-family: var(--font-serif);
+  font-size: 1.28rem;
+  line-height: 1.5;
+}
+
+a { color: var(--terracotta); }
+
+.wp-block { max-width: 760px; }
+.wp-block[data-align="wide"] { max-width: 1200px; }
+.wp-block[data-align="full"] { max-width: none; }
+
+.wp-block-button__link {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.85rem 1.8rem;
+  border-radius: var(--radius);
+  background: var(--terracotta);
+  color: #fff;
+}
+
+.is-style-outline > .wp-block-button__link {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+.gmph-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--terracotta);
+}
+
+.gmph-section { padding: 3rem 1.5rem; }
+.gmph-section--soft { background: var(--cream-soft); }
+
+.gmph-hero {
+  background: var(--ink);
+  color: #fff;
+  padding: 2rem;
+}
+
+.gmph-hero h1,
+.gmph-hero p,
+.gmph-band :is(h2, h3, p),
+.gmph-cta :is(h2, h3, p) { color: #fff; }
+
+.gmph-band,
+.gmph-cta {
+  background: var(--terracotta);
+  border-radius: var(--radius);
+  padding: 2.5rem 1.5rem;
+}
+
+.gmph-card,
+.gmph-price-card,
+.gmph-highlight,
+.gmph-testimonial {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+}
+
+.gmph-note {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  padding: 0.8rem 1rem;
+}
+
+.wp-block-quote { border-left: 3px solid var(--terracotta); padding-left: 1.2rem; }
+.wp-block-details summary { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 600; }

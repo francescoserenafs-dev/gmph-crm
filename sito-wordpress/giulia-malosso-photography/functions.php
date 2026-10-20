@@ -9,18 +9,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GMPH_VERSION', '1.0.0' );
+define( 'GMPH_VERSION', '2.0.0' );
+define( 'GMPH_FONTS_URL', 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap' );
+
+require get_template_directory() . '/inc/contact-form.php';
+require get_template_directory() . '/inc/block-patterns.php';
 
 /**
  * Impostazioni di base del tema.
  */
 function gmph_setup() {
-	load_theme_textdomain( 'gmph', get_template_directory() . '/languages' );
-
 	add_theme_support( 'title-tag' );
 	add_theme_support( 'post-thumbnails' );
 	add_theme_support( 'automatic-feed-links' );
-	add_theme_support( 'html5', array( 'search-form', 'gallery', 'caption', 'style', 'script' ) );
+	add_theme_support( 'html5', array( 'search-form', 'gallery', 'caption', 'style', 'script', 'navigation-widgets' ) );
 	add_theme_support(
 		'custom-logo',
 		array(
@@ -30,6 +32,11 @@ function gmph_setup() {
 			'flex-width'  => true,
 		)
 	);
+	add_theme_support( 'align-wide' );
+	add_theme_support( 'responsive-embeds' );
+	add_theme_support( 'wp-block-styles' );
+	add_theme_support( 'editor-styles' );
+	add_editor_style( array( GMPH_FONTS_URL, 'assets/css/editor.css' ) );
 
 	register_nav_menus(
 		array(
@@ -52,63 +59,96 @@ add_action( 'after_setup_theme', 'gmph_content_width', 0 );
  * Caricamento stili e script.
  */
 function gmph_assets() {
-	wp_enqueue_style(
-		'gmph-fonts',
-		'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap',
-		array(),
-		null
-	);
-
+	// Font ancora da Google: vedi GUIDA-INSTALLAZIONE.md per l'hosting locale.
+	wp_enqueue_style( 'gmph-fonts', GMPH_FONTS_URL, array(), null );
 	wp_enqueue_style( 'gmph-style', get_stylesheet_uri(), array( 'gmph-fonts' ), GMPH_VERSION );
-
-	wp_enqueue_script(
-		'gmph-main',
-		get_template_directory_uri() . '/assets/js/main.js',
-		array(),
-		GMPH_VERSION,
-		true
-	);
+	wp_enqueue_script( 'gmph-main', get_template_directory_uri() . '/assets/js/main.js', array(), GMPH_VERSION, true );
 }
 add_action( 'wp_enqueue_scripts', 'gmph_assets' );
 
 /**
- * Aree widget.
+ * Preconnect verso i server dei font.
+ *
+ * @param array  $urls          URL dei resource hints.
+ * @param string $relation_type Tipo di hint.
+ * @return array
  */
-function gmph_widgets_init() {
-	register_sidebar(
-		array(
-			'name'          => __( 'Footer', 'gmph' ),
-			'id'            => 'footer-1',
-			'description'   => __( 'Widget mostrati nel footer.', 'gmph' ),
-			'before_widget' => '<div class="footer-widget %2$s">',
-			'after_widget'  => '</div>',
-			'before_title'  => '<h4>',
-			'after_title'   => '</h4>',
-		)
-	);
+function gmph_resource_hints( $urls, $relation_type ) {
+	if ( 'preconnect' === $relation_type && wp_style_is( 'gmph-fonts', 'queue' ) ) {
+		$urls[] = 'https://fonts.googleapis.com';
+		$urls[] = array(
+			'href'        => 'https://fonts.gstatic.com',
+			'crossorigin' => 'anonymous',
+		);
+	}
+	return $urls;
 }
-add_action( 'widgets_init', 'gmph_widgets_init' );
+add_filter( 'wp_resource_hints', 'gmph_resource_hints', 10, 2 );
 
 /**
- * Dati di contatto riutilizzabili (modificabili da Aspetto > Personalizza).
+ * Impostazioni attività modificabili da Aspetto > Personalizza.
  *
- * @param string $key Chiave del dato richiesto.
+ * @return array<string, array{0: string, 1: string, 2: callable}>
+ */
+function gmph_setting_fields() {
+	return array(
+		'email'     => array( __( 'Email (riceve anche le richieste del modulo)', 'gmph' ), 'email', 'sanitize_email' ),
+		'phone'     => array( __( 'Telefono', 'gmph' ), 'text', 'sanitize_text_field' ),
+		'whatsapp'  => array( __( 'Numero WhatsApp (con prefisso, es. +39…)', 'gmph' ), 'text', 'gmph_sanitize_phone' ),
+		'city'      => array( __( 'Località (es. Maser, Treviso)', 'gmph' ), 'text', 'sanitize_text_field' ),
+		'address'   => array( __( 'Indirizzo studio', 'gmph' ), 'text', 'sanitize_text_field' ),
+		'vat'       => array( __( 'Partita IVA', 'gmph' ), 'text', 'sanitize_text_field' ),
+		'instagram' => array( __( 'URL Instagram', 'gmph' ), 'url', 'gmph_sanitize_url' ),
+		'facebook'  => array( __( 'URL Facebook', 'gmph' ), 'url', 'gmph_sanitize_url' ),
+		'maps'      => array( __( 'URL Google Business / Maps', 'gmph' ), 'url', 'gmph_sanitize_url' ),
+	);
+}
+
+/**
+ * Sanitizza un URL (il Customizer passa anche l'oggetto setting, non accettato da esc_url_raw).
+ *
+ * @param string $value URL inserito.
  * @return string
  */
-function gmph_contact( $key ) {
-	$defaults = array(
-		'email'     => get_theme_mod( 'gmph_email', 'ciao@giuliamalosso.it' ),
-		'phone'     => get_theme_mod( 'gmph_phone', '+39 000 000 0000' ),
-		'city'      => get_theme_mod( 'gmph_city', 'Maser (TV)' ),
-		'instagram' => get_theme_mod( 'gmph_instagram', 'https://instagram.com/' ),
-		'facebook'  => get_theme_mod( 'gmph_facebook', 'https://facebook.com/' ),
-	);
-
-	return isset( $defaults[ $key ] ) ? $defaults[ $key ] : '';
+function gmph_sanitize_url( $value ) {
+	return esc_url_raw( (string) $value );
 }
 
 /**
- * Opzioni personalizzabili dal Customizer.
+ * Mantiene solo cifre e "+" iniziale.
+ *
+ * @param string $value Numero inserito.
+ * @return string
+ */
+function gmph_sanitize_phone( $value ) {
+	$value  = trim( (string) $value );
+	$plus   = 0 === strpos( $value, '+' ) ? '+' : '';
+	$digits = preg_replace( '/\D+/', '', $value );
+	return $digits ? $plus . $digits : '';
+}
+
+/**
+ * Valore di un'impostazione attività ('' se non configurata).
+ *
+ * @param string $key Chiave (email, phone, whatsapp, city, address, vat, instagram, facebook, maps).
+ * @return string
+ */
+function gmph_setting( $key ) {
+	return (string) get_theme_mod( 'gmph_' . $key, '' );
+}
+
+/**
+ * Link WhatsApp, oppure '' se il numero non è configurato.
+ *
+ * @return string
+ */
+function gmph_whatsapp_url() {
+	$digits = preg_replace( '/\D+/', '', gmph_setting( 'whatsapp' ) );
+	return $digits ? 'https://wa.me/' . $digits : '';
+}
+
+/**
+ * Registra le impostazioni nel Customizer.
  *
  * @param WP_Customize_Manager $wp_customize Gestore del Customizer.
  */
@@ -116,33 +156,26 @@ function gmph_customize_register( $wp_customize ) {
 	$wp_customize->add_section(
 		'gmph_contact_section',
 		array(
-			'title'    => __( 'Contatti e social', 'gmph' ),
-			'priority' => 30,
+			'title'       => __( 'Dati attività e contatti', 'gmph' ),
+			'description' => __( 'I campi vuoti non vengono mostrati sul sito.', 'gmph' ),
+			'priority'    => 30,
 		)
 	);
 
-	$fields = array(
-		'gmph_email'     => array( 'Email', 'ciao@giuliamalosso.it' ),
-		'gmph_phone'     => array( 'Telefono', '+39 000 000 0000' ),
-		'gmph_city'      => array( 'Città / zona', 'Maser (TV)' ),
-		'gmph_instagram' => array( 'URL Instagram', 'https://instagram.com/' ),
-		'gmph_facebook'  => array( 'URL Facebook', 'https://facebook.com/' ),
-	);
-
-	foreach ( $fields as $id => $data ) {
+	foreach ( gmph_setting_fields() as $key => $field ) {
 		$wp_customize->add_setting(
-			$id,
+			'gmph_' . $key,
 			array(
-				'default'           => $data[1],
-				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => '',
+				'sanitize_callback' => $field[2],
 			)
 		);
 		$wp_customize->add_control(
-			$id,
+			'gmph_' . $key,
 			array(
-				'label'   => $data[0],
+				'label'   => $field[0],
 				'section' => 'gmph_contact_section',
-				'type'    => 'text',
+				'type'    => $field[1],
 			)
 		);
 	}
@@ -150,32 +183,65 @@ function gmph_customize_register( $wp_customize ) {
 add_action( 'customize_register', 'gmph_customize_register' );
 
 /**
- * Genera un'immagine segnaposto SVG (usata finché non si caricano le foto reali).
+ * Permalink di una pagina per percorso, oppure '' se non esiste.
  *
- * @param string $label Testo mostrato al centro del segnaposto.
- * @return string Data URI pronto per l'attributo src.
+ * @param string $path Percorso della pagina (es. "servizi" o "mini-sessioni/natale").
+ * @return string
  */
-function gmph_placeholder( $label = '' ) {
-	$label = $label ? strtoupper( substr( $label, 0, 24 ) ) : 'FOTO';
-	$svg   = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">'
-		. '<rect width="600" height="800" fill="#efe6dc"/>'
-		. '<rect x="1" y="1" width="598" height="798" fill="none" stroke="#d8d0c5"/>'
-		. '<text x="50%" y="50%" fill="#9b5d43" font-family="Georgia, serif" font-size="30" '
-		. 'letter-spacing="3" text-anchor="middle" dominant-baseline="middle">' . esc_html( $label ) . '</text>'
-		. '</svg>';
-
-	return 'data:image/svg+xml;charset=utf-8,' . rawurlencode( $svg );
+function gmph_page_url( $path ) {
+	$page = get_page_by_path( $path );
+	return ( $page && 'publish' === $page->post_status ) ? get_permalink( $page ) : '';
 }
 
 /**
- * Menu di fallback quando non è impostato alcun menu.
+ * Immagini dei pattern: niente output se l'immagine non è stata scelta;
+ * l'immagine dell'hero viene caricata subito e con priorità alta.
+ *
+ * @param string $content Markup del blocco.
+ * @param array  $block   Dati del blocco.
+ * @return string
  */
-function gmph_fallback_menu() {
-	echo '<ul>';
-	echo '<li><a href="' . esc_url( home_url( '/' ) ) . '">' . esc_html__( 'Home', 'gmph' ) . '</a></li>';
-	echo '<li><a href="#servizi">' . esc_html__( 'Servizi', 'gmph' ) . '</a></li>';
-	echo '<li><a href="#portfolio">' . esc_html__( 'Portfolio', 'gmph' ) . '</a></li>';
-	echo '<li><a href="#chi-sono">' . esc_html__( 'Chi sono', 'gmph' ) . '</a></li>';
-	echo '<li><a href="#contatti">' . esc_html__( 'Contatti', 'gmph' ) . '</a></li>';
-	echo '</ul>';
+function gmph_render_image_blocks( $content, $block ) {
+	if ( 'core/gallery' === $block['blockName'] && empty( $block['innerBlocks'] ) ) {
+		return '';
+	}
+	if ( 'core/image' !== $block['blockName'] ) {
+		return $content;
+	}
+	if ( false === stripos( $content, ' src=' ) ) {
+		return '';
+	}
+
+	$class = isset( $block['attrs']['className'] ) ? $block['attrs']['className'] : '';
+	if ( false !== strpos( $class, 'gmph-hero__media' ) ) {
+		$tags = new WP_HTML_Tag_Processor( $content );
+		if ( $tags->next_tag( 'img' ) ) {
+			$tags->add_class( 'gmph-hero__img' );
+			$tags->set_attribute( 'loading', 'eager' );
+			$tags->set_attribute( 'fetchpriority', 'high' );
+			$tags->set_attribute( 'decoding', 'async' );
+			$content = $tags->get_updated_html();
+		}
+	}
+	return $content;
 }
+add_filter( 'render_block', 'gmph_render_image_blocks', 10, 2 );
+
+/**
+ * L'immagine dell'hero occupa tutta la larghezza: sizes adeguato al srcset generato da WordPress.
+ *
+ * @param string $image Tag img filtrato.
+ * @return string
+ */
+function gmph_hero_image_sizes( $image ) {
+	if ( false === strpos( $image, 'gmph-hero__img' ) ) {
+		return $image;
+	}
+	$tags = new WP_HTML_Tag_Processor( $image );
+	if ( $tags->next_tag( 'img' ) && $tags->get_attribute( 'srcset' ) ) {
+		$tags->set_attribute( 'sizes', '100vw' );
+		return $tags->get_updated_html();
+	}
+	return $image;
+}
+add_filter( 'wp_content_img_tag', 'gmph_hero_image_sizes' );
