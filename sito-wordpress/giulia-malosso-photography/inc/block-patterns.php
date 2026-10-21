@@ -336,16 +336,17 @@ function gmph_cta( $title = 'Raccontami cosa vorresti ricordare', $text = 'Scriv
 /**
  * Testimonianze segnaposto.
  *
- * @param int $count Numero di testimonianze.
+ * @param int    $count Numero di testimonianze.
+ * @param string $title Titolo della sezione.
  * @return string
  */
-function gmph_testimonials( $count = 3 ) {
+function gmph_testimonials( $count = 3, $title = 'Cosa dicono le famiglie' ) {
 	$quotes = array();
 	for ( $i = 0; $i < $count; $i++ ) {
 		$quotes[] = gmph_quote( '[DA INSERIRE: testo di una recensione reale, ad esempio sull’esperienza rilassata o sui bambini che non stavano fermi]', '[DA INSERIRE: nome e servizio]' );
 	}
 	return gmph_section(
-		gmph_h( 'Cosa dicono le famiglie', 2, array( 'textAlign' => 'center' ) ) . gmph_columns( $quotes, 'gmph-testimonials' ),
+		gmph_h( esc_html( $title ), 2, array( 'textAlign' => 'center' ) ) . gmph_columns( $quotes, 'gmph-testimonials' ),
 		'gmph-section--soft'
 	);
 }
@@ -353,17 +354,26 @@ function gmph_testimonials( $count = 3 ) {
 /**
  * I quattro passaggi del servizio.
  *
+ * @param array|null $steps Coppie titolo/testo; null per i passaggi standard.
  * @return string
  */
-function gmph_how_it_works() {
+function gmph_how_it_works( $steps = null ) {
+	if ( null === $steps ) {
+		$steps = array(
+			array( '1. Ci conosciamo', 'Mi scrivi e mi racconti chi siete e cosa vorreste ricordare. Ti rispondo con disponibilità e proposte.' ),
+			array( '2. Prepariamo la sessione', 'Scegliamo insieme data, luogo e abbigliamento, così arrivate tranquilli e senza pensieri.' ),
+			array( '3. Vivete il momento', 'Durante la sessione vi lascio liberi di essere voi stessi. Vi guido solo quando serve.' ),
+			array( '4. Ricevete le vostre fotografie', 'Scegliete le immagini e ricevete le fotografie finali, pronte da custodire. [DA INSERIRE: tempi e modalità di consegna]' ),
+		);
+	}
 	return gmph_section(
 		gmph_h( 'Come funziona', 2, array( 'textAlign' => 'center' ) )
 		. gmph_columns(
-			array(
-				gmph_step( '1. Ci conosciamo', 'Mi scrivi e mi racconti chi siete e cosa vorreste ricordare. Ti rispondo con disponibilità e proposte.' ),
-				gmph_step( '2. Prepariamo la sessione', 'Scegliamo insieme data, luogo e abbigliamento, così arrivate tranquilli e senza pensieri.' ),
-				gmph_step( '3. Vivete il momento', 'Durante la sessione vi lascio liberi di essere voi stessi. Vi guido solo quando serve.' ),
-				gmph_step( '4. Ricevete le vostre fotografie', 'Scegliete le immagini e ricevete le fotografie finali, pronte da custodire. [DA INSERIRE: tempi e modalità di consegna]' ),
+			array_map(
+				function ( $step ) {
+					return gmph_step( $step[0], $step[1] );
+				},
+				$steps
 			),
 			'gmph-steps'
 		)
@@ -400,7 +410,7 @@ function gmph_area() {
 }
 
 /**
- * Le quattro card dei servizi principali.
+ * Le card dei servizi principali.
  *
  * @return string
  */
@@ -409,8 +419,12 @@ function gmph_service_cards() {
 		array(
 			gmph_card( 'Famiglia', gmph_link( '/servizi/famiglia/' ), 'Genitori, bambini e tutti i piccoli gesti che vi tengono insieme.' ),
 			gmph_card( 'Gravidanza', gmph_link( '/servizi/gravidanza/' ), 'L’attesa raccontata con delicatezza, da sola, in coppia o con i figli.' ),
+			gmph_card( 'Newborn', gmph_link( '/servizi/newborn/' ), 'I primi giorni del vostro bambino, fotografati con calma e delicatezza.' ),
 			gmph_card( 'Bambini', gmph_link( '/servizi/bambini/' ), 'Sessioni brevi, giochi e spontaneità: i bambini restano bambini.' ),
 			gmph_card( 'Battesimo', gmph_link( '/servizi/battesimo/' ), 'La cerimonia, la famiglia e la festa, raccontate in modo discreto.' ),
+			gmph_card( 'Coppia', gmph_link( '/servizi/coppia/' ), 'Voi due, così come siete: complicità, sguardi e momenti spontanei.' ),
+			gmph_card( 'Ritratto', gmph_link( '/servizi/ritratto/' ), 'Un ritratto naturale che vi somiglia, per voi o per il vostro lavoro.' ),
+			gmph_card( 'Commerciale', gmph_link( '/servizi/commerciale/' ), 'Fotografie per negozi e attività: prodotti, spazi e persone.' ),
 		),
 		'gmph-cards'
 	);
@@ -505,7 +519,7 @@ function gmph_pattern_home() {
  * @return string
  */
 function gmph_pattern_services_hub() {
-	return gmph_page_intro( 'Servizi fotografici', 'Famiglia, gravidanza, bambini e battesimo: scegli il servizio più vicino al momento che volete ricordare.' )
+	return gmph_page_intro( 'Servizi fotografici', 'Famiglia, gravidanza, newborn, bambini, battesimo, coppia, ritratto e fotografia commerciale: scegli il servizio più vicino a ciò che desiderate.' )
 		. gmph_section( gmph_service_cards() )
 		. gmph_approach()
 		. gmph_cta();
@@ -539,7 +553,7 @@ function gmph_pattern_service( $s ) {
 			),
 			'gmph-section--soft'
 		)
-		. gmph_how_it_works()
+		. gmph_how_it_works( isset( $s['steps'] ) ? $s['steps'] : null )
 		. gmph_section(
 			gmph_h( 'Pacchetti', 2, array( 'textAlign' => 'center' ) )
 			. gmph_p( '[DA INSERIRE: breve nota sui pacchetti. Aggiorna prezzi e contenuti qui quando cambia il listino.]', array( 'align' => 'center' ) )
@@ -547,14 +561,19 @@ function gmph_pattern_service( $s ) {
 			'gmph-section--soft'
 		)
 		. gmph_section( gmph_h( 'Alcune fotografie', 2, array( 'textAlign' => 'center' ) ) . gmph_gallery() )
-		. gmph_testimonials( 2 )
+		. gmph_testimonials( 2, isset( $s['reviews_title'] ) ? $s['reviews_title'] : 'Cosa dicono le famiglie' )
 		. gmph_faq( $faq )
 		. gmph_area()
-		. gmph_cta( 'Raccontami cosa vorresti ricordare', 'Scrivimi qualche riga: ti risponderò con disponibilità, pacchetti e tutte le informazioni.', 'Chiedi informazioni', $contact );
+		. gmph_cta(
+			isset( $s['cta_title'] ) ? $s['cta_title'] : 'Raccontami cosa vorresti ricordare',
+			isset( $s['cta_text'] ) ? $s['cta_text'] : 'Scrivimi qualche riga: ti risponderò con disponibilità, pacchetti e tutte le informazioni.',
+			'Chiedi informazioni',
+			$contact
+		);
 }
 
 /**
- * Dati dei quattro servizi principali.
+ * Dati dei servizi principali.
  *
  * @return array
  */
@@ -598,6 +617,25 @@ function gmph_services_data() {
 				array( 'Quanto dura?' ),
 			),
 		),
+		'newborn'    => array(
+			'title'       => 'Pagina Servizio: Newborn',
+			'slug'        => 'newborn',
+			'h1'          => 'Servizio fotografico newborn a Maser, Treviso',
+			'lead'        => 'I primi giorni del vostro bambino, fotografati con calma, delicatezza e attenzione alla sicurezza.',
+			'intro_title' => 'Così piccolo, solo per pochi giorni',
+			'experience'  => array(
+				array( 'Il momento giusto', '[DA INSERIRE: giorni di vita consigliati e quando prenotare.]' ),
+				array( 'Con i suoi tempi', 'Poppate, coccole e pause fanno parte della sessione: non c’è nessuna fretta.' ),
+				array( 'In studio, al caldo', '[DA INSERIRE: come è preparato lo studio e cosa è disponibile per il neonato.]' ),
+			),
+			'faq'         => array(
+				array( 'Quando conviene fare il servizio newborn?' ),
+				array( 'Possiamo prenotare già durante la gravidanza?' ),
+				array( 'E se il bambino piange o ha fame?', 'Succede spesso ed è normale: ci fermiamo per poppate e coccole e riprendiamo con calma.' ),
+				array( 'Possono partecipare genitori e fratelli?' ),
+				array( 'Quanto dura la sessione?' ),
+			),
+		),
 		'bambini'    => array(
 			'title'       => 'Pagina Servizio: Bambini',
 			'slug'        => 'bambini',
@@ -635,6 +673,75 @@ function gmph_services_data() {
 				array( 'Con quanto anticipo conviene prenotare?' ),
 				array( 'Quando riceviamo le fotografie?' ),
 			),
+		),
+		'coppia'     => array(
+			'title'         => 'Pagina Servizio: Coppia',
+			'slug'          => 'coppia',
+			'h1'            => 'Servizio fotografico di coppia a Maser, Treviso',
+			'lead'          => 'Fotografie spontanee di voi due, senza pose rigide: complicità, sguardi e momenti veri.',
+			'intro_title'   => 'Voi due, adesso',
+			'experience'    => array(
+				array( 'Per ogni occasione', '[DA INSERIRE: anniversario, fidanzamento, regalo o semplicemente per voi.]' ),
+				array( 'Nessuna posa forzata', 'Vi guido con piccoli suggerimenti e vi lascio parlare, ridere e stare vicini.' ),
+				array( 'In studio o all’aperto', '[DA INSERIRE: luoghi disponibili e come scegliere.]' ),
+			),
+			'faq'           => array(
+				array( 'Non siamo abituati a farci fotografare: è un problema?', 'No, succede a quasi tutte le coppie. Vi guido io con calma: dopo pochi minuti ci si dimentica della macchina fotografica.' ),
+				array( 'Come ci vestiamo?' ),
+				array( 'Dove si svolge il servizio?' ),
+				array( 'Quanto dura?' ),
+				array( 'Quando riceviamo le fotografie?' ),
+			),
+			'reviews_title' => 'Cosa dicono le coppie',
+		),
+		'ritratto'   => array(
+			'title'         => 'Pagina Servizio: Ritratto',
+			'slug'          => 'ritratto',
+			'h1'            => 'Servizio fotografico ritratto a Maser, Treviso',
+			'lead'          => 'Ritratti naturali che vi somigliano, per voi o per il vostro lavoro.',
+			'intro_title'   => 'Un ritratto in cui riconoscersi',
+			'experience'    => array(
+				array( 'Personale o professionale', '[DA INSERIRE: ritratto personale, profilo professionale, foto per sito e social.]' ),
+				array( 'A vostro agio', 'Iniziamo con calma e vi guido nella posa e nell’espressione, senza rigidità.' ),
+				array( 'Luce e luogo', '[DA INSERIRE: in studio o all’aperto, sfondi disponibili.]' ),
+			),
+			'faq'           => array(
+				array( 'Non mi piaccio in foto: come fai?', 'È una frase che sento spesso. Lavoriamo con calma, provando luce e angolazioni finché vi riconoscete nel risultato.' ),
+				array( 'Cosa indosso?' ),
+				array( 'Posso usare le foto per il lavoro e i social?' ),
+				array( 'Quanto dura la sessione?' ),
+				array( 'Quante fotografie ricevo?' ),
+			),
+			'reviews_title' => 'Cosa dicono le persone fotografate',
+			'cta_title'     => 'Raccontami che ritratto desideri',
+		),
+		'commerciale' => array(
+			'title'         => 'Pagina Servizio: Commerciale',
+			'slug'          => 'commerciale',
+			'h1'            => 'Fotografia commerciale per attività a Maser e Treviso',
+			'lead'          => 'Fotografie per negozi, laboratori e piccole aziende: prodotti, spazi e persone che ci lavorano.',
+			'intro_title'   => 'Immagini che raccontano la vostra attività',
+			'experience'    => array(
+				array( 'Prodotti e spazi', '[DA INSERIRE: es. composizioni di una fioreria, vetrine, locale, laboratorio.]' ),
+				array( 'Le persone dietro l’attività', 'Ritratti del titolare e del team al lavoro, naturali e riconoscibili.' ),
+				array( 'Pronte per sito e social', '[DA INSERIRE: formati consegnati e utilizzi consentiti.]' ),
+			),
+			'steps'         => array(
+				array( '1. Ci sentiamo', 'Mi racconti l’attività, cosa vuoi comunicare e dove userai le fotografie.' ),
+				array( '2. Prepariamo lo shooting', 'Definiamo insieme luogo, data, prodotti e scene da fotografare.' ),
+				array( '3. Fotografiamo', 'Lavoro nella vostra sede, rispettando i ritmi dell’attività e dei clienti.' ),
+				array( '4. Ricevete le fotografie', 'Ricevete le immagini pronte per sito, social e materiali. [DA INSERIRE: tempi e modalità di consegna]' ),
+			),
+			'faq'           => array(
+				array( 'Vieni tu nella nostra sede?' ),
+				array( 'Possiamo usare le foto su sito, social e pubblicità?' ),
+				array( 'Quanto dura uno shooting?' ),
+				array( 'Fai anche servizi periodici, ad esempio stagionali?' ),
+				array( 'Emetti fattura?' ),
+			),
+			'reviews_title' => 'Cosa dicono le attività',
+			'cta_title'     => 'Raccontami la tua attività',
+			'cta_text'      => 'Scrivimi qualche riga su cosa fate e su dove userete le fotografie: ti risponderò con disponibilità e un preventivo.',
 		),
 	);
 }

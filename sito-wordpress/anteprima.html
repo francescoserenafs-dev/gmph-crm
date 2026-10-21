@@ -3,27 +3,24 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Anteprima — Giulia Malosso Photography</title>
-	<!-- NOTA: questa è solo un'anteprima statica. Il sito vero gira su WordPress (file .php). -->
+	<title>Anteprima Home — Giulia Malosso Photography</title>
+	<!-- Anteprima statica della Home (pattern "Home GMPH"): usa style.css e main.js reali del tema.
+	     Le foto sono segnaposto; i testi tra [ ] sono i segnaposto dei pattern. -->
+	<script>document.documentElement.classList.add('js');</script>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="giulia-malosso-photography/style.css">
 	<style>
-		/* Segnaposto immagini per l'anteprima (nel tema sono generati da PHP). */
-		.ph {
-			background:
-				repeating-linear-gradient(45deg, #efe6dc, #efe6dc 14px, #f3ece3 14px, #f3ece3 28px);
-			display: grid;
-			place-items: center;
-			color: #9b5d43;
-			font-family: "Cormorant Garamond", Georgia, serif;
-			font-size: 1.2rem;
-			letter-spacing: 0.12em;
-			text-transform: uppercase;
-			text-align: center;
-			padding: 1rem;
-		}
+		/* Minimo degli stili core dei blocchi che WordPress carica da solo (wp-block-library). */
+		.wp-block-buttons { display: flex; flex-wrap: wrap; align-items: center; }
+		.wp-block-columns { display: flex; gap: 2em; }
+		.wp-block-column { flex: 1; min-width: 0; }
+		.wp-block-image { margin: 0 0 1em; }
+		.has-text-align-center { text-align: center; }
+		@media (max-width: 781px) { .wp-block-columns:not(.gmph-split) { flex-direction: column; } }
+
+		/* Solo anteprima. */
 		.preview-banner {
 			background: #27231f;
 			color: #fdfbf8;
@@ -36,157 +33,281 @@
 		.preview-banner strong { color: #e8b9a5; }
 	</style>
 </head>
-<body>
+<body class="home page-template-default">
+<a class="skip-link" href="#content">Salta al contenuto</a>
 
 <div class="preview-banner">
-	<strong>ANTEPRIMA STATICA</strong> — così apparirà il sito. Le immagini sono segnaposto: su WordPress caricherai le foto vere.
+	<strong>ANTEPRIMA STATICA</strong> — Home costruita con il pattern “Home GMPH”. Foto segnaposto; i testi tra [ ] vanno sostituiti in WordPress.
 </div>
 
-<!-- HEADER -->
 <header class="site-header">
 	<div class="container site-header__inner">
-		<a class="site-brand" href="#home">Giulia <span>Malosso</span></a>
-		<nav class="main-nav" aria-label="Navigazione principale">
-			<ul>
-				<li><a href="#home">Home</a></li>
-				<li><a href="#servizi">Servizi</a></li>
-				<li><a href="#portfolio">Portfolio</a></li>
-				<li><a href="#chi-sono">Chi sono</a></li>
-				<li><a href="#contatti">Contatti</a></li>
+		<div class="site-brand">
+			<a class="site-brand__link" href="#" rel="home">Giulia <span>Malosso</span></a>
+		</div>
+
+		<button class="nav-toggle" type="button" aria-controls="primary-nav" aria-expanded="false" data-label-open="Apri menu" data-label-close="Chiudi menu">
+			<span class="screen-reader-text">Apri menu</span>
+			<span class="nav-toggle__bar" aria-hidden="true"></span>
+			<span class="nav-toggle__bar" aria-hidden="true"></span>
+			<span class="nav-toggle__bar" aria-hidden="true"></span>
+		</button>
+
+		<nav class="main-nav" id="primary-nav" aria-label="Navigazione principale">
+			<ul class="menu">
+				<li class="menu-item current-menu-item"><a href="#" aria-current="page">Home</a></li>
+				<li class="menu-item menu-item-has-children"><a href="#">Servizi</a>
+					<ul class="sub-menu">
+						<li class="menu-item"><a href="#">Famiglia</a></li>
+						<li class="menu-item"><a href="#">Gravidanza</a></li>
+						<li class="menu-item"><a href="#">Newborn</a></li>
+						<li class="menu-item"><a href="#">Bambini</a></li>
+						<li class="menu-item"><a href="#">Battesimo</a></li>
+						<li class="menu-item"><a href="#">Coppia</a></li>
+						<li class="menu-item"><a href="#">Ritratto</a></li>
+						<li class="menu-item"><a href="#">Commerciale</a></li>
+					</ul>
+				</li>
+				<li class="menu-item menu-item-has-children"><a href="#">Mini Sessioni</a>
+					<ul class="sub-menu">
+						<li class="menu-item"><a href="#">Natale</a></li>
+						<li class="menu-item"><a href="#">Autunno</a></li>
+						<li class="menu-item"><a href="#">Festa della Mamma</a></li>
+					</ul>
+				</li>
+				<li class="menu-item"><a href="#">Buoni regalo</a></li>
+				<li class="menu-item"><a href="#">Chi sono</a></li>
+				<li class="menu-item"><a href="#">Contatti</a></li>
 			</ul>
 		</nav>
-		<button class="nav-toggle" aria-label="Apri menu" aria-expanded="false">
-			<span></span><span></span><span></span>
-		</button>
 	</div>
 </header>
 
-<main class="site-main">
+<main id="content" class="site-main" tabindex="-1">
+<article class="landing entry-content page">
 
-	<!-- HERO -->
-	<section class="hero" id="home" style="background-image: linear-gradient(180deg, rgba(39,35,31,0.45), rgba(39,35,31,0.6)), repeating-linear-gradient(45deg, #b79b86, #b79b86 20px, #ad907b 20px, #ad907b 40px);">
-		<div class="container hero__content">
-			<span class="eyebrow">Fotografa di famiglia · Maser (TV)</span>
-			<h1>Ricordi autentici, luce naturale, emozioni vere</h1>
-			<p>Racconto la vostra famiglia così com’è: gli abbracci, le risate, i primi giorni di un bimbo e l’attesa della maternità. Fotografie da custodire negli anni.</p>
-			<div class="hero__actions">
-				<a class="btn btn--primary" href="#contatti">Prenota un servizio</a>
-				<a class="btn btn--ghost" href="#portfolio">Guarda il portfolio</a>
+	<!-- A. Hero -->
+	<section class="wp-block-group alignfull gmph-hero"><div class="wp-block-group__inner-container">
+		<figure class="wp-block-image size-full gmph-hero__media"><img class="gmph-hero__img" data-ph="Foto principale" data-w="2400" data-h="1400" data-tone="dark" alt="Famiglia che passeggia al tramonto" loading="eager" fetchpriority="high"></figure>
+		<div class="wp-block-group gmph-hero__content"><div class="wp-block-group__inner-container">
+			<h1 class="wp-block-heading">Fotografa di famiglia, gravidanza e bambini a Maser, Treviso</h1>
+			<p class="gmph-lead">Fotografie naturali e autentiche per custodire ciò che siete davvero.</p>
+			<div class="wp-block-buttons">
+				<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">Scopri i servizi</a></div>
+				<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="#">Chiedi informazioni</a></div>
+			</div>
+		</div></div>
+	</div></section>
+
+	<!-- B. Servizi -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<h2 class="wp-block-heading has-text-align-center">Il vostro momento, raccontato con naturalezza</h2>
+		<p class="has-text-align-center gmph-lead">Ogni servizio è pensato per farvi sentire a vostro agio e raccontare chi siete, senza forzature.</p>
+		<div class="wp-block-columns gmph-cards">
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Famiglia" data-w="800" data-h="1000" alt="Genitori e bambini abbracciati sul prato"></figure>
+				<h3 class="wp-block-heading"><a href="#">Famiglia</a></h3>
+				<p>Genitori, bambini e tutti i piccoli gesti che vi tengono insieme.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Gravidanza" data-w="800" data-h="1000" alt="Futura mamma in studio con luce naturale"></figure>
+				<h3 class="wp-block-heading"><a href="#">Gravidanza</a></h3>
+				<p>L’attesa raccontata con delicatezza, da sola, in coppia o con i figli.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Newborn" data-w="800" data-h="1000" alt="Neonato addormentato avvolto in una copertina"></figure>
+				<h3 class="wp-block-heading"><a href="#">Newborn</a></h3>
+				<p>I primi giorni del vostro bambino, fotografati con calma e delicatezza.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Bambini" data-w="800" data-h="1000" alt="Bambina che ride giocando in studio"></figure>
+				<h3 class="wp-block-heading"><a href="#">Bambini</a></h3>
+				<p>Sessioni brevi, giochi e spontaneità: i bambini restano bambini.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Battesimo" data-w="800" data-h="1000" alt="Neonato in braccio ai genitori durante il battesimo"></figure>
+				<h3 class="wp-block-heading"><a href="#">Battesimo</a></h3>
+				<p>La cerimonia, la famiglia e la festa, raccontate in modo discreto.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Coppia" data-w="800" data-h="1000" alt="Coppia abbracciata in un campo al tramonto"></figure>
+				<h3 class="wp-block-heading"><a href="#">Coppia</a></h3>
+				<p>Voi due, così come siete: complicità, sguardi e momenti spontanei.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Ritratto" data-w="800" data-h="1000" alt="Ritratto di donna con luce naturale"></figure>
+				<h3 class="wp-block-heading"><a href="#">Ritratto</a></h3>
+				<p>Un ritratto naturale che vi somiglia, per voi o per il vostro lavoro.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-card"><div class="wp-block-group__inner-container">
+				<figure class="wp-block-image size-large gmph-card__media"><img data-ph="Commerciale" data-w="800" data-h="1000" alt="Fiorista che compone un mazzo nel suo negozio"></figure>
+				<h3 class="wp-block-heading"><a href="#">Commerciale</a></h3>
+				<p>Fotografie per negozi e attività: prodotti, spazi e persone.</p>
+				<p class="gmph-card__more">Scopri di più</p>
+			</div></div></div>
+		</div>
+	</div></section>
+
+	<!-- C. Approccio -->
+	<section class="wp-block-group alignfull gmph-section gmph-section--soft"><div class="wp-block-group__inner-container">
+		<div class="wp-block-columns gmph-split">
+			<div class="wp-block-column">
+				<figure class="wp-block-image size-large gmph-approach__media"><img data-ph="Approccio" data-w="900" data-h="1100" alt="Papà che solleva il figlio ridendo"></figure>
+			</div>
+			<div class="wp-block-column">
+				<p class="gmph-eyebrow">Il mio approccio</p>
+				<h2 class="wp-block-heading">Non dovete saper posare</h2>
+				<p>Non vi chiederò sorrisi forzati né pose rigide. Vi lascio muovere, giocare e parlare tra voi: le fotografie più belle nascono quando ci si dimentica della macchina fotografica.</p>
+				<p>I bambini sono liberi di essere bambini, di correre e di distrarsi. Io vi guido quando serve, con piccoli suggerimenti, per far emergere la vostra naturalezza.</p>
 			</div>
 		</div>
-	</section>
+	</div></section>
 
-	<!-- SERVIZI -->
-	<section class="section" id="servizi">
-		<div class="container">
-			<div class="section__head">
-				<span class="eyebrow">Servizi</span>
-				<h2>Cosa fotografo</h2>
-				<p class="lead center">Ogni servizio è pensato per mettervi a vostro agio e catturare momenti spontanei.</p>
-			</div>
-			<div class="grid grid--3">
-				<article class="service-card"><div class="service-card__icon">👨‍👩‍👧</div><h3>Famiglia</h3><p>Servizi in studio o all’aperto che raccontano i legami e la quotidianità della vostra famiglia.</p></article>
-				<article class="service-card"><div class="service-card__icon">🤰</div><h3>Maternità</h3><p>L’attesa diventa immagine: ritratti delicati per celebrare questo momento unico.</p></article>
-				<article class="service-card"><div class="service-card__icon">👶</div><h3>Bambini e newborn</h3><p>Dai primi giorni ai primi passi: scatti teneri, sicuri e pieni di dettagli da ricordare.</p></article>
-				<article class="service-card"><div class="service-card__icon">🎄</div><h3>Mini session</h3><p>Sessioni brevi a tema (come le Christmas Mini Session) perfette per un ricordo speciale.</p></article>
-				<article class="service-card"><div class="service-card__icon">💍</div><h3>Matrimoni</h3><p>Per chi cerca uno stile naturale e discreto nel giorno più importante.</p></article>
-				<article class="service-card"><div class="service-card__icon">💼</div><h3>Business &amp; branding</h3><p>Ritratti professionali e immagini per raccontare la vostra attività con autenticità.</p></article>
-			</div>
+	<!-- D. Come funziona -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<h2 class="wp-block-heading has-text-align-center">Come funziona</h2>
+		<div class="wp-block-columns gmph-steps">
+			<div class="wp-block-column"><div class="wp-block-group gmph-step"><div class="wp-block-group__inner-container"><h3 class="wp-block-heading">1. Ci conosciamo</h3><p>Mi scrivi e mi racconti chi siete e cosa vorreste ricordare. Ti rispondo con disponibilità e proposte.</p></div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-step"><div class="wp-block-group__inner-container"><h3 class="wp-block-heading">2. Prepariamo la sessione</h3><p>Scegliamo insieme data, luogo e abbigliamento, così arrivate tranquilli e senza pensieri.</p></div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-step"><div class="wp-block-group__inner-container"><h3 class="wp-block-heading">3. Vivete il momento</h3><p>Durante la sessione vi lascio liberi di essere voi stessi. Vi guido solo quando serve.</p></div></div></div>
+			<div class="wp-block-column"><div class="wp-block-group gmph-step"><div class="wp-block-group__inner-container"><h3 class="wp-block-heading">4. Ricevete le vostre fotografie</h3><p>Scegliete le immagini e ricevete le fotografie finali, pronte da custodire. [DA INSERIRE: tempi e modalità di consegna]</p></div></div></div>
 		</div>
-	</section>
+	</div></section>
 
-	<!-- PORTFOLIO -->
-	<section class="section section--soft" id="portfolio">
-		<div class="container">
-			<div class="section__head">
-				<span class="eyebrow">Portfolio</span>
-				<h2>Alcuni scatti recenti</h2>
-				<p class="lead center">Una selezione dei servizi realizzati. Filtra per categoria.</p>
-			</div>
-			<div class="filters" role="tablist">
-				<button class="filter-btn is-active" data-filter="all">Tutti</button>
-				<button class="filter-btn" data-filter="famiglia">Famiglia</button>
-				<button class="filter-btn" data-filter="maternita">Maternità</button>
-				<button class="filter-btn" data-filter="bambini">Bambini</button>
-				<button class="filter-btn" data-filter="mini">Mini session</button>
-			</div>
-			<div class="gallery">
-				<figure class="gallery__item" data-category="famiglia"><div class="ph" style="aspect-ratio:3/4;">Famiglia · al parco</div><figcaption>Famiglia · al parco</figcaption></figure>
-				<figure class="gallery__item" data-category="maternita"><div class="ph" style="aspect-ratio:3/4;">Maternità · in studio</div><figcaption>Maternità · in studio</figcaption></figure>
-				<figure class="gallery__item" data-category="bambini"><div class="ph" style="aspect-ratio:3/4;">Newborn · primi giorni</div><figcaption>Newborn · primi giorni</figcaption></figure>
-				<figure class="gallery__item" data-category="mini"><div class="ph" style="aspect-ratio:3/4;">Christmas mini</div><figcaption>Christmas mini</figcaption></figure>
-				<figure class="gallery__item" data-category="famiglia"><div class="ph" style="aspect-ratio:3/4;">Famiglia · a casa</div><figcaption>Famiglia · a casa</figcaption></figure>
-				<figure class="gallery__item" data-category="bambini"><div class="ph" style="aspect-ratio:3/4;">Bambini · gioco</div><figcaption>Bambini · gioco</figcaption></figure>
-				<figure class="gallery__item" data-category="maternita"><div class="ph" style="aspect-ratio:3/4;">Maternità · outdoor</div><figcaption>Maternità · outdoor</figcaption></figure>
-				<figure class="gallery__item" data-category="mini"><div class="ph" style="aspect-ratio:3/4;">Mini session · autunno</div><figcaption>Mini session · autunno</figcaption></figure>
-			</div>
+	<!-- E. Testimonianze -->
+	<section class="wp-block-group alignfull gmph-section gmph-section--soft"><div class="wp-block-group__inner-container">
+		<h2 class="wp-block-heading has-text-align-center">Cosa dicono le famiglie</h2>
+		<div class="wp-block-columns gmph-testimonials">
+			<div class="wp-block-column"><blockquote class="wp-block-quote gmph-testimonial"><p>[DA INSERIRE: testo di una recensione reale, ad esempio sull’esperienza rilassata o sui bambini che non stavano fermi]</p><cite>[DA INSERIRE: nome e servizio]</cite></blockquote></div>
+			<div class="wp-block-column"><blockquote class="wp-block-quote gmph-testimonial"><p>[DA INSERIRE: testo di una recensione reale, ad esempio sull’esperienza rilassata o sui bambini che non stavano fermi]</p><cite>[DA INSERIRE: nome e servizio]</cite></blockquote></div>
+			<div class="wp-block-column"><blockquote class="wp-block-quote gmph-testimonial"><p>[DA INSERIRE: testo di una recensione reale, ad esempio sull’esperienza rilassata o sui bambini che non stavano fermi]</p><cite>[DA INSERIRE: nome e servizio]</cite></blockquote></div>
 		</div>
-	</section>
+	</div></section>
 
-	<!-- CHI SONO -->
-	<section class="section" id="chi-sono">
-		<div class="container about">
-			<div class="about__photo"><div class="ph" style="height:100%;">Ritratto di Giulia</div></div>
-			<div>
-				<span class="eyebrow">Chi sono</span>
-				<h2>Ciao, sono Giulia</h2>
+	<!-- F. Mini sessioni -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<h2 class="wp-block-heading has-text-align-center">Mini sessioni durante l’anno</h2>
+		<p class="has-text-align-center">In alcuni periodi dell’anno propongo mini sessioni a tema: un format più breve, in date dedicate, legato a un momento speciale.</p>
+		<div class="wp-block-group gmph-highlight"><div class="wp-block-group__inner-container">
+			<p class="gmph-eyebrow">In evidenza</p>
+			<h3 class="wp-block-heading">[DA AGGIORNARE: es. Adesso disponibili le Mini Sessioni di …]</h3>
+			<p>[DA AGGIORNARE: due righe sulla campagna attiva. Se non ci sono campagne aperte, elimina questo riquadro.]</p>
+			<div class="wp-block-buttons"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">Scopri di più</a></div></div>
+		</div></div>
+		<div class="wp-block-buttons gmph-center"><div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="#">Scopri le mini sessioni</a></div></div>
+	</div></section>
+
+	<!-- G. Buono regalo -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<div class="wp-block-group gmph-band"><div class="wp-block-group__inner-container">
+			<h2 class="wp-block-heading has-text-align-center">Un ricordo da regalare</h2>
+			<p class="has-text-align-center">Un servizio fotografico è un regalo che resta: per una nascita, un anniversario o semplicemente per dire «vi voglio bene».</p>
+			<div class="wp-block-buttons gmph-center"><div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="#">Scopri i buoni regalo</a></div></div>
+		</div></div>
+	</div></section>
+
+	<!-- H. Chi sono -->
+	<section class="wp-block-group alignfull gmph-section gmph-section--soft"><div class="wp-block-group__inner-container">
+		<div class="wp-block-columns gmph-split">
+			<div class="wp-block-column">
+				<figure class="wp-block-image size-large gmph-portrait"><img data-ph="Ritratto di Giulia" data-w="900" data-h="1100" alt="Ritratto di Giulia Malosso"></figure>
+			</div>
+			<div class="wp-block-column">
+				<h2 class="wp-block-heading">Ciao, sono Giulia</h2>
 				<p>Sono una fotografa di famiglia con base a Maser, in provincia di Treviso. Amo le immagini naturali, la luce morbida e le emozioni che nascono senza posa.</p>
-				<p>Durante ogni servizio il mio obiettivo è farvi sentire a vostro agio, così da raccontare la vostra storia in modo sincero. Il risultato sono fotografie che potrete guardare tra vent’anni emozionandovi come oggi.</p>
-				<blockquote>«Le fotografie più belle nascono quando ci si dimentica della macchina fotografica.»</blockquote>
+				<div class="wp-block-buttons"><div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="#">Conosciamoci</a></div></div>
 			</div>
 		</div>
-	</section>
+	</div></section>
 
-	<!-- CTA -->
-	<section class="section section--soft">
-		<div class="container">
-			<div class="cta">
-				<h2>Prenotiamo il vostro servizio</h2>
-				<p>Raccontatemi cosa avete in mente: vi risponderò con disponibilità, pacchetti e tutti i dettagli.</p>
-				<a class="btn btn--primary" href="#contatti">Scrivimi ora</a>
-			</div>
-		</div>
-	</section>
+	<!-- I. Area servita -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<h2 class="wp-block-heading has-text-align-center">Dove lavoro</h2>
+		<p class="has-text-align-center">Lo studio si trova a Maser (TV). Lavoro con famiglie di Maser, Montebelluna e della provincia di Treviso, e con chi arriva dai dintorni. [DA VERIFICARE: zone e servizi all’aperto]</p>
+	</div></section>
 
+	<!-- L. CTA finale -->
+	<section class="wp-block-group alignfull gmph-section"><div class="wp-block-group__inner-container">
+		<div class="wp-block-group gmph-cta"><div class="wp-block-group__inner-container">
+			<h2 class="wp-block-heading has-text-align-center">Raccontami cosa vorresti ricordare</h2>
+			<p class="has-text-align-center">Scrivimi qualche riga su di voi e sul servizio che avete in mente: ti risponderò con disponibilità e tutte le informazioni.</p>
+			<div class="wp-block-buttons gmph-center"><div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">Chiedi informazioni</a></div></div>
+		</div></div>
+	</div></section>
+
+</article>
 </main>
 
-<!-- FOOTER -->
-<footer class="site-footer" id="contatti">
+<footer class="site-footer">
 	<div class="container">
 		<div class="site-footer__grid">
 			<div>
-				<div class="site-footer__brand">Giulia Malosso Photography</div>
-				<p>Fotografia di famiglia, maternità, bambini e mini session. Immagini autentiche che raccontano chi siete.</p>
-				<div class="social-links">
-					<a href="#" aria-label="Instagram">IG</a>
-					<a href="#" aria-label="Facebook">FB</a>
-				</div>
-			</div>
-			<div>
-				<h4>Esplora</h4>
-				<ul>
-					<li><a href="#home">Home</a></li>
-					<li><a href="#servizi">Servizi</a></li>
-					<li><a href="#portfolio">Portfolio</a></li>
-					<li><a href="#chi-sono">Chi sono</a></li>
+				<p class="site-footer__brand">Giulia Malosso Photography</p>
+				<p class="site-footer__text">Fotografia di famiglia, coppia, ritratto e per attività a Maser, in provincia di Treviso.</p>
+				<ul class="social-links">
+					<li><a href="#">Instagram</a></li>
+					<li><a href="#">Facebook</a></li>
 				</ul>
 			</div>
+			<nav aria-labelledby="footer-nav-title">
+				<h2 class="site-footer__title" id="footer-nav-title">Esplora</h2>
+				<ul class="menu">
+					<li><a href="#">Servizi</a></li>
+					<li><a href="#">Mini Sessioni</a></li>
+					<li><a href="#">Buoni regalo</a></li>
+					<li><a href="#">Chi sono</a></li>
+					<li><a href="#">Contatti</a></li>
+					<li><a href="#">Guide</a></li>
+				</ul>
+			</nav>
 			<div>
-				<h4>Contatti</h4>
-				<ul>
-					<li><a href="#">ciao@giuliamalosso.it</a></li>
-					<li><a href="#">+39 000 000 0000</a></li>
-					<li>Maser (TV)</li>
+				<h2 class="site-footer__title">Contatti</h2>
+				<ul class="site-footer__contacts">
+					<li><a href="#">[email da Personalizza]</a></li>
+					<li><a href="#">[telefono da Personalizza]</a></li>
+					<li><a href="#">Scrivimi su WhatsApp</a></li>
+					<li><address>[indirizzo studio da Personalizza]</address></li>
+					<li><a href="#">Trovami su Google</a></li>
+					<li><a href="#">Chiedi informazioni</a></li>
 				</ul>
 			</div>
 		</div>
 		<div class="site-footer__bottom">
-			<span>&copy; 2026 Giulia Malosso Photography</span>
-			<span>P.IVA — da inserire</span>
+			<span>&copy; 2026 Giulia Malosso Photography · P.IVA [da Personalizza]</span>
+			<span class="site-footer__legal">
+				<a href="#">Privacy Policy</a>
+				<a href="#">Cookie policy</a>
+			</span>
 		</div>
 	</div>
 </footer>
 
+<script>
+	// Solo anteprima: genera foto segnaposto (in WordPress arrivano dalla Libreria Media).
+	(function () {
+		var tones = { light: ['#d9c4b3', '#b8957d'], dark: ['#8a6a57', '#4a3a30'] };
+		document.querySelectorAll('img[data-ph]').forEach(function (img) {
+			var w = img.getAttribute('data-w'), h = img.getAttribute('data-h');
+			var tone = tones[img.getAttribute('data-tone')] || tones.light;
+			var label = img.getAttribute('data-ph').toUpperCase();
+			var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+				+ '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="' + tone[0] + '"/><stop offset="1" stop-color="' + tone[1] + '"/></linearGradient></defs>'
+				+ '<rect width="100%" height="100%" fill="url(#g)"/>'
+				+ '<text x="50%" y="' + (img.getAttribute('data-tone') === 'dark' ? '88%' : '50%') + '" fill="rgba(255,255,255,0.75)" font-family="Georgia, serif" font-size="' + Math.round(w / (img.getAttribute('data-tone') === 'dark' ? 60 : 22)) + '" letter-spacing="4" text-anchor="middle" dominant-baseline="middle">' + label + '</text>'
+				+ '</svg>';
+			img.width = w;
+			img.height = h;
+			img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+		});
+	})();
+</script>
 <script src="giulia-malosso-photography/assets/js/main.js"></script>
 </body>
 </html>

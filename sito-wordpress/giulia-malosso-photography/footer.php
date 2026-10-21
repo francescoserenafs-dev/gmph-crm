@@ -25,7 +25,7 @@ $gmph_cookie    = gmph_page_url( 'cookie-policy' );
 			<div>
 				<p class="site-footer__brand">Giulia Malosso Photography</p>
 				<p class="site-footer__text">
-					<?php esc_html_e( 'Fotografia di famiglia, gravidanza, bambini e battesimo a Maser, in provincia di Treviso.', 'gmph' ); ?>
+					<?php esc_html_e( 'Fotografia di famiglia, coppia, ritratto e per attività a Maser, in provincia di Treviso.', 'gmph' ); ?>
 				</p>
 				<?php if ( $gmph_instagram || $gmph_facebook ) : ?>
 					<ul class="social-links">

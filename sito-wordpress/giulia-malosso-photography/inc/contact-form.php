@@ -18,8 +18,12 @@ function gmph_contact_services() {
 	return array(
 		'famiglia'      => __( 'Famiglia', 'gmph' ),
 		'gravidanza'    => __( 'Gravidanza', 'gmph' ),
+		'newborn'       => __( 'Newborn', 'gmph' ),
 		'bambini'       => __( 'Bambini', 'gmph' ),
 		'battesimo'     => __( 'Battesimo', 'gmph' ),
+		'coppia'        => __( 'Coppia', 'gmph' ),
+		'ritratto'      => __( 'Ritratto', 'gmph' ),
+		'commerciale'   => __( 'Commerciale / attività', 'gmph' ),
 		'mini-sessioni' => __( 'Mini sessioni', 'gmph' ),
 		'buono-regalo'  => __( 'Buono regalo', 'gmph' ),
 		'altro'         => __( 'Altro', 'gmph' ),

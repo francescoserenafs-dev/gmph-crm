@@ -3,8 +3,8 @@ Theme Name: Giulia Malosso Photography
 Theme URI: https://giuliamalosso.it
 Author: Giulia Malosso Photography
 Author URI: https://giuliamalosso.it
-Description: Tema classico leggero per fotografia di famiglia, gravidanza, bambini e battesimo. Pagine costruite nel Block Editor con pattern dedicati. Palette crema e terracotta.
-Version: 2.0.0
+Description: Tema classico leggero per fotografia di famiglia, gravidanza, newborn, bambini, battesimo, coppia, ritratto e commerciale. Pagine costruite nel Block Editor con pattern dedicati. Palette crema e terracotta.
+Version: 2.1.0
 Requires at least: 6.3
 Tested up to: 6.6
 Requires PHP: 7.4
@@ -435,7 +435,7 @@ address { font-style: normal; }
   margin-top: 2.5rem;
 }
 
-.wp-block-columns.gmph-cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.wp-block-columns.gmph-cards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .wp-block-columns.gmph-steps { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .wp-block-columns:is(.gmph-features, .gmph-prices, .gmph-testimonials) { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 

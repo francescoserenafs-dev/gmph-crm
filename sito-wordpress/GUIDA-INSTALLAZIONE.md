@@ -27,8 +27,12 @@ Spunta man mano. Ogni voce rimanda alla sezione della guida.
 - [ ] 9. Test del modulo e, se serve, SMTP (§12, §13)
 - [ ] 10. Famiglia (§14)
 - [ ] 11. Gravidanza (§14)
+- [ ] 11b. Newborn (§14)
 - [ ] 12. Bambini (§14)
 - [ ] 13. Battesimo (§14)
+- [ ] 13b. Coppia (§14)
+- [ ] 13c. Ritratto (§14)
+- [ ] 13d. Commerciale (§14)
 - [ ] 14. Mini Sessioni (§15)
 - [ ] 15. Buoni regalo (§16)
 - [ ] 16. Chi sono (§16)
@@ -61,22 +65,27 @@ Conserva sul tuo computer una copia della cartella `giulia-malosso-photography` 
 
 Puoi iniziare a configurare anche senza tutto pronto: i pattern contengono segnaposto. Ma prima della pubblicazione servono:
 
-**Foto**
-- [ ] Hero della Home (orizzontale)
-- [ ] 4 foto per le card dei servizi (Famiglia, Gravidanza, Bambini, Battesimo)
-- [ ] Famiglia: hero + 6–12 foto per la galleria
-- [ ] Gravidanza: hero + 6–12 foto
-- [ ] Bambini: hero + 6–12 foto
-- [ ] Battesimo: hero + 6–12 foto
-- [ ] Mini sessioni: hero, 3 foto per le card dell'hub, galleria per ogni mini sessione
-- [ ] Buoni regalo: hero
-- [ ] Chi sono: ritratto di Giulia (anche per la Home)
-- [ ] Foto per la sezione "Non dovete saper posare" (Home e Hub Servizi)
+**Foto** (misure esatte nel §19.1)
+- [ ] Hero della Home — orizzontale **2400 × 1350 px**
+- [ ] 8 foto per le card dei servizi (Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale) — verticali **1200 × 1500 px**
+- [ ] Famiglia: hero 2400 × 1350 + 6–12 foto galleria (1800 × 1200 o 1200 × 1800)
+- [ ] Gravidanza: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Newborn: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Bambini: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Battesimo: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Coppia: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Ritratto: hero 2400 × 1350 + 6–12 foto galleria
+- [ ] Commerciale: hero 2400 × 1350 + 6–12 foto galleria (prodotti, spazi, persone al lavoro, con il permesso dell'attività)
+- [ ] Mini sessioni: per ognuna hero 2400 × 1350 e galleria; 3 foto per le card dell'hub 1200 × 1500
+- [ ] Buoni regalo: hero 2400 × 1350
+- [ ] Chi sono: ritratto di Giulia 1200 × 1500 (usato anche in Home)
+- [ ] Sezione "Non dovete saper posare" (Home e Hub Servizi): 1200 × 1500
+- [ ] Logo (§9.2), icona del sito 512 × 512, immagine per i social 1200 × 630
 
 **Testi**
 - [ ] Home (introduzioni brevi, area servita)
 - [ ] Chi sono (breve storia, perché fotografi le famiglie, studio e territorio)
-- [ ] Quattro servizi (intro, esperienza)
+- [ ] Otto servizi (intro, esperienza)
 - [ ] Mini sessioni (descrizioni, a chi sono adatte)
 - [ ] Buoni regalo
 - [ ] Risposte alle FAQ
@@ -130,7 +139,9 @@ Su Windows: tasto destro sulla cartella `giulia-malosso-photography` → *Invia 
 
 - l'header mostri solo il nome "Giulia Malosso" (o il logo), **senza menu**: il menu compare quando viene assegnato (§8);
 - il footer mostri solo il nome e una breve descrizione: contatti, social e P.IVA compaiono quando vengono compilati (§9);
-- la Home mostri un elenco di articoli finché non imposti la Home statica (§7).
+- la Home mostri solo un elenco di articoli con il titolo **"Guide"** (spesso con il solo articolo "Ciao mondo!" o vuoto) finché non imposti la Home statica (§7).
+
+> **Se il dominio è già raggiungibile dal pubblico**, da questo momento i visitatori vedono il sito in costruzione. Valuta di attivare la modalità manutenzione o "coming soon" dell'hosting (o un plugin dedicato) fino alla pubblicazione.
 
 > **Se compare un errore critico:** in *Aspetto → Temi* riattiva il tema precedente. Se non riesci ad accedere alla bacheca, dal gestore file dell'hosting rinomina la cartella `wp-content/themes/giulia-malosso-photography`: WordPress tornerà a un tema predefinito. Annota il messaggio d'errore e fai correggere il tema.
 
@@ -173,8 +184,12 @@ La Home usa automaticamente la propria impaginazione (§7): il template scelto p
 | Hub Servizi | Servizi |
 | Pagina Servizio: Famiglia | Famiglia |
 | Pagina Servizio: Gravidanza | Gravidanza |
+| Pagina Servizio: Newborn | Newborn |
 | Pagina Servizio: Bambini | Bambini |
 | Pagina Servizio: Battesimo | Battesimo |
+| Pagina Servizio: Coppia | Coppia |
+| Pagina Servizio: Ritratto | Ritratto |
+| Pagina Servizio: Commerciale | Commerciale |
 | Hub Mini Sessioni | Mini Sessioni |
 | Pagina Mini Sessione: Natale | Natale |
 | Pagina Mini Sessione: Autunno | Autunno |
@@ -194,15 +209,18 @@ La Home usa automaticamente la propria impaginazione (§7): il template scelto p
 ### 4.2 Procedura per ogni pagina
 
 1. *Pagine → Aggiungi nuova*.
-2. Scrivi il **titolo** (es. "Famiglia"). Serve per menu, elenco pagine e titolo del browser. Nelle pagine "Landing GMPH" non compare sulla pagina.
-3. Apri il pannello laterale (icona *Impostazioni* in alto a destra) → scheda **Pagina** e imposta:
-   - **Template** (es. "Landing GMPH");
-   - **Slug** o URL (es. `famiglia`): solo l'ultima parte dell'indirizzo, senza barre;
-   - **Genitore** (es. "Servizi"). In alcune versioni si trova in *Attributi pagina*.
-4. Alla creazione di una nuova pagina WordPress può proporre la finestra **"Scegli un pattern"**: seleziona il pattern indicato in tabella. Se non compare, vai al punto 5.
-5. Clicca il pulsante **+** in alto a sinistra (inseritore blocchi) → scheda **Pattern** → categoria **"Giulia Malosso"** → clicca il pattern. Viene inserito nella pagina.
-6. Sostituisci immagini e segnaposto (§4.4).
-7. **Salva bozza**; quando la pagina è pronta, **Pubblica**.
+2. WordPress apre subito la finestra **"Scegli un pattern"**: clicca il pattern indicato in tabella (es. **Pagina Servizio: Famiglia**). Viene inserito e la finestra si chiude.
+   - Se la finestra non compare, o l'hai chiusa con la **X**, inserisci il pattern dopo: pulsante **+** in alto a sinistra (inseritore blocchi) → scheda **Pattern** → categoria **"Giulia Malosso"** → clicca il pattern.
+3. Scrivi il **titolo** (es. "Famiglia"). Serve per menu, elenco pagine e titolo del browser. Nelle pagine "Landing GMPH" non compare sulla pagina.
+4. Apri la barra laterale destra (icona **Impostazioni** in alto a destra, accanto a "Pubblica") → scheda **Pagina** (non "Blocco"). Nella parte alta del pannello:
+   - **Template**: clicca "Template predefinito" e scegli il template indicato (es. **Landing GMPH**);
+   - **Link / URL**: imposta lo **slug** (es. `famiglia`), solo l'ultima parte dell'indirizzo, senza barre;
+   - **Genitore** (es. "Servizi").
+   In alcune versioni di WordPress Template e Genitore si trovano nella sezione **"Attributi pagina"**, più in basso nello stesso pannello.
+5. Sostituisci immagini e segnaposto (§4.4).
+6. **Salva bozza**; quando la pagina è pronta, **Pubblica**.
+
+> Se nell'elenco dei template non compaiono **Landing GMPH** e **Contatti**, il tema installato non è la versione aggiornata: ripeti §2.2 scegliendo "Sostituisci la versione installata con quella caricata".
 
 > **Attenzione:** le pagine devono essere **pubblicate** perché il tema ne mostri i link (footer, pagina 404) e perché il menu funzioni. Finché il motore di ricerca è scoraggiato (§1.3) e il sito non è annunciato, pubblicare non lo rende "pubblico" in senso pratico.
 
@@ -249,8 +267,12 @@ Crea tutte le pagine della tabella, anche se il contenuto non è ancora pronto: 
 | Servizi | `/servizi/` | `servizi` | — | Landing GMPH | Hub Servizi |
 | Famiglia | `/servizi/famiglia/` | `famiglia` | Servizi | Landing GMPH | Pagina Servizio: Famiglia |
 | Gravidanza | `/servizi/gravidanza/` | `gravidanza` | Servizi | Landing GMPH | Pagina Servizio: Gravidanza |
+| Newborn | `/servizi/newborn/` | `newborn` | Servizi | Landing GMPH | Pagina Servizio: Newborn |
 | Bambini | `/servizi/bambini/` | `bambini` | Servizi | Landing GMPH | Pagina Servizio: Bambini |
 | Battesimo | `/servizi/battesimo/` | `battesimo` | Servizi | Landing GMPH | Pagina Servizio: Battesimo |
+| Coppia | `/servizi/coppia/` | `coppia` | Servizi | Landing GMPH | Pagina Servizio: Coppia |
+| Ritratto | `/servizi/ritratto/` | `ritratto` | Servizi | Landing GMPH | Pagina Servizio: Ritratto |
+| Commerciale | `/servizi/commerciale/` | `commerciale` | Servizi | Landing GMPH | Pagina Servizio: Commerciale |
 | Mini Sessioni | `/mini-sessioni/` | `mini-sessioni` | — | Landing GMPH | Hub Mini Sessioni |
 | Natale | `/mini-sessioni/natale/` | `natale` | Mini Sessioni | Landing GMPH | Pagina Mini Sessione: Natale |
 | Autunno | `/mini-sessioni/autunno/` | `autunno` | Mini Sessioni | Landing GMPH | Pagina Mini Sessione: Autunno |
@@ -262,7 +284,7 @@ Crea tutte le pagine della tabella, anche se il contenuto non è ancora pronto: 
 | Cookie Policy | `/cookie-policy/` | `cookie-policy` | — | Template predefinito | nessuno (§18) |
 | Guide | `/guide/` | `guide` | — | Template predefinito | nessuno, resta vuota (§17) |
 
-> **Non creare** pagine per Ritratto, Matrimonio, Business, Newborn o altri servizi presenti solo nel gestionale: non fanno parte del sito pubblico.
+> **Non creare** pagine per Matrimonio o altri servizi presenti solo nel gestionale: non fanno parte del sito pubblico.
 
 > **Attenzione agli slug duplicati:** se una pagina con lo stesso slug esiste già (anche nel **Cestino**), WordPress aggiunge `-2` (es. `contatti-2`) e i link si rompono. Prima di creare le pagine:
 > - riusa le pagine esistenti con lo stesso nome cambiando template e contenuto;
@@ -270,6 +292,253 @@ Crea tutte le pagine della tabella, anche se il contenuto non è ancora pronto: 
 > - WordPress crea di solito una **"Privacy Policy"** in bozza e una **"Pagina di esempio"**: usa la prima, elimina la seconda.
 
 Gli slug `servizi`, `contatti` e `cookie-policy` sono usati anche dal tema (pagina 404 e footer): se vengono cambiati, quei link non compaiono.
+
+### 5.1 Pagina per pagina
+
+Segui le schede **in questo ordine**: prima le pagine semplici, poi le pagine genitore (Servizi, Mini Sessioni), infine le figlie. In questa fase basta **creare la struttura**: i contenuti si completano nelle sezioni indicate in fondo a ogni scheda.
+
+Promemoria valido per tutte le schede:
+
+- **Finestra pattern**: compare appena crei la pagina. Se la scheda dice "nessun pattern", chiudila con la **X**.
+- **Barra laterale**: icona **Impostazioni** in alto a destra → scheda **Pagina**. Lì trovi **Template**, **Link/URL** (slug) e **Genitore**. In alcune versioni Template e Genitore sono in "Attributi pagina".
+- **Slug**: WordPress lo ricava dal titolo (es. "Festa della Mamma" diventa `festa-della-mamma`). Controlla sempre che sia **identico** a quello della scheda. Se il campo non compare, premi **Salva bozza** e riprova.
+- **Verifica**: dopo la pubblicazione, clicca **Visualizza pagina** e controlla l'indirizzo nella barra del browser.
+
+> **Consiglio:** prima di creare tutte le pagine, prova il controllo del §6 con un pattern (es. "Pagina Servizio: Famiglia"). Se il pattern dà errore, è meglio saperlo subito.
+
+---
+
+#### Pagina 1 — Home
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Home GMPH**
+- [ ] Titolo: `Home`
+- [ ] Template: lascia **Template predefinito** (la Home usa comunque la sua impaginazione)
+- [ ] Slug: `home` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Imposta la Home statica: §7.1 (puoi farlo dopo aver creato anche la pagina Guide)
+
+Contenuti: §7.2.
+
+#### Pagina 2 — Guide
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **nessun pattern** (chiudi con la X)
+- [ ] Titolo: `Guide`
+- [ ] Contenuto: **lascia vuoto**
+- [ ] Template: **Template predefinito**
+- [ ] Slug: `guide` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Ora completa §7.1: *Impostazioni → Lettura* → Una pagina statica → Homepage **Home**, Pagina articoli **Guide** → Salva
+- [ ] Verifica: l'indirizzo principale del sito mostra la Home (non più "Guide")
+
+Impostazione degli indirizzi delle guide: §17.
+
+#### Pagina 3 — Privacy Policy
+
+WordPress di solito ha già una pagina **"Privacy Policy"** in bozza: usa quella.
+
+- [ ] *Pagine* → apri **Privacy Policy** (se non esiste: *Pagine → Aggiungi nuova*, nessun pattern)
+- [ ] Titolo: `Privacy Policy`
+- [ ] Template: **Template predefinito**
+- [ ] Slug: `privacy-policy` · Genitore: nessuno
+- [ ] Contenuto: per ora può restare il testo provvisorio di WordPress, da sostituire prima della pubblicazione del sito (§11)
+- [ ] **Pubblica**
+- [ ] *Impostazioni → Privacy* → seleziona **Privacy Policy** → **Usa questa pagina**
+
+#### Pagina 4 — Cookie Policy
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **nessun pattern**
+- [ ] Titolo: `Cookie Policy`
+- [ ] Template: **Template predefinito**
+- [ ] Slug: `cookie-policy` · Genitore: nessuno
+- [ ] Contenuto: anche solo una riga provvisoria; testo definitivo al §18
+- [ ] **Pubblica**
+- [ ] Verifica: in fondo al footer compare il link "Cookie policy"
+
+#### Pagina 5 — Contatti
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **nessun pattern**
+- [ ] Titolo: `Contatti`
+- [ ] Contenuto: 2–3 righe di rassicurazione ed eventuali tempi di risposta
+- [ ] Template: **Contatti**
+- [ ] Slug: `contatti` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Verifica: la pagina mostra il modulo con i campi Nome, Email, Telefono, Servizio di interesse, Periodo desiderato, Messaggio e la casella privacy
+
+Recapiti e test: §9, §10, §12.
+
+#### Pagina 6 — Servizi (genitore)
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Hub Servizi**
+- [ ] Titolo: `Servizi`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `servizi` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/`; titolo grande "Servizi fotografici" e il titolo della pagina **non** ripetuto sopra
+
+Contenuti: §14.1.
+
+#### Pagina 7 — Famiglia
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Servizio: Famiglia**
+- [ ] Titolo: `Famiglia`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `famiglia` · Genitore: **Servizi**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/famiglia/`; titolo grande "Servizio fotografico di famiglia a Maser, Treviso"
+
+Contenuti: §14.2.
+
+#### Pagina 8 — Gravidanza
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Servizio: Gravidanza**
+- [ ] Titolo: `Gravidanza`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `gravidanza` · Genitore: **Servizi**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/gravidanza/`
+
+Contenuti: §14.2.
+
+#### Pagina 8b — Newborn
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Servizio: Newborn**
+- [ ] Titolo: `Newborn`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `newborn` · Genitore: **Servizi**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/newborn/`
+
+Contenuti: §14.2.
+
+#### Pagina 9 — Bambini
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Servizio: Bambini**
+- [ ] Titolo: `Bambini`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `bambini` · Genitore: **Servizi**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/bambini/`
+
+Contenuti: §14.2.
+
+#### Pagina 10 — Battesimo
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Servizio: Battesimo**
+- [ ] Titolo: `Battesimo`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `battesimo` · Genitore: **Servizi**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/servizi/battesimo/`
+
+Contenuti: §14.2.
+
+#### Pagine 10b, 10c, 10d — Coppia, Ritratto, Commerciale
+
+Stessa procedura per ciascuna, sempre con genitore **Servizi** e template **Landing GMPH**:
+
+| Titolo | Pattern | Slug | Verifica indirizzo |
+|---|---|---|---|
+| `Coppia` | Pagina Servizio: Coppia | `coppia` | `/servizi/coppia/` |
+| `Ritratto` | Pagina Servizio: Ritratto | `ritratto` | `/servizi/ritratto/` |
+| `Commerciale` | Pagina Servizio: Commerciale | `commerciale` | `/servizi/commerciale/` |
+
+- [ ] Coppia creata e pubblicata
+- [ ] Ritratto creata e pubblicata
+- [ ] Commerciale creata e pubblicata
+
+Contenuti: §14.2.
+
+#### Pagina 11 — Mini Sessioni (genitore)
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Hub Mini Sessioni**
+- [ ] Titolo: `Mini Sessioni`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `mini-sessioni` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/mini-sessioni/`
+
+Contenuti: §15.1.
+
+#### Pagina 12 — Natale
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Mini Sessione: Natale**
+- [ ] Titolo: `Natale`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `natale` · Genitore: **Mini Sessioni**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/mini-sessioni/natale/`
+
+Contenuti e gestione campagna: §15.2.
+
+#### Pagina 13 — Autunno
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Mini Sessione: Autunno**
+- [ ] Titolo: `Autunno`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `autunno` · Genitore: **Mini Sessioni**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/mini-sessioni/autunno/`
+
+Contenuti: §15.2.
+
+#### Pagina 14 — Festa della Mamma
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Pagina Mini Sessione: Festa della Mamma**
+- [ ] Titolo: `Festa della Mamma`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `festa-della-mamma` · Genitore: **Mini Sessioni**
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/mini-sessioni/festa-della-mamma/`
+
+Contenuti: §15.2.
+
+#### Pagina 15 — Buoni regalo
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Buoni regalo**
+- [ ] Titolo: `Buoni regalo`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `buoni-regalo` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/buoni-regalo/`; titolo grande "Regala un servizio fotografico"
+
+Contenuti: §16.1.
+
+#### Pagina 16 — Chi sono
+
+- [ ] *Pagine → Aggiungi nuova*
+- [ ] Finestra pattern: **Chi sono**
+- [ ] Titolo: `Chi sono`
+- [ ] Template: **Landing GMPH**
+- [ ] Slug: `chi-sono` · Genitore: nessuno
+- [ ] **Pubblica**
+- [ ] Verifica: indirizzo `/chi-sono/`; titolo grande "Ciao, sono Giulia"
+
+Contenuti: §16.2.
+
+---
+
+#### Controllo finale delle pagine
+
+- [ ] In *Pagine* le figlie compaiono indentate sotto il genitore (es. "— Famiglia" sotto "Servizi").
+- [ ] Nessuno slug termina con `-2`.
+- [ ] La "Pagina di esempio" di WordPress è stata eliminata e il Cestino svuotato.
+- [ ] Le pagine con template **Landing GMPH** non mostrano il titolo della pagina sopra l'hero.
+- [ ] Prosegui con il **§6 Controllo dei pattern**, poi con i **menu (§8)**.
 
 ---
 
@@ -311,7 +580,7 @@ Per **ogni** pattern dell'elenco in §4.1:
 ### 7.2 Contenuti da completare (dall'alto)
 
 - [ ] **Hero**: foto principale (§19), H1 "Fotografa di famiglia, gravidanza e bambini a Maser, Treviso", sottotitolo, pulsanti "Scopri i servizi" e "Chiedi informazioni".
-- [ ] **Servizi** ("Il vostro momento, raccontato con naturalezza"): una foto per ciascuna delle 4 card. Testi brevi già presenti, modificabili.
+- [ ] **Servizi** ("Il vostro momento, raccontato con naturalezza"): una foto per ciascuna delle 8 card. Testi brevi già presenti, modificabili. Se la Home era già stata creata con meno card, vedi §14.1.
 - [ ] **Approccio** ("Non dovete saper posare"): foto e testo.
 - [ ] **Come funziona**: 4 passaggi. Nel quarto sostituisci `[DA INSERIRE: tempi e modalità di consegna]`.
 - [ ] **Testimonianze** ("Cosa dicono le famiglie"): sostituisci i 3 segnaposto con recensioni reali, oppure **elimina la sezione** finché non le hai.
@@ -331,7 +600,7 @@ Il tema registra due posizioni: **"Menu principale"** (fino a 2 livelli) e **"Me
 
 1. *Aspetto → Menu* → **crea un nuovo menu**, nome "Menu principale" → **Crea menu**.
 2. Lascia **non spuntata** l'opzione "Aggiungi automaticamente nuove pagine di primo livello".
-3. Nel riquadro **Pagine** (scheda "Mostra tutte") seleziona: Home, Servizi, Famiglia, Gravidanza, Bambini, Battesimo, Mini Sessioni, Natale, Autunno, Festa della Mamma, Buoni regalo, Chi sono, Contatti → **Aggiungi al menu**.
+3. Nel riquadro **Pagine** (scheda "Mostra tutte") seleziona: Home, Servizi, Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale, Mini Sessioni, Natale, Autunno, Festa della Mamma, Buoni regalo, Chi sono, Contatti → **Aggiungi al menu**.
 4. Trascina le voci nell'ordine indicato sotto. Per creare un **sottomenu** trascina la voce leggermente **verso destra** sotto la voce padre: apparirà indentata con la dicitura "sottovoce".
 5. In **Impostazioni menu → Posizione del tema** spunta **"Menu principale"**.
 6. **Salva menu**.
@@ -341,8 +610,12 @@ Home
 Servizi
     Famiglia
     Gravidanza
+    Newborn
     Bambini
     Battesimo
+    Coppia
+    Ritratto
+    Commerciale
 Mini Sessioni
     Natale
     Autunno
@@ -391,11 +664,11 @@ In alternativa, le posizioni si assegnano anche dalla scheda **Gestisci posizion
 
 ### 9.2 Logo
 
-*Aspetto → Personalizza → **Identità del sito*** → **Seleziona logo**. Formato orizzontale, sfondo trasparente (PNG o SVG se supportato dall'hosting). Nell'header viene mostrato alto al massimo 56 px. Senza logo l'header mostra il testo "Giulia Malosso".
+*Aspetto → Personalizza → **Identità del sito*** → **Seleziona logo**. File **PNG con sfondo trasparente, alto 112 px** (larghezza proporzionale, indicativamente 300–500 px). Nell'header viene mostrato alto al massimo 56 px: i 112 px servono per una resa nitida sugli schermi ad alta densità. Se WordPress propone di ritagliare l'immagine, scegli **Salta ritaglio**. Senza logo l'header mostra il testo "Giulia Malosso".
 
 ### 9.3 Icona del sito (favicon)
 
-Nella stessa sezione *Identità del sito* → **Icona del sito**: immagine quadrata di almeno **512 × 512 px**. È l'icona mostrata nelle schede del browser e sullo smartphone.
+Nella stessa sezione *Identità del sito* → **Icona del sito**: PNG quadrato **512 × 512 px**. È l'icona mostrata nelle schede del browser e sullo smartphone.
 
 ---
 
@@ -421,7 +694,7 @@ La pagina mostra, nell'ordine:
 | Nome | Sì | |
 | Email | Sì | Deve essere valida |
 | Telefono | No | |
-| Servizio di interesse | Sì | Famiglia, Gravidanza, Bambini, Battesimo, Mini sessioni, Buono regalo, Altro |
+| Servizio di interesse | Sì | Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale / attività, Mini sessioni, Buono regalo, Altro |
 | Periodo desiderato | No | Testo libero |
 | Messaggio | Sì | Max 5.000 caratteri |
 | Privacy | Sì | Casella non preselezionata (§11) |
@@ -444,14 +717,34 @@ Il modulo:
 
 ## 11. Privacy Policy
 
-1. Apri la pagina **Privacy Policy** (quella creata da WordPress o una nuova con slug `privacy-policy`, template predefinito).
-2. Inserisci il testo dell'informativa e **pubblica**.
-3. *Impostazioni → Privacy* → "Cambia la tua pagina della privacy policy" → seleziona **Privacy Policy** → **Usa questa pagina**.
-4. Verifica:
-   - [ ] in fondo al footer compare il link alla Privacy Policy;
-   - [ ] nel modulo Contatti, le parole "informativa privacy" sono un link che apre la pagina corretta (in una nuova scheda).
+Una bozza da completare è nel file **`sito-wordpress/privacy-policy.md`** (fuori dalla cartella del tema).
 
-> **Attenzione:** il tema **non contiene** un testo legale. L'informativa va redatta da un consulente o con un servizio dedicato, in base ai trattamenti reali (modulo contatti, email, eventuali plugin). Il link nel modulo compare solo se la pagina è **pubblicata e impostata** in *Impostazioni → Privacy*.
+**Prima di inserirla**
+
+- [ ] Sostituisci tutti i `[DA INSERIRE]` e `[DA VERIFICARE]` (titolare, indirizzo, P.IVA, email, fornitori, tempi di conservazione, data).
+- [ ] Elimina le sezioni marcate `[DA MANTENERE SOLO SE…]` che non ti riguardano (prenotazione online, newsletter, Cloudflare Turnstile), oppure togli solo la dicitura se le mantieni.
+- [ ] Falla verificare da un consulente privacy: è una bozza basata sul funzionamento del sito, non una consulenza legale.
+
+**Inserimento in WordPress**
+
+1. Apri il file `privacy-policy.md` con un editor di testo (anche VS Code o Blocco note), seleziona tutto **dalla riga "Informativa sul trattamento…" in poi** e copia. Il titolo "Privacy Policy" non serve: lo mostra già la pagina.
+2. *Pagine* → apri **Privacy Policy** (la bozza creata da WordPress, oppure una nuova pagina con slug `privacy-policy`, nessun pattern, **Template predefinito**).
+3. Cancella il testo di esempio di WordPress: clicca nel contenuto, `Ctrl+A` due volte, `Canc`.
+4. Clicca nel primo paragrafo vuoto e incolla con `Ctrl+V`. L'editor converte automaticamente titoli (`##`), grassetti ed elenchi in blocchi.
+5. Controlla il risultato:
+   - le sezioni "1. Titolare del trattamento", "2. Quali dati raccolgo"… devono essere **Titoli H2**, le sottosezioni "2.1…" **Titoli H3**;
+   - non devono comparire simboli `#`, `**` o `*`: se ci sono, il blocco non è stato convertito. Seleziona il blocco → icona di trasformazione → **Titolo** o **Elenco**;
+   - il link alla Cookie Policy deve puntare alla pagina reale: seleziona le parole "Cookie Policy" → icona link → cerca **Cookie Policy**.
+6. **Pubblica** (o **Aggiorna**).
+7. *Impostazioni → Privacy* → seleziona **Privacy Policy** → **Usa questa pagina**.
+
+**Verifiche**
+
+- [ ] in fondo al footer compare il link alla Privacy Policy;
+- [ ] nel modulo Contatti, le parole "informativa privacy" sono un link che apre la pagina corretta (in una nuova scheda);
+- [ ] nella pagina pubblicata non restano `[DA INSERIRE]` né `[DA MANTENERE…]` (`Ctrl+F` → cerca `[DA`).
+
+> **Attenzione:** il tema **non contiene** un testo legale. La bozza descrive il sito come è oggi: se aggiungi plugin o servizi (statistiche, mappe incorporate, video, chat, newsletter), l'informativa va aggiornata. Il link nel modulo compare solo se la pagina è **pubblicata e impostata** in *Impostazioni → Privacy*.
 
 Il consenso del modulo serve **solo** a rispondere alla richiesta: non è un consenso marketing.
 
@@ -503,11 +796,24 @@ L'invio standard di WordPress dipende dal server dell'hosting e spesso finisce i
 
 ### 14.1 Hub Servizi (`/servizi/`)
 
-Pattern **Hub Servizi**: introduzione con H1 "Servizi fotografici", 4 card (Famiglia, Gravidanza, Bambini, Battesimo), sezione "Non dovete saper posare", CTA finale.
+Pattern **Hub Servizi**: introduzione con H1 "Servizi fotografici", 8 card (Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale), sezione "Non dovete saper posare", CTA finale. Su computer le card sono disposte 4 per riga.
 
-- [ ] Foto delle 4 card.
+- [ ] Foto delle 8 card.
 - [ ] Foto della sezione sull'approccio.
 - [ ] Verifica dei testi brevi.
+
+> **Home o Servizi create con meno card?** Le pagine già create non si aggiornano da sole: il pattern viene copiato nella pagina al momento dell'inserimento.
+>
+> **Se non le hai ancora personalizzate** (solo segnaposto), la via più semplice è reinserire il pattern: apri la pagina → **Vista elenco** → seleziona il primo blocco, tieni premuto **Maiusc** e seleziona l'ultimo → menu "⋮" → **Elimina** → inserisci di nuovo il pattern (**Home GMPH** o **Hub Servizi**) dal pulsante **+** → **Pattern** → "Giulia Malosso" → **Aggiorna**.
+>
+> **Se le hai già personalizzate**, aggiungi a mano le card mancanti, in **Home** e in **Servizi**:
+> 1. Apri la pagina → **Vista elenco** → nella sezione delle card seleziona la **Colonna** di una card esistente.
+> 2. Menu "⋮" della barra del blocco → **Duplica**: la copia compare subito dopo. Per spostarla usa le frecce della barra del blocco.
+> 3. Nella copia: **Sostituisci** l'immagine, cambia il titolo (es. `Coppia`) e la frase sotto.
+> 4. Seleziona il titolo → icona **Link** → imposta l'indirizzo della pagina (`/servizi/newborn/`, `/servizi/coppia/`, `/servizi/ritratto/`, `/servizi/commerciale/`).
+> 5. Ripeti per ogni servizio mancante, poi **Aggiorna** e controlla in **Anteprima** che ogni card porti alla pagina giusta.
+>
+> In Servizi aggiorna anche la frase introduttiva con l'elenco completo dei servizi.
 
 ### 14.2 Pagine servizio
 
@@ -515,8 +821,14 @@ Pattern **Hub Servizi**: introduzione con H1 "Servizi fotografici", 4 card (Fami
 |---|---|---|
 | Famiglia | Pagina Servizio: Famiglia | Servizio fotografico di famiglia a Maser, Treviso |
 | Gravidanza | Pagina Servizio: Gravidanza | Servizio fotografico gravidanza a Maser, Treviso |
+| Newborn | Pagina Servizio: Newborn | Servizio fotografico newborn a Maser, Treviso |
 | Bambini | Pagina Servizio: Bambini | Servizio fotografico bambini a Maser, Treviso |
 | Battesimo | Pagina Servizio: Battesimo | Fotografo per battesimi a Maser e Treviso |
+| Coppia | Pagina Servizio: Coppia | Servizio fotografico di coppia a Maser, Treviso |
+| Ritratto | Pagina Servizio: Ritratto | Servizio fotografico ritratto a Maser, Treviso |
+| Commerciale | Pagina Servizio: Commerciale | Fotografia commerciale per attività a Maser e Treviso |
+
+> **Commerciale**: "Come funziona", titolo delle recensioni e CTA finale sono già scritti per le attività. Adatta però la sezione "Dove lavoro", che parla di famiglie (es. "Lavoro con negozi e attività di…"), e completa nelle FAQ l'uso consentito delle foto e la fatturazione.
 
 Ogni pagina ha la stessa struttura. Da completare:
 
@@ -645,16 +957,43 @@ Effetti:
 
 ## 19. Immagini
 
-### 19.1 Regole pratiche
+### 19.1 Misure esatte per ogni posizione
 
-- **Non caricare gli originali della fotocamera.** Esporta prima delle copie per il web:
-  - hero: lato lungo circa **2400 px**;
-  - card, gallerie, ritratti: lato lungo circa **1600–2000 px**;
-  - JPG qualità circa 80; indicativamente sotto i **500 KB** per foto.
-- WordPress crea automaticamente versioni più piccole di ogni foto e il tema fa scegliere al browser quella adatta allo schermo.
-- WordPress riduce automaticamente le foto oltre i 2560 px, ma **conserva comunque l'originale** sul server: caricare file enormi occupa spazio senza benefici.
-- **WebP**: WordPress accetta il caricamento di file WebP, ma **non converte automaticamente** i JPG in WebP. Puoi caricare direttamente WebP esportati, se il tuo programma di fotoritocco lo permette.
-- Usa nomi file descrittivi (es. `famiglia-prato-maser.jpg`).
+Esporta ogni foto **già nella proporzione e nella misura della tabella**. Così il ritaglio fatto dal sito è prevedibile e il file non è più pesante del necessario. Le misure sono il doppio della dimensione massima a cui la foto viene mostrata, per essere nitide anche sugli schermi ad alta densità (smartphone, Mac).
+
+| Posizione | Dove | Orientamento e proporzione | Misura da esportare (px) | Peso massimo indicativo |
+|---|---|---|---|---|
+| **Hero** | Prima sezione di Home, servizi, mini sessioni, buoni regalo | Orizzontale **16:9** | **2400 × 1350** | 400 KB |
+| **Card** | Card dei servizi (Home, Hub Servizi), card dell'Hub Mini Sessioni | Verticale **4:5** | **1200 × 1500** | 250 KB |
+| **Ritratto e foto affiancate al testo** | "Ciao, sono Giulia" (Home, Chi sono), "Non dovete saper posare" (Home, Hub Servizi) | Verticale **4:5** | **1200 × 1500** | 250 KB |
+| **Galleria** | "Alcune fotografie" (servizi e mini sessioni) | **Tutte uguali nella stessa galleria**: orizzontali **3:2** oppure verticali **2:3** | **1800 × 1200** oppure **1200 × 1800** | 300 KB |
+| **Immagine in evidenza delle guide** | In cima all'articolo e nell'elenco Guide | Orizzontale **3:2** | **1800 × 1200** | 300 KB |
+| **Immagine per i social** | Condivisioni su Facebook/WhatsApp (plugin SEO, §20) | Orizzontale **1,91:1** | **1200 × 630** | 300 KB |
+| **Logo** | Header | Orizzontale, PNG trasparente | **altezza 112**, larghezza proporzionale | 50 KB |
+| **Icona del sito** | Scheda del browser | Quadrata, PNG | **512 × 512** | 50 KB |
+
+Impostazioni di esportazione uguali per tutte le foto:
+
+- formato **JPG**, qualità **75–82** (in Lightroom: "Qualità 80");
+- profilo colore **sRGB** (con Adobe RGB o ProPhoto i colori sul web risultano spenti);
+- nitidezza in uscita "per schermo", livello basso o standard;
+- se il peso supera quello indicato, abbassa la qualità di qualche punto, non la misura;
+- nome file descrittivo, minuscolo, con trattini: `famiglia-prato-maser.jpg`.
+
+Perché queste proporzioni:
+
+- **Card**: il sito le ritaglia sempre in 4:5. Una foto in un'altra proporzione verrebbe tagliata automaticamente al centro, con risultati poco controllabili.
+- **Galleria**: le foto vengono affiancate in righe di uguale altezza e ritagliate. Mescolando orizzontali e verticali i tagli diventano casuali.
+- **Elenco Guide**: le immagini in evidenza vengono ritagliate in 3:2.
+- **Ritratto e foto affiancate**: non vengono ritagliate, quindi la proporzione 4:5 serve ad avere un aspetto uniforme tra Home e Chi sono.
+
+Cosa fa WordPress dopo il caricamento:
+
+- crea automaticamente versioni più piccole (larghe 300, 768, 1024, 1536 e 2048 px quando la foto è abbastanza grande) e il tema fa scegliere al browser quella adatta allo schermo;
+- riduce le foto più larghe di 2560 px ma **conserva comunque l'originale** sul server: con le misure della tabella questo non succede;
+- **WebP**: WordPress accetta file WebP ma **non converte** i JPG in WebP. Puoi caricare direttamente WebP esportati alle stesse misure, se il tuo programma lo permette.
+
+> **Non caricare gli originali della fotocamera** (6000 px, 10–20 MB): rallentano il sito e occupano spazio senza alcun beneficio visibile.
 
 ### 19.2 Caricamento e sostituzione
 
@@ -662,7 +1001,7 @@ Effetti:
 2. Nella pagina, seleziona il blocco **Immagine** vuoto → **Libreria multimediale** (o **Sostituisci** se c'è già una foto) → scegli la foto.
 3. Per una **Galleria**: seleziona il blocco → **Libreria multimediale** → seleziona più foto → **Crea una nuova galleria** / **Inserisci galleria**.
 
-Le card ritagliano le foto in verticale (proporzione 4:5) e l'hero le adatta a tutta la larghezza: scegli foto con il soggetto **al centro**.
+Le card ritagliano le foto in verticale 4:5 e l'hero le adatta a tutta la larghezza: se rispetti le misure del §19.1 il ritaglio è minimo e prevedibile.
 
 ### 19.3 Testo alternativo (alt)
 
@@ -673,6 +1012,23 @@ Le card ritagliano le foto in verticale (proporzione 4:5) e l'hero le adatta a t
 ### 19.4 Immagine principale (hero)
 
 L'hero è la prima sezione delle pagine **Home, servizi, mini sessioni e buoni regalo**. La sua foto è la più importante per la velocità percepita: il tema la carica subito e con priorità alta, le altre immagini vengono caricate quando servono.
+
+**Misura: 2400 × 1350 px (16:9), massimo circa 400 KB.**
+
+L'hero occupa tutta la larghezza dello schermo e ha un'altezza fissa (al massimo 760 px), quindi la foto viene ritagliata in modo diverso secondo lo schermo:
+
+| Schermo | Cosa resta visibile della foto 16:9 |
+|---|---|
+| Computer grande (1920 px) | Tutta la larghezza, circa il **70% centrale dell'altezza** (tagli sopra e sotto) |
+| Portatile (1366–1440 px) | Tutta la larghezza, circa l'**80–90% centrale dell'altezza** |
+| Smartphone verticale | Tutta l'altezza, solo il **terzo centrale della larghezza** (tagli ai lati) |
+
+Scelta della foto:
+
+- tieni il **soggetto nel terzo centrale** della foto, sia in orizzontale sia in verticale;
+- lascia margine sopra e sotto il soggetto: niente teste o mani vicine ai bordi;
+- su computer il titolo e i pulsanti sono **a sinistra**, sopra la foto con una velatura scura: preferisci una zona sinistra calma (cielo, prato, sfondo uniforme);
+- l'editor a blocchi non permette di scegliere il punto focale di questa immagine: il ritaglio parte sempre dal centro.
 
 Per sostituirla:
 
@@ -721,8 +1077,12 @@ Sono **suggerimenti editoriali** da inserire nel plugin SEO. Non sono scritti ne
 | Home | Fotografa Famiglia e Gravidanza a Treviso \| Giulia Malosso |
 | Famiglia | Servizio Fotografico di Famiglia a Treviso \| Giulia Malosso |
 | Gravidanza | Servizio Fotografico Gravidanza a Treviso \| Giulia Malosso |
+| Newborn | Servizio Fotografico Newborn a Treviso \| Giulia Malosso |
 | Bambini | Servizio Fotografico Bambini a Treviso \| Giulia Malosso |
 | Battesimo | Fotografo Battesimo a Treviso \| Giulia Malosso |
+| Coppia | Servizio Fotografico di Coppia a Treviso \| Giulia Malosso |
+| Ritratto | Ritratti Fotografici a Treviso \| Giulia Malosso |
+| Commerciale | Fotografia Commerciale per Attività a Treviso \| Giulia Malosso |
 | Mini Sessioni | Mini Sessioni Fotografiche a Treviso \| Giulia Malosso |
 | Natale | Mini Sessioni di Natale a Treviso \| Giulia Malosso |
 
@@ -801,7 +1161,7 @@ Prima della pubblicazione, clicca ognuno di questi elementi su ogni pagina:
 - [ ] Nessun `[DA INSERIRE]`, `[DA AGGIORNARE]`, `[DA VERIFICARE]`, `[DA ADATTARE]` o `[NOTA EDITORIALE]` visibile
 - [ ] Home completa
 - [ ] Menu principale e menu footer funzionanti
-- [ ] Quattro servizi completi (Famiglia, Gravidanza, Bambini, Battesimo)
+- [ ] Otto servizi completi (Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale)
 - [ ] Mini Sessioni configurate (hub + 3 pagine, stato campagne corretto)
 - [ ] Buoni regalo e Chi sono completi
 - [ ] Contatti funzionante
