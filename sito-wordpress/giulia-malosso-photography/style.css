@@ -4,7 +4,7 @@ Theme URI: https://giuliamalosso.it
 Author: Giulia Malosso Photography
 Author URI: https://giuliamalosso.it
 Description: Tema classico leggero per fotografia di famiglia, gravidanza, newborn, bambini, battesimo, coppia, ritratto e commerciale. Pagine costruite nel Block Editor con pattern dedicati. Palette crema e terracotta.
-Version: 2.1.0
+Version: 2.1.2
 Requires at least: 6.3
 Tested up to: 6.6
 Requires PHP: 7.4
@@ -436,6 +436,18 @@ address { font-style: normal; }
 }
 
 .wp-block-columns.gmph-cards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* Se una colonna contiene più blocchi (es. card duplicata nella stessa colonna), si impilano senza sovrapporsi. */
+.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials) > .wp-block-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials) > .wp-block-column > * {
+  flex: 1 1 auto;
+  margin: 0;
+}
 .wp-block-columns.gmph-steps { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .wp-block-columns:is(.gmph-features, .gmph-prices, .gmph-testimonials) { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 
@@ -479,7 +491,15 @@ address { font-style: normal; }
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, rgba(39, 35, 31, 0.28), rgba(39, 35, 31, 0.55));
+  /* Scurisce solo il lato del testo: il resto della foto resta pulito. */
+  background: linear-gradient(90deg, rgba(39, 35, 31, 0.5) 0%, rgba(39, 35, 31, 0.25) 40%, rgba(39, 35, 31, 0) 65%);
+}
+
+.gmph-hero :is(h1, .gmph-lead) { text-shadow: 0 1px 12px rgba(39, 35, 31, 0.35); }
+
+@media (max-width: 900px) {
+  /* Su mobile il testo copre tutta la foto: velo leggero e uniforme dal basso. */
+  .gmph-hero::after { background: linear-gradient(180deg, rgba(39, 35, 31, 0.1) 0%, rgba(39, 35, 31, 0.5) 100%); }
 }
 
 .gmph-hero__content {
@@ -517,7 +537,6 @@ address { font-style: normal; }
 /* Card cliccabili: il link del titolo copre tutta la card */
 .gmph-card {
   position: relative;
-  height: 100%;
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -564,11 +583,24 @@ address { font-style: normal; }
 .gmph-step p { color: var(--muted); font-size: 1.18rem; }
 
 .gmph-price-card {
-  height: 100%;
+  display: flex;
+  flex-direction: column;
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2rem 1.8rem;
+}
+
+.gmph-price-card > .wp-block-group__inner-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.gmph-price-card > .wp-block-buttons,
+.gmph-price-card > .wp-block-group__inner-container > .wp-block-buttons {
+  margin-top: auto;
+  padding-top: 1.5rem;
 }
 
 .gmph-price-card .gmph-price {
@@ -586,7 +618,6 @@ address { font-style: normal; }
 
 /* Testimonianze */
 .wp-block-quote.gmph-testimonial {
-  height: 100%;
   margin: 0;
   background: var(--white);
   border: 1px solid var(--border);

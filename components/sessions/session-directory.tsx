@@ -56,20 +56,18 @@ const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 type BallOwner = "you" | "client";
-type ColumnOwner = BallOwner | "done";
-type PipelineStage = { code: string; label: string; owner: ColumnOwner };
-// Colonne del pipeline mostrate nella board (esclude "Foto consegnate" e "Annullata").
-const PIPELINE_STAGES: PipelineStage[] = [
-  { code: "booked", label: "Prenotata", owner: "you" },
-  { code: "completed", label: "Sessione svolta", owner: "you" },
-  { code: "proofs_sent", label: "Provini inviati", owner: "client" },
-  { code: "selection_received", label: "Selezione ricevuta", owner: "you" },
-];
-const PRINT_PIPELINE_STAGES: PipelineStage[] = [
-  { code: PRINT_FULFILLMENT_STAGE_CODES[0], label: "In attesa scelta stampe", owner: "client" },
-  { code: PRINT_FULFILLMENT_STAGE_CODES[1], label: "Scelta stampe ricevuta", owner: "you" },
-  { code: PRINT_FULFILLMENT_STAGE_CODES[2], label: "Stampe completate", owner: "done" },
-];
+type ColumnOwner = BallOwner | "done" | "neutral";
+const stageOwners: Record<string, ColumnOwner> = {
+  booked: "you",
+  completed: "you",
+  proofs_sent: "client",
+  selection_received: "you",
+  delivered: "done",
+  awaiting_print_selection: "client",
+  print_selection_received: "you",
+  prints_completed: "done",
+  cancelled: "done",
+};
 const stageColors: Record<string, { text: string; bg: string; border: string }> = {
   booked: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
   completed: { text: "#8a4f37", bg: "#f1e3db", border: "#d8b7a5" },
@@ -89,9 +87,10 @@ const columnStyles: Record<ColumnOwner, { color: string; bg: string }> = {
   you: { color: "#9b5d43", bg: "#f1e3db" },
   client: { color: "#3f6f9b", bg: "#e0e8f1" },
   done: { color: "#367e4a", bg: "#e2efe5" },
+  neutral: { color: "#675f57", bg: "#eee8df" },
 };
 function stageOwner(code: string | undefined | null): BallOwner | null {
-  const owner = [...PIPELINE_STAGES, ...PRINT_PIPELINE_STAGES].find((stage) => stage.code === code)?.owner;
+  const owner = code ? stageOwners[code] : null;
   return owner === "you" || owner === "client" ? owner : null;
 }
 
@@ -301,15 +300,18 @@ export function SessionDirectory() {
   }, [stages]);
 
   const boardColumns = useMemo<BoardColumn[]>(() => {
-    const openColumns: BoardColumn[] = PIPELINE_STAGES
-      .filter((column) => !ballFilter || column.owner === ballFilter)
-      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => session.current_stage?.code === column.code) }));
-    const deliveredColumn: BoardColumn = { code: "delivered", label: "Foto consegnate", owner: "done", sessions: pipelineSessions.filter((session) => session.current_stage?.code === "delivered" && canUsePrintFulfillmentStages("delivered", session.extras)) };
-    const printColumns = PRINT_PIPELINE_STAGES
-      .filter((column) => column.owner === "done" || !ballFilter || column.owner === ballFilter)
-      .map((column) => ({ code: column.code, label: column.label, owner: column.owner, sessions: pipelineSessions.filter((session) => column.code !== "prints_completed" && session.current_stage?.code === column.code) }));
-    return [...openColumns, deliveredColumn, ...printColumns];
-  }, [pipelineSessions, ballFilter]);
+    return stages
+      .filter((stage) => {
+        const owner = stageOwners[stage.code] ?? "neutral";
+        return !ballFilter || owner === "done" || owner === "neutral" || owner === ballFilter;
+      })
+      .map((stage) => ({
+        code: stage.code,
+        label: stage.name,
+        owner: stageOwners[stage.code] ?? "neutral",
+        sessions: pipelineSessions.filter((session) => session.current_stage?.code === stage.code),
+      }));
+  }, [stages, pipelineSessions, ballFilter]);
 
   const ballCounts = useMemo(() => {
     let you = 0;
@@ -946,7 +948,11 @@ export function SessionDirectory() {
             <label className="flex flex-col gap-2 text-sm font-medium">Avanzamento
               <select className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setStageForm({ ...stageForm, stageId: e.target.value })} required value={stageForm.stageId}>
                 <option value="">Seleziona</option>
-                {stages.filter((stage) => !(PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code) || canUsePrintFulfillmentStages(inline.session.current_stage?.code, inline.session.extras)).map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                {stages.map((stage) => (
+                  <option disabled={(PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(stage.code) && !canUsePrintFulfillmentStages(inline.session.current_stage?.code, inline.session.extras)} key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="mt-4 flex flex-col gap-2 text-sm font-medium">Data e ora<input className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setStageForm({ ...stageForm, changedAt: e.target.value })} required type="datetime-local" value={stageForm.changedAt} /></label>

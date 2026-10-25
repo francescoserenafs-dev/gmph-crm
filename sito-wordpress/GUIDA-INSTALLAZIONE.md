@@ -807,7 +807,7 @@ Pattern **Hub Servizi**: introduzione con H1 "Servizi fotografici", 8 card (Fami
 > **Se non le hai ancora personalizzate** (solo segnaposto), la via più semplice è reinserire il pattern: apri la pagina → **Vista elenco** → seleziona il primo blocco, tieni premuto **Maiusc** e seleziona l'ultimo → menu "⋮" → **Elimina** → inserisci di nuovo il pattern (**Home GMPH** o **Hub Servizi**) dal pulsante **+** → **Pattern** → "Giulia Malosso" → **Aggiorna**.
 >
 > **Se le hai già personalizzate**, aggiungi a mano le card mancanti, in **Home** e in **Servizi**:
-> 1. Apri la pagina → **Vista elenco** → nella sezione delle card seleziona la **Colonna** di una card esistente.
+> 1. Apri la pagina → **Vista elenco** → espandi la sezione delle card (Gruppo → Colonne) e seleziona una voce **Colonna** (non il "Gruppo" che sta dentro: duplicando il Gruppo la nuova card finisce nella stessa colonna, sotto l'altra).
 > 2. Menu "⋮" della barra del blocco → **Duplica**: la copia compare subito dopo. Per spostarla usa le frecce della barra del blocco.
 > 3. Nella copia: **Sostituisci** l'immagine, cambia il titolo (es. `Coppia`) e la frase sotto.
 > 4. Seleziona il titolo → icona **Link** → imposta l'indirizzo della pagina (`/servizi/newborn/`, `/servizi/coppia/`, `/servizi/ritratto/`, `/servizi/commerciale/`).
