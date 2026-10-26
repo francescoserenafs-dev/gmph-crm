@@ -21,6 +21,12 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/co
   if (typeof body.name === "string" && body.name.trim()) update.name = body.name.trim();
   if (typeof body.isActive === "boolean") update.is_active = body.isActive;
   if (typeof body.sortOrder === "number" && Number.isInteger(body.sortOrder)) update.sort_order = body.sortOrder;
+  if (entity === "stages" && body.ballOwner !== undefined) {
+    if (typeof body.ballOwner !== "string" || !["you", "client", "none"].includes(body.ballOwner)) {
+      return NextResponse.json({ error: "Responsabile avanzamento non valido." }, { status: 400 });
+    }
+    update.ball_owner = body.ballOwner;
+  }
   if (entity === "services" && typeof body.isAddon === "boolean") update.is_addon = body.isAddon;
   if (entity === "services" && body.saturdaySurchargeEuros !== undefined) {
     const surchargeEuros = Number(body.saturdaySurchargeEuros);

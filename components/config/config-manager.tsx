@@ -4,7 +4,8 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { Modal } from "@/components/shared/modal";
 
-type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number; saturday_surcharge_cents?: number };
+type BallOwner = "you" | "client" | "none";
+type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; is_addon?: boolean; sort_order: number; saturday_surcharge_cents?: number; ball_owner?: BallOwner };
 type Config = { services: Item[]; methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
 
 const entityLabels = { services: "Tipi di servizio", methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
@@ -74,6 +75,10 @@ export function ConfigManager() {
 
   function toggleAddon(item: Item) {
     void run(() => fetch(`/api/config/services/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isAddon: !item.is_addon }) }));
+  }
+
+  function updateBallOwner(item: Item, ballOwner: BallOwner) {
+    void run(() => fetch(`/api/config/stages/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ballOwner }) }));
   }
 
   function rename(entity: EntityKey, item: Item) {
@@ -179,6 +184,16 @@ export function ConfigManager() {
                 <p className={`truncate text-sm font-medium ${item.is_active ? "" : "text-[#958b80] line-through"}`}>{item.name}</p>
                 {item.is_system ? <p className="text-xs text-[#675f57]">Voce di sistema</p> : entity === "services" && item.is_addon ? <p className="text-xs text-[#675f57]">Servizio extra (non prenotabile da solo)</p> : null}
               </div>
+              {entity === "stages" ? (
+                <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-[#675f57]">
+                  Palla
+                  <select aria-label={`Responsabile per ${item.name}`} className="h-9 border border-[#cfc5b8] bg-white px-2 text-xs text-[#27231f]" disabled={busy} onChange={(event) => updateBallOwner(item, event.target.value as BallOwner)} value={item.ball_owner ?? "you"}>
+                    <option value="you">A te</option>
+                    <option value="client">Al cliente</option>
+                    <option value="none">Nessuno</option>
+                  </select>
+                </label>
+              ) : null}
               {entity === "services" && (item.saturday_surcharge_cents ?? 0) > 0 ? <span className="shrink-0 border border-[#d8d0c5] bg-[#faf7f2] px-2 py-1 text-xs font-medium text-[#675f57]">Sabato +{euro.format((item.saturday_surcharge_cents ?? 0) / 100)}</span> : null}
               <div className="flex shrink-0 flex-wrap items-center gap-1">
                 {item.is_system ? null : <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" disabled={busy} onClick={() => rename(entity, item)} type="button">{entity === "services" ? "Modifica" : "Rinomina"}</button>}
