@@ -35,22 +35,39 @@ test("pipeline keeps completion drop targets but hides finished sessions with ev
   }
   visit(source);
   const code = ts.transpileModule(
-    ["PIPELINE_STAGES", "PRINT_PIPELINE_STAGES", "boardColumns"].map((name) => `const ${name} = ${declarations.get(name)};`).join("\n") + "\nboardColumns;",
+    `const boardColumns = ${declarations.get("boardColumns")};\nboardColumns;`,
     { compilerOptions: { target: ts.ScriptTarget.ES2020 } },
   ).outputText;
+  const stages = [
+    { code: "booked", name: "Prenotata", ball_owner: "you" },
+    { code: "delivered", name: "Foto finali consegnate", ball_owner: "none" },
+    { code: "awaiting_print_selection", name: "Attesa selezione stampe", ball_owner: "client" },
+    { code: "print_selection_received", name: "Selezione stampe ricevuta", ball_owner: "you" },
+    { code: "prints_completed", name: "Stampe completate", ball_owner: "none" },
+    { code: "cancelled", name: "Annullata", ball_owner: "none" },
+  ];
   const prints = [{ category_snapshot: "print", quantity: 1 }];
   const pipelineSessions = [
+    { id: "active", current_stage: { code: "booked" }, extras: [] },
     { id: "standard-finished", current_stage: { code: "delivered" }, extras: [] },
+    { id: "digital-finished", current_stage: { code: "delivered" }, extras: [{ category_snapshot: "digital", quantity: 1 }] },
+    { id: "zero-prints-finished", current_stage: { code: "delivered" }, extras: [{ category_snapshot: "print", quantity: 0 }] },
     { id: "prints-pending", current_stage: { code: "delivered" }, extras: prints },
+    { id: "cancelled", current_stage: { code: "cancelled" }, extras: prints },
     ...PRINT_FULFILLMENT_STAGE_CODES.map((stage) => ({ id: stage, current_stage: { code: stage }, extras: prints })),
   ];
   for (const ballFilter of [null, "you", "client"]) {
-    const columns = runInNewContext(code, { useMemo: (calculate) => calculate(), pipelineSessions, ballFilter, canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES });
+    const columns = runInNewContext(code, { useMemo: (calculate) => calculate(), stages, pipelineSessions, ballFilter, hasPrintExtras });
+    assert.ok(columns.some((column) => column.code === "delivered"));
     assert.ok(columns.some((column) => column.code === "prints_completed"));
     const visibleIds = Array.from(columns.flatMap((column) => column.sessions.map((session) => session.id)));
     assert.equal(visibleIds.includes("prints_completed"), false);
+    assert.equal(visibleIds.includes("cancelled"), false);
     assert.equal(visibleIds.includes("standard-finished"), false);
+    assert.equal(visibleIds.includes("digital-finished"), false);
+    assert.equal(visibleIds.includes("zero-prints-finished"), false);
     assert.equal(visibleIds.includes("prints-pending"), true);
+    assert.equal(visibleIds.includes("active"), ballFilter !== "client");
     assert.equal(visibleIds.includes("awaiting_print_selection"), ballFilter !== "you");
     assert.equal(visibleIds.includes("print_selection_received"), ballFilter !== "client");
   }

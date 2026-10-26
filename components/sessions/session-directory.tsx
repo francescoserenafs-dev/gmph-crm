@@ -9,7 +9,7 @@ import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
-import { calculateSessionDue, canUsePrintFulfillmentStages, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
+import { calculateSessionDue, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
 
 type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 type Service = { id: string; name: string; saturday_surcharge_cents: number };
@@ -294,7 +294,10 @@ export function SessionDirectory() {
         code: stage.code,
         label: stage.name,
         owner: stage.ball_owner,
-        sessions: pipelineSessions.filter((session) => session.current_stage?.code === stage.code),
+        sessions: pipelineSessions.filter((session) => session.current_stage?.code === stage.code
+          && stage.code !== "prints_completed"
+          && stage.code !== "cancelled"
+          && (stage.code !== "delivered" || hasPrintExtras(session.extras))),
       }));
   }, [stages, pipelineSessions, ballFilter]);
 
