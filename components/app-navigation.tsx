@@ -14,7 +14,7 @@ const navigation: NavEntry[] = [
   { href: "/home", label: "Home" },
   { label: "Contatti", links: [{ href: "/leads", label: "Lead" }, { href: "/clients", label: "Clienti" }] },
   { label: "Gestione", links: [{ href: "/sessions", label: "Sessioni" }, { href: "/payments", label: "Pagamenti" }, { href: "/vouchers", label: "Buoni regalo" }] },
-  { href: "/pacchetti", label: "Pacchetti" },
+  { href: "/pacchetti", label: "Catalogo" },
   { label: "Analisi", links: [{ href: "/leads/analisi", label: "Lead" }, { href: "/analisi/extra", label: "Extra & Upsell" }, { href: "/analisi/clienti-retention", label: "Clienti & Retention" }, { href: "/analisi/economico", label: "Economico" }] },
   { href: "/prenotazioni", label: "Prenotazioni" },
   { label: "Configurazione", links: [{ href: "/config", label: "Configurazione" }, { href: "/extra", label: "Extra" }, { href: "/mailerlite", label: "MailerLite" }, { href: "/calendly", label: "Calendly" }] },

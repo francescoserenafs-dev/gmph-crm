@@ -339,7 +339,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
               <thead><tr className="text-xs font-semibold uppercase tracking-[0.06em] text-[#675f57]">
                 <th className="px-4 py-2 text-left">Servizio</th>
                 <th className="px-4 py-2 text-right">Sessioni target</th>
-                <th className="px-4 py-2 text-left"><span className="inline-flex items-center gap-1">Listino attuale<InfoTooltip label="Informazioni su Listino attuale" text="Prezzi dei pacchetti attivi oggi in /pacchetti. Solo riferimento: non modifica il piano." /></span></th>
+                <th className="px-4 py-2 text-left"><span className="inline-flex items-center gap-1">Listino attuale<InfoTooltip label="Informazioni su Listino attuale" text="Prezzi dei pacchetti attivi oggi nel Catalogo. Solo riferimento: non modifica il piano." /></span></th>
                 <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Ticket medio base pianificato (EUR)<InfoTooltip label="Informazioni su Ticket medio base pianificato" text="Valore medio base che prevedi di generare per ogni sessione di questo servizio, prima degli Extra attesi." /></span></th>
                 <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Valore base target<InfoTooltip label="Informazioni su Valore base target" text="Valore pianificato del servizio calcolato come Sessioni target × Ticket medio base pianificato." /></span></th>
                 <th className="px-4 py-2" />
