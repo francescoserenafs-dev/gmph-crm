@@ -251,8 +251,8 @@ export function PackageManager() {
               <p className="text-sm font-medium">Prodotti inclusi nel prezzo</p>
               <p className="mt-1 text-xs text-[#675f57]">Dal catalogo extra. Non generano extra sulla sessione: sono già compresi nel pacchetto.</p>
               {form.inclusions.map((inclusion, index) => (
-                <div className="mt-2 grid grid-cols-[1fr_90px_32px] items-center gap-2" key={index}>
-                  <select aria-label="Prodotto incluso" className="h-11 border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, inclusions: form.inclusions.map((row, position) => position === index ? { ...row, extraProductId: e.target.value } : row) })} required value={inclusion.extraProductId}>
+                <div className="mt-2 grid grid-cols-[minmax(0,1fr)_90px_32px] items-center gap-2" key={index}>
+                  <select aria-label="Prodotto incluso" className="h-11 w-full min-w-0 truncate border border-[#cfc5b8] bg-white px-3" onChange={(e) => setForm({ ...form, inclusions: form.inclusions.map((row, position) => position === index ? { ...row, extraProductId: e.target.value } : row) })} required value={inclusion.extraProductId}>
                     <option value="">Seleziona prodotto</option>
                     {products.filter((product) => product.is_active || product.id === inclusion.extraProductId).map((product) => <option key={product.id} value={product.id}>{product.name} · {EXTRA_CATEGORY_LABELS[product.category]}{product.is_active ? "" : " (disattivato)"}</option>)}
                   </select>
