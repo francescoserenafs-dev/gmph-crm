@@ -1,6 +1,21 @@
 export type ClientListStatus = "active" | "archived";
 export type ClientListSort = "alphabetical" | "recent" | "next_session" | "ltv";
 
+export type ClientPrivacyFilter = "all" | "granted" | "missing";
+
+type ClientPrivacyConsent = {
+  privacy_consent_granted_at: string | null;
+  privacy_consent_revoked_at: string | null;
+};
+
+export function hasClientPrivacyConsent(client: ClientPrivacyConsent): boolean {
+  return client.privacy_consent_granted_at !== null && client.privacy_consent_revoked_at === null;
+}
+
+export function matchesClientPrivacyFilter(client: ClientPrivacyConsent, filter: ClientPrivacyFilter): boolean {
+  return filter === "all" || hasClientPrivacyConsent(client) === (filter === "granted");
+}
+
 export type ClientInput = {
   firstName: string;
   lastName: string;

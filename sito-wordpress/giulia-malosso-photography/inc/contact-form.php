@@ -37,13 +37,46 @@ function gmph_contact_services() {
  */
 function gmph_contact_field_errors() {
 	return array(
-		'name'    => __( 'Inserisci il tuo nome.', 'gmph' ),
-		'email'   => __( 'Inserisci un indirizzo email valido.', 'gmph' ),
-		'phone'   => __( 'Il numero di telefono è troppo lungo.', 'gmph' ),
-		'service' => __( 'Scegli il servizio di interesse.', 'gmph' ),
-		'period'  => __( 'Il periodo indicato è troppo lungo.', 'gmph' ),
-		'message' => __( 'Scrivi un messaggio (massimo 5.000 caratteri).', 'gmph' ),
-		'privacy' => __( 'Per inviare la richiesta è necessario accettare l’informativa privacy.', 'gmph' ),
+		'name'          => __( 'Inserisci il tuo nome.', 'gmph' ),
+		'email'         => __( 'Inserisci un indirizzo email valido.', 'gmph' ),
+		'phone'         => __( 'Il numero di telefono è troppo lungo.', 'gmph' ),
+		'service'       => __( 'Scegli il servizio di interesse.', 'gmph' ),
+		'period'        => __( 'Il periodo indicato è troppo lungo.', 'gmph' ),
+		'message'       => __( 'Scrivi un messaggio (massimo 5.000 caratteri).', 'gmph' ),
+		'voucher_type'  => __( 'Scegli il tipo di buono.', 'gmph' ),
+		'gift_service'  => __( 'Scegli il servizio da regalare.', 'gmph' ),
+		'amount'        => __( 'L’importo indicativo non può superare 40 caratteri.', 'gmph' ),
+		'delivery'      => __( 'Scegli come preferisci ricevere il buono.', 'gmph' ),
+		'personal_message' => __( 'Il messaggio personale non può superare 5.000 caratteri.', 'gmph' ),
+		'privacy'       => __( 'Per inviare la richiesta è necessario accettare l’informativa privacy.', 'gmph' ),
+	);
+}
+
+/**
+ * Opzioni dedicate alle richieste di buoni regalo.
+ *
+ * @return array<string, array<string, string>>
+ */
+function gmph_contact_gift_options() {
+	return array(
+		'types' => array(
+			'valore'    => __( 'Buono a valore', 'gmph' ),
+			'servizio'  => __( 'Buono per un servizio', 'gmph' ),
+			'consiglio' => __( 'Non lo so, vorrei un consiglio', 'gmph' ),
+		),
+		'services' => array(
+			'famiglia'       => __( 'Famiglia', 'gmph' ),
+			'gravidanza'     => __( 'Gravidanza', 'gmph' ),
+			'bambini'        => __( 'Bambini', 'gmph' ),
+			'coppia'         => __( 'Coppia', 'gmph' ),
+			'primi-ricordi'  => __( 'Primi Ricordi', 'gmph' ),
+			'consiglio'      => __( 'Non lo so, vorrei un consiglio', 'gmph' ),
+		),
+		'deliveries' => array(
+			'digitale'            => __( 'Digitale', 'gmph' ),
+			'cartaceo'            => __( 'Cartaceo', 'gmph' ),
+			'nessuna-preferenza'  => __( 'Non ho preferenze', 'gmph' ),
+		),
 	);
 }
 
@@ -57,10 +90,13 @@ function gmph_handle_contact() {
 	}
 	$redirect = remove_query_arg( array( 'gmph_contact', 'gmph_errors' ), $redirect );
 
-	$finish = function ( $status, $errors = array() ) use ( $redirect ) {
+	$finish = function ( $status, $errors = array(), $service = '' ) use ( $redirect ) {
 		$args = array( 'gmph_contact' => $status );
 		if ( $errors ) {
 			$args['gmph_errors'] = implode( ',', $errors );
+		}
+		if ( '' !== $service ) {
+			$args['servizio'] = $service;
 		}
 		wp_safe_redirect( add_query_arg( $args, $redirect ) . '#gmph-contact' );
 		exit;
@@ -84,15 +120,41 @@ function gmph_handle_contact() {
 	};
 
 	$services = gmph_contact_services();
+	$gift_options = gmph_contact_gift_options();
 	$data     = array(
-		'name'    => $field( 'gmph_name' ),
-		'email'   => $field( 'gmph_email', 'sanitize_email' ),
-		'phone'   => $field( 'gmph_phone' ),
-		'service' => $field( 'gmph_service', 'sanitize_key' ),
-		'period'  => $field( 'gmph_period' ),
-		'message' => $field( 'gmph_message', 'sanitize_textarea_field' ),
-		'privacy' => ! empty( $_POST['gmph_privacy'] ),
+		'name'             => $field( 'gmph_name' ),
+		'email'            => $field( 'gmph_email', 'sanitize_email' ),
+		'phone'            => $field( 'gmph_phone' ),
+		'service'          => $field( 'gmph_service', 'sanitize_key' ),
+		'period'           => $field( 'gmph_period' ),
+		'message'          => $field( 'gmph_message', 'sanitize_textarea_field' ),
+		'voucher_type'     => $field( 'gmph_voucher_type', 'sanitize_key' ),
+		'gift_service'     => $field( 'gmph_gift_service', 'sanitize_key' ),
+		'amount'           => $field( 'gmph_amount' ),
+		'delivery'         => $field( 'gmph_delivery', 'sanitize_key' ),
+		'recipient'        => $field( 'gmph_recipient' ),
+		'personal_message' => $field( 'gmph_personal_message', 'sanitize_textarea_field' ),
+		'privacy'          => ! empty( $_POST['gmph_privacy'] ),
 	);
+	$data['amount'] = preg_replace( '/\s+/u', ' ', preg_replace( '/[^0-9,.€ ]/u', '', $data['amount'] ) );
+
+	$is_gift = 'buono-regalo' === $data['service'];
+	if ( ! $is_gift ) {
+		$data['voucher_type']     = '';
+		$data['gift_service']     = '';
+		$data['amount']           = '';
+		$data['delivery']         = '';
+		$data['recipient']        = '';
+		$data['personal_message'] = '';
+	} else {
+		$data['period'] = '';
+		if ( 'valore' !== $data['voucher_type'] ) {
+			$data['amount'] = '';
+		}
+		if ( 'servizio' !== $data['voucher_type'] ) {
+			$data['gift_service'] = '';
+		}
+	}
 
 	$errors = array();
 	if ( '' === $data['name'] || mb_strlen( $data['name'] ) > 100 ) {
@@ -107,17 +169,34 @@ function gmph_handle_contact() {
 	if ( ! isset( $services[ $data['service'] ] ) ) {
 		$errors[] = 'service';
 	}
-	if ( mb_strlen( $data['period'] ) > 100 ) {
+	if ( ! $is_gift && mb_strlen( $data['period'] ) > 100 ) {
 		$errors[] = 'period';
 	}
-	if ( '' === $data['message'] || mb_strlen( $data['message'] ) > 5000 ) {
+	if ( ( ! $is_gift && '' === $data['message'] ) || mb_strlen( $data['message'] ) > 5000 ) {
 		$errors[] = 'message';
+	}
+	if ( $is_gift ) {
+		if ( ! isset( $gift_options['types'][ $data['voucher_type'] ] ) ) {
+			$errors[] = 'voucher_type';
+		}
+		if ( 'servizio' === $data['voucher_type'] && ! isset( $gift_options['services'][ $data['gift_service'] ] ) ) {
+			$errors[] = 'gift_service';
+		}
+		if ( 'valore' === $data['voucher_type'] && mb_strlen( $data['amount'] ) > 40 ) {
+			$errors[] = 'amount';
+		}
+		if ( ! isset( $gift_options['deliveries'][ $data['delivery'] ] ) ) {
+			$errors[] = 'delivery';
+		}
+		if ( mb_strlen( $data['personal_message'] ) > 5000 ) {
+			$errors[] = 'personal_message';
+		}
 	}
 	if ( ! $data['privacy'] ) {
 		$errors[] = 'privacy';
 	}
 	if ( $errors ) {
-		$finish( 'error', $errors );
+		$finish( 'error', $errors, $data['service'] );
 	}
 
 	$to = gmph_setting( 'email' );
@@ -128,21 +207,38 @@ function gmph_handle_contact() {
 	$service_label = $services[ $data['service'] ];
 	/* translators: 1: servizio, 2: nome. */
 	$subject = sprintf( __( 'Nuova richiesta dal sito: %1$s – %2$s', 'gmph' ), $service_label, $data['name'] );
-	$body    = implode(
-		"\n",
-		array(
+	$body_lines = array(
 			__( 'Nome:', 'gmph' ) . ' ' . $data['name'],
 			__( 'Email:', 'gmph' ) . ' ' . $data['email'],
 			__( 'Telefono:', 'gmph' ) . ' ' . ( '' !== $data['phone'] ? $data['phone'] : '-' ),
 			__( 'Servizio:', 'gmph' ) . ' ' . $service_label,
-			__( 'Periodo desiderato:', 'gmph' ) . ' ' . ( '' !== $data['period'] ? $data['period'] : '-' ),
-			'',
-			__( 'Messaggio:', 'gmph' ),
-			$data['message'],
-			'',
-			__( 'Informativa privacy accettata per rispondere alla richiesta.', 'gmph' ),
-		)
 	);
+	if ( $is_gift ) {
+		$body_lines[] = __( 'Tipo di buono:', 'gmph' ) . ' ' . $gift_options['types'][ $data['voucher_type'] ];
+		if ( 'valore' === $data['voucher_type'] && '' !== $data['amount'] ) {
+			$body_lines[] = __( 'Importo indicativo:', 'gmph' ) . ' ' . $data['amount'];
+		}
+		if ( 'servizio' === $data['voucher_type'] ) {
+			$body_lines[] = __( 'Servizio da regalare:', 'gmph' ) . ' ' . $gift_options['services'][ $data['gift_service'] ];
+		}
+		$body_lines[] = __( 'Consegna:', 'gmph' ) . ' ' . $gift_options['deliveries'][ $data['delivery'] ];
+		if ( '' !== $data['recipient'] ) {
+			$body_lines[] = __( 'Per chi è:', 'gmph' ) . ' ' . $data['recipient'];
+		}
+		if ( '' !== $data['personal_message'] ) {
+			$body_lines[] = __( 'Messaggio da inserire nel buono:', 'gmph' );
+			$body_lines[] = $data['personal_message'];
+		}
+		$body_lines[] = __( 'Note:', 'gmph' ) . ' ' . ( '' !== $data['message'] ? $data['message'] : '-' );
+	} else {
+		$body_lines[] = __( 'Periodo desiderato:', 'gmph' ) . ' ' . ( '' !== $data['period'] ? $data['period'] : '-' );
+		$body_lines[] = '';
+		$body_lines[] = __( 'Messaggio:', 'gmph' );
+		$body_lines[] = $data['message'];
+	}
+	$body_lines[] = '';
+	$body_lines[] = __( 'Informativa privacy accettata per rispondere alla richiesta.', 'gmph' );
+	$body = implode( "\n", $body_lines );
 	$headers = array(
 		'Content-Type: text/plain; charset=UTF-8',
 		sprintf( 'Reply-To: %s <%s>', str_replace( array( '"', '<', '>', ',' ), '', $data['name'] ), $data['email'] ),
@@ -160,7 +256,10 @@ function gmph_contact_form() {
 	$status   = isset( $_GET['gmph_contact'] ) ? sanitize_key( wp_unslash( $_GET['gmph_contact'] ) ) : '';
 	$invalid  = isset( $_GET['gmph_errors'] ) ? array_map( 'sanitize_key', explode( ',', sanitize_text_field( wp_unslash( $_GET['gmph_errors'] ) ) ) ) : array();
 	$services = gmph_contact_services();
+	$gift_options = gmph_contact_gift_options();
 	$selected = isset( $_GET['servizio'] ) ? sanitize_key( wp_unslash( $_GET['servizio'] ) ) : '';
+	$is_gift  = 'buono-regalo' === $selected;
+	$voucher_type = '';
 	$messages = gmph_contact_field_errors();
 
 	$notices = array(
@@ -174,7 +273,7 @@ function gmph_contact_form() {
 		return in_array( $key, $invalid, true ) ? ' aria-invalid="true" aria-describedby="gmph-error-' . esc_attr( $key ) . '"' : '';
 	};
 	$error_text = function ( $key ) use ( $invalid, $messages ) {
-		if ( in_array( $key, $invalid, true ) ) {
+		if ( in_array( $key, $invalid, true ) && isset( $messages[ $key ] ) ) {
 			echo '<p class="form-field__error" id="gmph-error-' . esc_attr( $key ) . '">' . esc_html( $messages[ $key ] ) . '</p>';
 		}
 	};
@@ -218,14 +317,60 @@ function gmph_contact_form() {
 					</select>
 					<?php $error_text( 'service' ); ?>
 				</div>
-				<div class="form-field">
+				<div class="form-field" id="gmph-period-field"<?php echo $is_gift ? ' hidden aria-hidden="true"' : ''; ?>>
 					<label for="gmph-period"><?php esc_html_e( 'Periodo desiderato', 'gmph' ); ?></label>
-					<input type="text" id="gmph-period" name="gmph_period" maxlength="100" placeholder="<?php esc_attr_e( 'Es. primavera, fine maggio…', 'gmph' ); ?>"<?php echo $error_attrs( 'period' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+					<input type="text" id="gmph-period" name="gmph_period" maxlength="100" placeholder="<?php esc_attr_e( 'Es. primavera, fine maggio…', 'gmph' ); ?>"<?php echo $is_gift ? ' disabled' : ''; ?><?php echo $error_attrs( 'period' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
 					<?php $error_text( 'period' ); ?>
 				</div>
+				<div id="gmph-voucher-fields"<?php echo $is_gift ? '' : ' hidden aria-hidden="true"'; ?>>
+					<div class="form-field">
+						<label for="gmph-voucher-type"><?php esc_html_e( 'Che tipo di buono ti interessa?', 'gmph' ); ?> <span aria-hidden="true">*</span></label>
+						<select id="gmph-voucher-type" name="gmph_voucher_type"<?php echo $is_gift ? ' required' : ' disabled'; ?><?php echo $error_attrs( 'voucher_type' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+							<option value=""><?php esc_html_e( 'Seleziona…', 'gmph' ); ?></option>
+							<?php foreach ( $gift_options['types'] as $value_key => $label ) : ?>
+								<option value="<?php echo esc_attr( $value_key ); ?>"<?php selected( $voucher_type, $value_key ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<?php $error_text( 'voucher_type' ); ?>
+					</div>
+					<div class="form-field" id="gmph-gift-service-field"<?php echo $is_gift && 'servizio' === $voucher_type ? '' : ' hidden aria-hidden="true"'; ?>>
+						<label for="gmph-gift-service"><?php esc_html_e( 'Quale servizio vorresti regalare?', 'gmph' ); ?> <span aria-hidden="true">*</span></label>
+						<select id="gmph-gift-service" name="gmph_gift_service"<?php echo $is_gift && 'servizio' === $voucher_type ? ' required' : ' disabled'; ?><?php echo $error_attrs( 'gift_service' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+							<option value=""><?php esc_html_e( 'Seleziona…', 'gmph' ); ?></option>
+							<?php foreach ( $gift_options['services'] as $value_key => $label ) : ?>
+								<option value="<?php echo esc_attr( $value_key ); ?>"><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<?php $error_text( 'gift_service' ); ?>
+					</div>
+					<div class="form-field" id="gmph-amount-field"<?php echo $is_gift && 'valore' === $voucher_type ? '' : ' hidden aria-hidden="true"'; ?>>
+						<label for="gmph-amount"><?php esc_html_e( 'Che importo avevi in mente?', 'gmph' ); ?></label>
+						<input type="text" id="gmph-amount" name="gmph_amount" maxlength="40" inputmode="decimal" placeholder="<?php esc_attr_e( 'Es. 100 €', 'gmph' ); ?>"<?php echo $is_gift && 'valore' === $voucher_type ? '' : ' disabled'; ?><?php echo $error_attrs( 'amount' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+						<?php $error_text( 'amount' ); ?>
+					</div>
+					<div class="form-field">
+						<label for="gmph-delivery"><?php esc_html_e( 'Come preferisci ricevere il buono?', 'gmph' ); ?> <span aria-hidden="true">*</span></label>
+						<select id="gmph-delivery" name="gmph_delivery"<?php echo $is_gift ? ' required' : ' disabled'; ?><?php echo $error_attrs( 'delivery' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>>
+							<option value=""><?php esc_html_e( 'Seleziona…', 'gmph' ); ?></option>
+							<?php foreach ( $gift_options['deliveries'] as $value_key => $label ) : ?>
+								<option value="<?php echo esc_attr( $value_key ); ?>"><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<?php $error_text( 'delivery' ); ?>
+					</div>
+					<div class="form-field">
+						<label for="gmph-recipient"><?php esc_html_e( 'Per chi è il regalo?', 'gmph' ); ?></label>
+						<input type="text" id="gmph-recipient" name="gmph_recipient" placeholder="<?php esc_attr_e( 'Es. mia sorella, i nonni, una futura mamma...', 'gmph' ); ?>"<?php echo $is_gift ? '' : ' disabled'; ?>>
+					</div>
+					<div class="form-field">
+						<label for="gmph-personal-message"><?php esc_html_e( 'Vuoi aggiungere un messaggio personale al buono?', 'gmph' ); ?></label>
+						<textarea id="gmph-personal-message" name="gmph_personal_message" rows="4" maxlength="5000" placeholder="<?php esc_attr_e( 'Scrivi qui il messaggio che vorresti inserire nel buono...', 'gmph' ); ?>"<?php echo $is_gift ? '' : ' disabled'; ?><?php echo $error_attrs( 'personal_message' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>></textarea>
+						<?php $error_text( 'personal_message' ); ?>
+					</div>
+				</div>
 				<div class="form-field">
-					<label for="gmph-message"><?php esc_html_e( 'Messaggio', 'gmph' ); ?> <span aria-hidden="true">*</span></label>
-					<textarea id="gmph-message" name="gmph_message" rows="5" maxlength="5000" required<?php echo $error_attrs( 'message' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>></textarea>
+					<label for="gmph-message"><span id="gmph-message-label"><?php echo $is_gift ? esc_html__( 'Vuoi aggiungere qualche informazione?', 'gmph' ) : esc_html__( 'Messaggio', 'gmph' ); ?></span> <span id="gmph-message-required" aria-hidden="true"<?php echo $is_gift ? ' hidden' : ''; ?>>*</span></label>
+					<textarea id="gmph-message" name="gmph_message" rows="5" maxlength="5000"<?php echo $is_gift ? '' : ' required'; ?><?php echo $error_attrs( 'message' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>></textarea>
 					<?php $error_text( 'message' ); ?>
 				</div>
 

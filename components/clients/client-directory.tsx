@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ExportButton } from "@/components/shared/export-button";
 import { ImportIcon } from "@/components/shared/icons";
+import { type ClientPrivacyFilter, hasClientPrivacyConsent, matchesClientPrivacyFilter } from "@/lib/clients";
 
 type Client = {
   id: string;
@@ -17,6 +18,8 @@ type Client = {
   updated_at: string;
   ltv_cents: number;
   balance_cents: number;
+  privacy_consent_granted_at: string | null;
+  privacy_consent_revoked_at: string | null;
 };
 
 type ClientForm = {
@@ -58,6 +61,10 @@ export function ClientDirectory() {
     (searchParams.get("sort") as "alphabetical" | "recent" | "next_session" | "ltv") || "alphabetical",
   );
   const [onlyWithBalance, setOnlyWithBalance] = useState(searchParams.get("balance") === "1");
+  const [privacyFilter, setPrivacyFilter] = useState<ClientPrivacyFilter>(() => {
+    const value = searchParams.get("privacy");
+    return value === "granted" || value === "missing" ? value : "all";
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(searchParams.get("new") === "1");
@@ -73,8 +80,9 @@ export function ClientDirectory() {
     if (sort !== "alphabetical") parameters.set("sort", sort);
     if (search.trim()) parameters.set("search", search.trim());
     if (onlyWithBalance) parameters.set("balance", "1");
+    if (privacyFilter !== "all") parameters.set("privacy", privacyFilter);
     router.replace(`/clients${parameters.toString() ? `?${parameters.toString()}` : ""}`, { scroll: false });
-  }, [search, sort, onlyWithBalance, router]);
+  }, [search, sort, onlyWithBalance, privacyFilter, router]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -122,7 +130,9 @@ export function ClientDirectory() {
     return () => controller.abort();
   }, [reloadKey, search, sort]);
 
-  const visibleClients = onlyWithBalance ? clients.filter((client) => client.balance_cents > 0) : clients;
+  const visibleClients = clients.filter(
+    (client) => (!onlyWithBalance || client.balance_cents > 0) && matchesClientPrivacyFilter(client, privacyFilter),
+  );
 
   function toggleSelectAll(checked: boolean) {
     setSelectedIds(checked ? new Set(visibleClients.map((client) => client.id)) : new Set());
@@ -245,13 +255,16 @@ export function ClientDirectory() {
               fetchRows={async () => {
                 const response = await fetch(`/api/clients?sort=${sort}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ""}`);
                 const body = await response.json();
-                const rows = ((body.clients ?? []) as Client[]).filter((client) => !onlyWithBalance || client.balance_cents > 0);
+                const rows = ((body.clients ?? []) as Client[]).filter(
+                  (client) => (!onlyWithBalance || client.balance_cents > 0) && matchesClientPrivacyFilter(client, privacyFilter),
+                );
                 return rows.map((client) => ({
                   Nome: client.first_name,
                   Cognome: client.last_name,
                   Email: client.email,
                   Telefono: client.phone ?? "",
                   "Data di nascita": client.birth_date ?? "",
+                  "Consenso privacy": hasClientPrivacyConsent(client) ? "Presente" : "Assente",
                   LTV: (client.ltv_cents / 100).toFixed(2),
                   "Saldo residuo": (client.balance_cents / 100).toFixed(2),
                 }));
@@ -278,7 +291,7 @@ export function ClientDirectory() {
           </div>
         </header>
 
-        <div className="mt-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-7 flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
           <label className="flex max-w-xl flex-1 flex-col gap-2 text-sm font-medium">
             Cerca clienti
             <input
@@ -308,14 +321,30 @@ export function ClientDirectory() {
             </select>
           </label>
 
+          <label className="flex flex-col gap-2 text-sm font-medium">
+            Consenso privacy
+            <select
+              className="h-11 border border-[#cfc5b8] bg-white px-3 text-sm outline-none focus:border-[#9b5d43] focus:ring-2 focus:ring-[#ead8ce]"
+              onChange={(event) => {
+                setPrivacyFilter(event.target.value as ClientPrivacyFilter);
+                setSelectedIds(new Set());
+              }}
+              value={privacyFilter}
+            >
+              <option value="all">Tutti</option>
+              <option value="granted">Con consenso</option>
+              <option value="missing">Senza consenso</option>
+            </select>
+          </label>
+
           <label className="flex h-11 items-center gap-2 text-sm font-medium">
             <input checked={onlyWithBalance} className="size-4 accent-[#9b5d43]" onChange={(event) => setOnlyWithBalance(event.target.checked)} type="checkbox" />
             Solo con saldo residuo
           </label>
         </div>
 
-        <section aria-live="polite" className="mt-7 overflow-hidden border border-[#d8d0c5] bg-white">
-          <div className="hidden grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] items-center gap-4 border-b border-[#d8d0c5] bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57] sm:grid">
+        <section aria-live="polite" className="mt-7 overflow-x-auto border border-[#d8d0c5] bg-white">
+          <div className="hidden grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_110px_230px] items-center gap-4 border-b border-[#d8d0c5] bg-[#eee8df] px-5 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-[#675f57] sm:grid sm:min-w-[1040px]">
             <input
               aria-label="Seleziona tutti i clienti"
               checked={visibleClients.length > 0 && selectedIds.size === visibleClients.length}
@@ -328,6 +357,7 @@ export function ClientDirectory() {
             <span>Email</span>
             <span className="hidden sm:block">Cellulare</span>
             <span>LTV</span>
+            <span>Consenso privacy</span>
             <span>Azioni</span>
           </div>
 
@@ -360,7 +390,7 @@ export function ClientDirectory() {
           {!isLoading && !loadError
             ? visibleClients.map((client) => (
                 <article
-                  className="group flex flex-col gap-2 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:grid sm:grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_230px] sm:items-center sm:gap-4"
+                  className="group flex flex-col gap-2 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:grid sm:min-w-[1040px] sm:grid-cols-[28px_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.7fr)_110px_230px] sm:items-center sm:gap-4"
                   key={client.id}
                 >
                   <input
@@ -385,6 +415,10 @@ export function ClientDirectory() {
                     </p>
                     <p className="truncate text-sm font-semibold text-[#514a43]">
                       {euro.format((client.ltv_cents ?? 0) / 100)}
+                    </p>
+                    <p className={`text-sm font-semibold ${hasClientPrivacyConsent(client) ? "text-[#37654b]" : "text-[#a53e31]"}`}>
+                      <span className="sm:hidden">Consenso privacy: </span>
+                      {hasClientPrivacyConsent(client) ? "Presente" : "Assente"}
                     </p>
                   </Link>
                   <div className="flex flex-wrap gap-2">

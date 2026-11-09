@@ -366,7 +366,7 @@ WordPress di solito ha già una pagina **"Privacy Policy"** in bozza: usa quella
 - [ ] Template: **Contatti**
 - [ ] Slug: `contatti` · Genitore: nessuno
 - [ ] **Pubblica**
-- [ ] Verifica: la pagina mostra il modulo con i campi Nome, Email, Telefono, Servizio di interesse, Periodo desiderato, Messaggio e la casella privacy
+- [ ] Verifica: la pagina mostra il modulo con Nome, Email, Telefono, Servizio di interesse, Periodo desiderato, Messaggio e Privacy; i campi voucher compaiono solo scegliendo "Buono regalo" (§10, §12)
 
 Recapiti e test: §9, §10, §12.
 
@@ -695,16 +695,28 @@ La pagina mostra, nell'ordine:
 | Email | Sì | Deve essere valida |
 | Telefono | No | |
 | Servizio di interesse | Sì | Famiglia, Gravidanza, Newborn, Bambini, Battesimo, Coppia, Ritratto, Commerciale / attività, Mini sessioni, Buono regalo, Altro |
-| Periodo desiderato | No | Testo libero |
-| Messaggio | Sì | Max 5.000 caratteri |
+| Periodo desiderato | No | Testo libero; nascosto e disabilitato per "Buono regalo" |
+| Messaggio | Sì, tranne per "Buono regalo" | Max 5.000 caratteri; per un buono è facoltativo e diventa "Vuoi aggiungere qualche informazione?" |
 | Privacy | Sì | Casella non preselezionata (§11) |
+
+Quando **Servizio di interesse** è un servizio diverso da **Buono regalo**, il modulo mantiene questi campi e le stesse regole. Scegliendo **Buono regalo**, il Periodo desiderato viene nascosto, disabilitato e omesso dall'email; al suo posto compaiono:
+
+| Campo | Obbligatorio | Quando compare |
+|---|---|---|
+| Che tipo di buono ti interessa? | Sì | Sempre per Buono regalo: Buono a valore, Buono per un servizio, Non lo so, vorrei un consiglio |
+| Che importo avevi in mente? | No | Solo per Buono a valore; indicazione libera, ad esempio "100 €" |
+| Quale servizio vorresti regalare? | Sì | Solo per Buono per un servizio: Famiglia, Gravidanza, Bambini, Coppia, Primi Ricordi, Non lo so, vorrei un consiglio |
+| Come preferisci ricevere il buono? | Sì | Sempre per Buono regalo: Digitale, Cartaceo, Non ho preferenze |
+| Per chi è il regalo? | No | Testo libero, senza chiedere i dati completi del destinatario |
+| Vuoi aggiungere un messaggio personale al buono? | No | Testo libero; non sostituisce il campo Note/Messaggio |
 
 Il modulo:
 
 - invia un'email al destinatario (§9.1) con oggetto "Nuova richiesta dal sito: [servizio] – [nome]";
 - imposta come **"Rispondi a"** l'email del visitatore: puoi rispondere direttamente dalla tua casella;
-- **non salva** i messaggi in WordPress e **non iscrive** a newsletter;
-- ha una protezione antispam invisibile (campo trappola).
+- non salva in WordPress gli invii validi o i tentativi non validi, **non salva dati nel CRM**, non crea automaticamente voucher e non effettua pagamenti: serve solo a raccogliere la richiesta iniziale;
+- se la validazione fallisce, mantiene temporaneamente i valori dei controlli attivi nella `sessionStorage` della scheda, li ripristina dopo il redirect e li rimuove subito; nessun valore del form viene scritto nel database WordPress o inviato al CRM;
+- include nonce e una protezione antispam invisibile (campo trappola) e non iscrive a newsletter.
 
 ### 10.3 Verifiche
 
@@ -752,17 +764,34 @@ Il consenso del modulo serve **solo** a rispondere alla richiesta: non è un con
 
 ## 12. Test del modulo contatti
 
-Da fare **prima** di considerare il sito pronto, e di nuovo dopo ogni modifica alla configurazione email.
+Da fare **prima** di considerare il sito pronto, e di nuovo dopo ogni modifica al modulo o alla configurazione email. Apri `/contatti/` in una **finestra anonima** del browser, senza essere connessa a WordPress.
 
-1. Apri `/contatti/` in una **finestra anonima** del browser (senza essere connessa a WordPress).
-2. **Campo obbligatorio vuoto**: prova a inviare lasciando vuoto Nome. Il **browser** blocca l'invio con un suo avviso. È corretto.
-3. **Controllo del sito**: scrivi nel campo Nome **solo degli spazi**, compila il resto e invia. Deve comparire in alto il messaggio "Controlla i campi indicati e invia di nuovo la richiesta." e, sotto il campo, "Inserisci il tuo nome.".
-   - Nota: dopo un errore il modulo si ripresenta **vuoto** e va ricompilato.
-4. Compila tutto correttamente, spunta la privacy e invia.
-5. Deve comparire: "Grazie, la tua richiesta è stata inviata. Ti risponderò il prima possibile." e il modulo scompare.
-6. **Controlla che l'email arrivi davvero** nella casella del destinatario (§9.1), **anche nello spam**.
-7. Clicca "Rispondi" nell'email ricevuta: il destinatario deve essere l'indirizzo inserito nel modulo.
-8. Prova un pulsante "Chiedi informazioni" di una pagina servizio: il campo Servizio deve essere già selezionato.
+### Controlli standard
+
+1. Seleziona **Famiglia**: Periodo desiderato è visibile, i campi voucher non lo sono e Messaggio è obbligatorio.
+2. Lascia vuoto Nome e prova a inviare: il browser deve bloccare il submit.
+3. Inserisci solo spazi nel Nome, compila gli altri campi standard e invia: deve comparire il messaggio generale di errore e sotto Nome "Inserisci il tuo nome.". I valori già inseriti devono essere ripristinati dopo il redirect.
+4. Completa una richiesta standard, accetta la privacy e invia. Deve apparire il messaggio di successo e il form scompare; controlla l'email (§9.1) e prova **Rispondi** per verificare il Reply-To.
+5. Da una pagina servizio, prova il pulsante "Chiedi informazioni": il servizio deve essere preselezionato.
+
+### BUONI REGALO — TEST DOPO MODIFICHE
+
+- [ ] Aprire `/buoni-regalo/`
+- [ ] Cliccare "Richiedi un buono regalo"
+- [ ] Verificare che Contatti si apra con "Buono regalo" selezionato (`?servizio=buono-regalo`)
+- [ ] Verificare che "Periodo desiderato" non sia visibile né attivo
+- [ ] Verificare che compaiano Tipo di buono, Consegna, Destinatario e Messaggio personale
+- [ ] Provare "Buono a valore" e verificare che compaia Importo
+- [ ] Provare "Buono per un servizio" e verificare che compaia Servizio da regalare obbligatorio
+- [ ] Verificare che la scelta dei servizi includa solo Famiglia, Gravidanza, Bambini, Coppia, Primi Ricordi e Non lo so, vorrei un consiglio
+- [ ] Provare "Non lo so, vorrei un consiglio" e verificare che Importo e Servizio da regalare non siano richiesti
+- [ ] Verificare che Consegna sia obbligatoria e provare Digitale, Cartaceo e Non ho preferenze
+- [ ] Inviare una richiesta di test valida, con importo, destinatario e messaggio personale facoltativi
+- [ ] Verificare la mail ricevuta: tipo, eventuale importo o servizio, consegna, eventuale destinatario e messaggio personale, Note e nessun Periodo desiderato
+- [ ] Inviare una richiesta incompleta: verificare gli errori e il ripristino dei valori inseriti
+- [ ] Passare da Buono regalo a Famiglia e verificare che tutti i campi voucher siano nascosti e disabilitati, Periodo torni visibile e Messaggio torni obbligatorio
+
+La CTA della pagina `/buoni-regalo/` deve continuare a puntare a Contatti con `?servizio=buono-regalo`: la preselezione apre direttamente lo stato voucher senza richiedere un cambio manuale del select.
 
 Possibili esiti:
 
@@ -785,6 +814,34 @@ L'invio standard di WordPress dipende dal server dell'hosting e spesso finisce i
 2. Collegalo al servizio di posta scelto (la casella dell'hosting o un servizio di invio), seguendo la procedura guidata del plugin.
 3. Esegui il **test email** del plugin.
 4. Ripeti il test del modulo Contatti (§12).
+
+Crea le credenziali Google
+
+Apri Google Cloud Console e accedi con l’account Gmail che userai per spedire le email del sito.
+
+Crea un nuovo progetto, per esempio Giulia Photography WordPress.
+
+Nel progetto apri API e servizi → Libreria, cerca Gmail API e premi Abilita.
+
+Apri API e servizi → Schermata consenso OAuth (in alcune versioni la trovi in Google Auth Platform). Configura l’app con un nome, la tua email come contatto e un pubblico Esterno. Se Google mostra lo stato Test, pubblica l’app in produzione.
+
+Vai su Credenziali → Crea credenziali → ID client OAuth. Scegli Applicazione web.
+
+In URI di reindirizzamento autorizzati, aggiungi esattamente:
+https://connect.wpmailsmtp.com/google/
+
+Attenzione: va inserito negli URI di reindirizzamento, non nelle origini JavaScript. Completa la creazione.
+
+Apri le credenziali appena create e copia ID client e Client Secret. Non inviarli qui: sono segreti.
+
+Completa WP Mail SMTP
+
+Torna alla schermata dello screenshot.
+Incolla l’ID OAuth nel campo ID cliente e il secret nel campo Client Secret.
+Salva le impostazioni.
+Premi Connetti a Google e autorizza lo stesso account Gmail. Se compare un avviso che l’app non è verificata, procedi solo se hai avviato tu la connessione e Google indica l’app che hai appena creato; la guida ufficiale WP Mail SMTP descrive questo avviso per le app personali.
+In WP Mail SMTP imposta come From Email lo stesso indirizzo Gmail autorizzato e salva. Puoi usare come nome mittente “Giulia Malosso Photography”.
+In WP Mail SMTP → Strumenti → Test email, invia un test a una casella che puoi controllare. Se arriva, prova anche il modulo Contatti.
 
 ### 13.2 Cache
 
@@ -891,7 +948,9 @@ Il pattern li collega inizialmente alla pagina Contatti: sostituisci il link con
 
 ### 16.1 Buoni regalo (`/buoni-regalo/`)
 
-Pattern **Buoni regalo**: hero con H1 "Regala un servizio fotografico" e pulsante "Richiedi un buono regalo" (porta a Contatti con "Buono regalo" già selezionato); "Perché regalare fotografie"; "Come funziona"; "Due tipi di buono" (a valore, per un servizio); validità e destinatari; FAQ; CTA.
+Pattern **Buoni regalo**: hero con H1 "Regala un servizio fotografico" e pulsante "Richiedi un buono regalo". La CTA deve continuare a portare a `/contatti/?servizio=buono-regalo`, dove "Buono regalo" è preselezionato e il form mostra subito i campi voucher (§10, §12). Seguono "Perché regalare fotografie", "Come funziona", "Due tipi di buono" (a valore, per un servizio), validità e destinatari, FAQ e CTA.
+
+Il form raccoglie soltanto una richiesta iniziale: non effettua pagamenti, non crea voucher e non salva automaticamente i dati nel CRM. L'email ricevuta riporta Nome, Email, Telefono, Servizio, Tipo di buono, l'eventuale Importo indicativo o Servizio da regalare, Consegna, gli eventuali dati facoltativi del destinatario e il messaggio personale, oltre alle Note (il campo Messaggio principale). Non include Periodo desiderato.
 
 - [ ] Foto dell'hero.
 - [ ] Perché regalare fotografie.
@@ -1058,35 +1117,45 @@ Da fare **dopo** aver creato le pagine e inserito i contenuti principali.
 > **Attenzione:** non installarne due insieme: genererebbero titoli, metadati e sitemap duplicati.
 
 2. Configura:
-   - **Title** di ogni pagina (§21);
-   - **Meta description** di ogni pagina: una frase unica, circa 150 caratteri, che descrive il contenuto e invita a cliccare;
+   - **Title** e **meta description** di ogni pagina, usando le proposte del §21 come base. Ogni pagina deve avere testi unici e coerenti con il suo contenuto; usa Maser come località principale e cita altri comuni solo se rientrano davvero nell’area servita, senza ripetere parole chiave o località;
+   - **Meta description**: una frase chiara e specifica, indicativamente di 140–160 caratteri. La lunghezza visualizzata varia in base al dispositivo e Google può scegliere uno snippet diverso;
    - **Open Graph**: immagine predefinita per le condivisioni social (una foto rappresentativa) e immagine specifica per le pagine principali;
    - **Sitemap XML** attiva (da inviare a Google Search Console);
    - **Schema LocalBusiness** (o "Attività locale"): nome, indirizzo, telefono, area servita, link ai profili. Gli stessi dati di §9.1, identici a quelli della scheda Google.
    - **Breadcrumb**: il tema **non li mostra** sulla pagina. Attivali solo se decidi di inserirli con il blocco del plugin; non sono necessari.
 3. Non attivare schema per recensioni o FAQ.
 
+Le date e le formule come "ultimi posti" delle mini sessioni vanno aggiornate nei contenuti della pagina, non inserite nei metadati permanenti. Non aggiungere alla sitemap pagine vuote o pagine legali; per queste ultime imposta `noindex` nel plugin.
+
+Per raggiungere ricerche dai comuni vicini, indica nel testo delle pagine e, solo quando pertinente, nella meta description uno o due comuni in cui accetti regolarmente servizi (per esempio Asolo o Montebelluna, se effettivamente serviti). Non inserirli tutti nei title o in un elenco ripetuto su ogni pagina. Dopo l’indicizzazione, usa le query e le impressioni di Search Console per decidere se ampliare i riferimenti locali.
+
 Il tema non scrive titoli, descrizioni, Open Graph, sitemap né schema: è tutto gestito dal plugin.
 
 ## 21. Titoli SEO
 
-Sono **suggerimenti editoriali** da inserire nel plugin SEO. Non sono scritti nel tema e si possono cambiare in qualsiasi momento.
+Sono **suggerimenti editoriali** da inserire nel plugin SEO. Non sono scritti nel tema e si possono cambiare in qualsiasi momento. I titoli privilegiano il servizio cercato e Maser; Treviso compare dove aiuta a chiarire l’area servita. Le descrizioni riassumono ciò che la pagina offre: non aggiungere prezzi, date o disponibilità che potrebbero diventare obsoleti.
 
-| Pagina | Titolo SEO suggerito |
-|---|---|
-| Home | Fotografa Famiglia e Gravidanza a Treviso \| Giulia Malosso |
-| Famiglia | Servizio Fotografico di Famiglia a Treviso \| Giulia Malosso |
-| Gravidanza | Servizio Fotografico Gravidanza a Treviso \| Giulia Malosso |
-| Newborn | Servizio Fotografico Newborn a Treviso \| Giulia Malosso |
-| Bambini | Servizio Fotografico Bambini a Treviso \| Giulia Malosso |
-| Battesimo | Fotografo Battesimo a Treviso \| Giulia Malosso |
-| Coppia | Servizio Fotografico di Coppia a Treviso \| Giulia Malosso |
-| Ritratto | Ritratti Fotografici a Treviso \| Giulia Malosso |
-| Commerciale | Fotografia Commerciale per Attività a Treviso \| Giulia Malosso |
-| Mini Sessioni | Mini Sessioni Fotografiche a Treviso \| Giulia Malosso |
-| Natale | Mini Sessioni di Natale a Treviso \| Giulia Malosso |
+| Pagina | Titolo SEO suggerito | Meta description suggerita |
+|---|---|---|
+| Home | Fotografa di famiglia a Maser e Treviso \| Giulia Malosso | Fotografa di famiglia a Maser, in provincia di Treviso. Servizi di gravidanza, newborn, bambini e coppia, in studio o all’aperto, con immagini spontanee e naturali. |
+| Servizi | Servizi fotografici a Maser \| Giulia Malosso | Scopri i servizi fotografici a Maser: famiglia, gravidanza, newborn, bambini, battesimo, coppia, ritratto e fotografia commerciale. |
+| Famiglia | Fotografa di famiglia a Maser \| Giulia Malosso | Servizi fotografici di famiglia a Maser e dintorni, in studio o all’aperto. Scatti spontanei tra abbracci, giochi e piccoli gesti, senza pose forzate. |
+| Gravidanza | Fotografa di gravidanza a Maser \| Giulia Malosso | Fotografie di gravidanza a Maser, in studio o all’aperto. Un racconto delicato e naturale dell’attesa, da sola, in coppia o con i tuoi figli. |
+| Newborn | Fotografa newborn a Maser \| Giulia Malosso | Servizio newborn a Maser per neonati da 0 a 2 mesi. Una sessione in studio, senza fretta, rispettando i tempi e il comfort del tuo bambino. |
+| Bambini | Fotografa bambini a Maser \| Giulia Malosso | Sessioni fotografiche in studio a Maser per bambini dai 6 mesi: 30 minuti di gioco e spontaneità per raccontare espressioni e personalità. |
+| Battesimo | Fotografa battesimi a Maser e Treviso \| Giulia Malosso | Fotografa battesimi a Maser e Treviso. Un reportage discreto della cerimonia e della festa, tra emozioni, famiglia e momenti spontanei. |
+| Coppia | Fotografa di coppia a Maser \| Giulia Malosso | Fotografie di coppia a Maser, in studio o all’aperto. Un racconto naturale della vostra complicità, senza pose rigide e senza bisogno di un’occasione speciale. |
+| Ritratto | Ritratti fotografici a Maser \| Giulia Malosso | Ritratti a Maser, personali o professionali, in studio o all’aperto. Una sessione guidata con calma per immagini naturali in cui riconoscerti. |
+| Commerciale | Fotografia commerciale a Maser e Treviso \| Giulia Malosso | Fotografia commerciale a Maser e Treviso per negozi e attività: immagini di prodotti, spazi e persone, pensate per raccontare il tuo lavoro. |
+| Mini Sessioni | Mini sessioni fotografiche a Maser \| Giulia Malosso | Scopri le mini sessioni fotografiche a Maser: esperienze brevi in date dedicate, legate alle stagioni e ai momenti speciali dell’anno. |
+| Natale | Mini sessioni di Natale a Maser \| Giulia Malosso | Mini sessioni fotografiche di Natale a Maser: un set in studio, luci e un’esperienza breve per custodire i ricordi delle feste in famiglia. |
+| Autunno | Mini sessioni d’autunno a Maser \| Giulia Malosso | Mini sessioni fotografiche d’autunno a Maser, in date dedicate: un’occasione breve e naturale per custodire un ricordo di famiglia. |
+| Festa della Mamma | Mini sessioni Festa della Mamma a Maser \| Giulia Malosso | Mini sessioni fotografiche a Maser per la Festa della Mamma: un momento da vivere insieme e fotografie spontanee da custodire nel tempo. |
+| Buoni regalo | Buoni regalo per servizi fotografici \| Giulia Malosso | Regala un servizio fotografico con un buono a valore o per una sessione. Disponibile in formato digitale o cartaceo, valido 12 mesi. |
+| Chi sono | Giulia Malosso, fotografa a Maser \| La mia storia | Conosci Giulia Malosso, fotografa di famiglia a Maser, in provincia di Treviso. Scopri la sua storia e il suo approccio naturale, attento ai legami. |
+| Contatti | Contatta Giulia Malosso, fotografa a Maser | Contatta Giulia Malosso per informazioni e prenotazioni di servizi fotografici a Maser e dintorni: famiglia, gravidanza, newborn, coppia e altro. |
 
-Per le altre pagine (Autunno, Festa della Mamma, Buoni regalo, Chi sono, Contatti) segui lo stesso schema, senza ripetere le stesse parole in ogni titolo. Non creare pagine duplicate per singoli comuni: Maser, Montebelluna e la provincia di Treviso sono già citati nelle pagine.
+Non creare pagine duplicate per singoli comuni: indica Maser e l’area servita nei contenuti delle pagine esistenti, senza forzare la località in ogni title.
 
 ## 22. Google Business
 

@@ -9,7 +9,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const clientFields =
-  "id, first_name, last_name, email, phone, birth_date, is_archived, updated_at";
+  "id, first_name, last_name, email, phone, birth_date, is_archived, updated_at, privacy_consent_granted_at, privacy_consent_revoked_at";
 
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get("search")?.trim() ?? "";
