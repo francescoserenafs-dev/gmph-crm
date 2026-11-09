@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import { calculateSessionDue, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "../lib/sessions.ts";
+import { calculateSessionDue, canUsePrintFulfillmentStages, hasPrintExtras, isExtraChangeBlockedBySession, PRINT_FULFILLMENT_STAGE_CODES } from "../lib/sessions.ts";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice } from "../lib/datetime.ts";
 
 test("print fulfillment applies only to sessions with positive print extras", () => {
@@ -23,6 +23,17 @@ test("print fulfillment starts only after delivery and can continue through its 
   assert.equal(canUsePrintFulfillmentStages("prints_completed", prints), true);
   assert.equal(canUsePrintFulfillmentStages("selection_received", prints), false);
   assert.equal(canUsePrintFulfillmentStages("delivered", []), false);
+});
+
+test("extra changes are blocked until the matching session fulfillment stage is complete", () => {
+  const digital = [{ category_snapshot: "digital", quantity: 1 }];
+  const album = [{ category_snapshot: "album", quantity: 1 }];
+  assert.equal(isExtraChangeBlockedBySession("booked", digital), true);
+  assert.equal(isExtraChangeBlockedBySession("delivered", digital), false);
+  assert.equal(isExtraChangeBlockedBySession("delivered", album), true);
+  assert.equal(isExtraChangeBlockedBySession("prints_completed", album), false);
+  assert.equal(isExtraChangeBlockedBySession("cancelled", album), false);
+  assert.equal(isExtraChangeBlockedBySession(null, digital), true);
 });
 
 test("pipeline keeps completion drop targets but hides finished sessions with every owner filter", () => {

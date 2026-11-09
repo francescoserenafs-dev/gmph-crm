@@ -10,6 +10,11 @@ export function hasPrintExtras(extras: readonly { category_snapshot: string | nu
   return extras.some((extra) => (extra.category_snapshot === "print" || extra.category_snapshot === "album") && extra.quantity > 0);
 }
 
+export function isExtraChangeBlockedBySession(currentStageCode: string | null | undefined, extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {
+  if (currentStageCode === "cancelled") return false;
+  return hasPrintExtras(extras) ? currentStageCode !== "prints_completed" : currentStageCode !== "delivered";
+}
+
 export function canUsePrintFulfillmentStages(currentStageCode: string | null | undefined, extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {
   return hasPrintExtras(extras) && (currentStageCode === "delivered" || (PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(currentStageCode ?? ""));
 }

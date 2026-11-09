@@ -101,6 +101,17 @@ export function ExtraProductManager() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Aggiornamento non riuscito."); } finally { setBusy(false); }
   }
 
+  async function deleteProduct(product: ExtraProduct) {
+    if (!window.confirm(`Eliminare definitivamente "${product.name}" dal catalogo? Le vendite storiche resteranno invariate.`)) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/extra-products/${product.id}`, { method: "DELETE" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      setRefreshKey((key) => key + 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Eliminazione non riuscita."); } finally { setBusy(false); }
+  }
+
   const inputClass = "h-11 border border-[#cfc5b8] bg-white px-3";
   const gridColumns = "sm:grid-cols-[1.1fr_1fr_0.9fr_1.6fr_0.6fr_0.6fr_150px]";
 
@@ -133,6 +144,7 @@ export function ExtraProductManager() {
               <span className="flex gap-4">
                 <button className="font-semibold text-[#9b5d43] hover:underline disabled:opacity-50" disabled={busy} onClick={() => openForm(product)} type="button">Modifica</button>
                 <button className={`font-semibold hover:underline disabled:opacity-50 ${product.is_active ? "text-[#a53e31]" : "text-[#367e4a]"}`} disabled={busy} onClick={() => void toggleActive(product)} type="button">{product.is_active ? "Disattiva" : "Riattiva"}</button>
+                <button className="font-semibold text-[#a53e31] hover:underline disabled:opacity-50" disabled={busy} onClick={() => void deleteProduct(product)} type="button">Elimina</button>
               </span>
             </article>
           ))}
