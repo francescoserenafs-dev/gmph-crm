@@ -131,13 +131,155 @@ export function calculateVoucherApplication(voucherCreditCents: number, totalDue
  * Determine payment status of a session
  */
 export function getSessionPaymentStatus(session: Session): "paid" | "unpaid" | "partial" {
-  const totalDue = calculateSessionDue(session);
-  const totalPaid = calculateSessionPaid(session);
+  return sessionPaymentStatus(session);
+}
 
+export type SessionPaymentStatus = "paid" | "unpaid" | "partial";
+
+// Unica regola di stato pagamento: dovuto = prezzo + extra; denaro e riscatti buono coprono la sessione.
+export function sessionPaymentStatus(session: { agreed_price_cents: number; extras: readonly { line_total_cents: number }[]; payments: readonly { amount_cents: number }[] }): SessionPaymentStatus {
+  const totalDue = calculateSessionDue(session);
+  const totalPaid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
   if (totalDue === 0) return "paid"; // Zero-price sessions auto-settle
   if (totalPaid === 0) return "unpaid";
   if (totalPaid < totalDue) return "partial";
   return "paid";
+}
+
+/* ---------------------------------------------------------------------------
+ * Filtri globali della pagina /sessions: un solo stato, un solo universo di sessioni
+ * per Lista, Pipeline, Calendario, Riepilogo e KPI.
+ * ------------------------------------------------------------------------- */
+
+export type SessionFilters = { clientId: string; serviceTypeIds: string[]; stageIds: string[]; paymentStatuses: string[]; day: string };
+
+export const EMPTY_SESSION_FILTERS: SessionFilters = { clientId: "", serviceTypeIds: [], stageIds: [], paymentStatuses: [], day: "" };
+
+const listParam = (params: { get(key: string): string | null }, key: string) => params.get(key)?.split(",").filter(Boolean) ?? [];
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+export function parseSessionFilters(params: { get(key: string): string | null }): SessionFilters {
+  const day = params.get("day") ?? "";
+  return {
+    clientId: params.get("clientId") ?? "",
+    serviceTypeIds: listParam(params, "serviceTypeId"),
+    stageIds: listParam(params, "stageId"),
+    paymentStatuses: listParam(params, "paymentStatus"),
+    day: DAY_PATTERN.test(day) ? day : "",
+  };
+}
+
+// Parametri omessi quando hanno il valore di default, per URL leggibili.
+export function writeSessionFilters(filters: SessionFilters, params: URLSearchParams): URLSearchParams {
+  if (filters.clientId) params.set("clientId", filters.clientId);
+  if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
+  if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
+  if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
+  if (filters.day) params.set("day", filters.day);
+  return params;
+}
+
+export function hasActiveSessionFilters(filters: SessionFilters): boolean {
+  return Boolean(filters.clientId || filters.day) || filters.serviceTypeIds.length > 0 || filters.stageIds.length > 0 || filters.paymentStatuses.length > 0;
+}
+
+// Giorno di calendario Europe/Rome (YYYY-MM-DD), indipendente dal fuso di browser e server.
+export function sessionDayKey(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+
+export function parseSessionMonth(value: string | null, fallback: string): string {
+  return value && MONTH_PATTERN.test(value) ? value : fallback;
+}
+
+export function shiftSessionMonth(month: string, delta: number): string {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const index = year * 12 + (monthNumber - 1) + delta;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
+// Cambio mese: i filtri restano; il giorno selezionato si azzera se non appartiene al nuovo mese.
+export function navigateSessionMonth(state: { month: string; filters: SessionFilters }, delta: number): { month: string; filters: SessionFilters } {
+  const month = shiftSessionMonth(state.month, delta);
+  return { month, filters: state.filters.day && !state.filters.day.startsWith(month) ? { ...state.filters, day: "" } : state.filters };
+}
+
+export type FilterableSession = {
+  scheduled_at: string;
+  service_type_id: string;
+  agreed_price_cents: number;
+  client: { id: string } | null;
+  current_stage: { id: string; code: string; ball_owner?: string | null } | null;
+  payments: readonly { amount_cents: number }[];
+  extras: readonly { line_total_cents: number }[];
+};
+
+// Tutti i filtri in AND. ignoreDay serve solo ai conteggi del calendario.
+export function matchesSessionFilters(session: FilterableSession, filters: SessionFilters, options: { ignoreDay?: boolean } = {}): boolean {
+  if (filters.clientId && session.client?.id !== filters.clientId) return false;
+  if (filters.serviceTypeIds.length > 0 && !filters.serviceTypeIds.includes(session.service_type_id)) return false;
+  if (filters.stageIds.length > 0 && !(session.current_stage && filters.stageIds.includes(session.current_stage.id))) return false;
+  if (filters.paymentStatuses.length > 0 && !filters.paymentStatuses.includes(sessionPaymentStatus(session))) return false;
+  if (!options.ignoreDay && filters.day && sessionDayKey(session.scheduled_at) !== filters.day) return false;
+  return true;
+}
+
+export type SessionsSummary = { sessions: number; unpaid: number; settled: number; valueCents: number; coveredCents: number };
+
+// Valore = prezzo + extra; coperto = denaro + riscatti buono, al massimo il dovuto.
+export function summarizeSessions(sessions: readonly FilterableSession[]): SessionsSummary {
+  const summary: SessionsSummary = { sessions: sessions.length, unpaid: 0, settled: 0, valueCents: 0, coveredCents: 0 };
+  for (const session of sessions) {
+    const due = calculateSessionDue(session);
+    const covered = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+    summary.valueCents += due;
+    summary.coveredCents += Math.min(covered, due);
+    if (sessionPaymentStatus(session) === "paid") summary.settled += 1;
+    else summary.unpaid += 1;
+  }
+  return summary;
+}
+
+// Ordine della lista: future in ordine cronologico, poi passate dalla piu recente.
+export function sortSessionsForList<T extends { scheduled_at: string }>(sessions: T[], nowIso: string): T[] {
+  return [...sessions].sort((first, second) => {
+    const firstFuture = first.scheduled_at >= nowIso;
+    const secondFuture = second.scheduled_at >= nowIso;
+    if (firstFuture !== secondFuture) return firstFuture ? -1 : 1;
+    return firstFuture ? first.scheduled_at.localeCompare(second.scheduled_at) : second.scheduled_at.localeCompare(first.scheduled_at);
+  });
+}
+
+// Filtro -> ordinamento -> paginazione. Calendario: stessi filtri tranne il giorno; riepilogo: giorno selezionato oppure mese.
+export function buildSessionsView<T extends FilterableSession>(rows: readonly T[], filters: SessionFilters, options: { month: string; page: number; pageSize: number; nowIso: string }) {
+  const universe = rows.filter((session) => session.current_stage?.code !== "cancelled");
+  const calendarSessions = universe.filter((session) => matchesSessionFilters(session, filters, { ignoreDay: true }) && sessionDayKey(session.scheduled_at).startsWith(options.month));
+  const matching = sortSessionsForList(universe.filter((session) => matchesSessionFilters(session, filters)), options.nowIso);
+
+  const calendar: Record<string, number> = {};
+  for (const session of calendarSessions) {
+    const key = sessionDayKey(session.scheduled_at);
+    calendar[key] = (calendar[key] ?? 0) + 1;
+  }
+
+  const kpis = { you: 0, client: 0, total: 0 };
+  for (const session of matching) {
+    const owner = session.current_stage?.ball_owner;
+    if (owner === "you" || owner === "client") {
+      kpis[owner] += 1;
+      kpis.total += 1;
+    }
+  }
+
+  return {
+    sessions: matching.slice((options.page - 1) * options.pageSize, options.page * options.pageSize),
+    total: matching.length,
+    matching,
+    calendar,
+    summary: summarizeSessions(filters.day ? matching : calendarSessions),
+    kpis,
+  };
 }
 
 /**

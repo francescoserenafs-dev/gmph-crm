@@ -2,12 +2,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { upsertIcloudEvent } from "@/lib/icloud-calendar";
 import { promotePastBookedSessions } from "@/lib/sessions-server";
-import { parseLocalDateTime } from "@/lib/datetime";
+import { parseLocalDateTime, toLocalDateKey } from "@/lib/datetime";
 import { LEAD_OPEN_STATUSES, type LeadStatus } from "@/lib/leads";
+import { buildSessionsView, parseSessionFilters, parseSessionMonth } from "@/lib/sessions";
+import { loadPaged } from "@/lib/economic-plans-server";
 
 export const dynamic = "force-dynamic";
 
-const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents,category_snapshot,quantity)";
+const sessionFields = "id, scheduled_at, duration_minutes, location, service_name, service_detail, agreed_price_cents, is_settled, booked_online_at, current_stage:session_stages!sessions_current_stage_id_fkey(id,name,code,ball_owner), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents,category_snapshot,quantity)";
 
 type SessionRow = {
   id: string;
@@ -16,46 +18,34 @@ type SessionRow = {
   is_settled: boolean;
   service_type_id: string;
   client: { id: string } | null;
-  current_stage: { id: string; code: string } | null;
+  current_stage: { id: string; code: string; ball_owner: string | null } | null;
   payments: { amount_cents: number }[];
   extras: { line_total_cents: number; category_snapshot: string | null; quantity: number }[];
 };
 
+// Un solo universo filtrato per Lista, Pipeline, Calendario, Riepilogo e KPI (buildSessionsView).
 export async function GET(request: NextRequest) {
   await promotePastBookedSessions();
 
-  const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1);
-  const pageSize = [10, 25, 50, 100].includes(Number(request.nextUrl.searchParams.get("pageSize"))) ? Number(request.nextUrl.searchParams.get("pageSize")) : 25;
-  const clientId = request.nextUrl.searchParams.get("clientId");
-  const serviceTypeIds = request.nextUrl.searchParams.get("serviceTypeId")?.split(",").filter(Boolean) ?? [];
-  const stageIds = request.nextUrl.searchParams.get("stageId")?.split(",").filter(Boolean) ?? [];
-  const paymentStatuses = request.nextUrl.searchParams.get("paymentStatus")?.split(",").filter(Boolean) ?? [];
-  const { data, error } = await supabaseAdmin.from("sessions").select(`${sessionFields}, service_type_id`).order("scheduled_at", { ascending: true });
+  const params = request.nextUrl.searchParams;
+  const page = Math.max(Number(params.get("page") ?? 1) || 1, 1);
+  const pageSize = [10, 25, 50, 100].includes(Number(params.get("pageSize"))) ? Number(params.get("pageSize")) : 25;
+  const filters = parseSessionFilters(params);
+  const month = parseSessionMonth(params.get("month"), filters.day ? filters.day.slice(0, 7) : toLocalDateKey(new Date()).slice(0, 7));
+  const rows = await loadPaged<SessionRow>((from, to) => supabaseAdmin.from("sessions").select(`${sessionFields}, service_type_id`).order("scheduled_at", { ascending: true }).range(from, to)).catch((reason: { message?: string }) => reason);
+  if (!Array.isArray(rows)) return NextResponse.json({ error: rows.message ?? "Caricamento non riuscito." }, { status: 500 });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const now = new Date().toISOString();
-  const sessionRows = (data ?? []) as unknown as SessionRow[];
-  const filteredSessions = sessionRows.filter((session) => {
-    if (session.current_stage?.code === "cancelled") return false;
-    if (clientId && session.client?.id !== clientId) return false;
-    if (serviceTypeIds.length > 0 && !serviceTypeIds.includes(session.service_type_id)) return false;
-    if (stageIds.length > 0 && !(session.current_stage && stageIds.includes(session.current_stage.id))) return false;
-    const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const totalDue = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
-    const status = totalDue === 0 ? "paid" : paid === 0 ? "unpaid" : paid < totalDue ? "partial" : "paid";
-    return paymentStatuses.length === 0 || paymentStatuses.includes(status);
-  }).sort((first, second) => {
-    const firstFuture = first.scheduled_at >= now;
-    const secondFuture = second.scheduled_at >= now;
-    if (firstFuture && !secondFuture) return -1;
-    if (!firstFuture && secondFuture) return 1;
-    return firstFuture ? first.scheduled_at.localeCompare(second.scheduled_at) : second.scheduled_at.localeCompare(first.scheduled_at);
+  const view = buildSessionsView(rows, filters, { month, page, pageSize, nowIso: new Date().toISOString() });
+  if (params.get("all") === "1") return NextResponse.json({ sessions: view.matching, total: view.total });
+  return NextResponse.json({
+    sessions: view.sessions,
+    total: view.total,
+    month,
+    calendar: view.calendar,
+    summary: view.summary,
+    kpis: view.kpis,
+    ...(params.get("view") === "board" ? { pipeline: view.matching } : {}),
   });
-
-  const total = filteredSessions.length;
-  if (request.nextUrl.searchParams.get("all") === "1") return NextResponse.json({ sessions: filteredSessions, total });
-  return NextResponse.json({ sessions: filteredSessions.slice((page - 1) * pageSize, page * pageSize), total });
 }
 
 export async function POST(request: NextRequest) {

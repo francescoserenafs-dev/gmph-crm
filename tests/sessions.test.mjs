@@ -57,7 +57,7 @@ test("pipeline keeps completion drop targets but hides finished sessions with ev
     ...PRINT_FULFILLMENT_STAGE_CODES.map((stage) => ({ id: stage, current_stage: { code: stage }, extras: prints })),
   ];
   for (const ballFilter of [null, "you", "client"]) {
-    const columns = runInNewContext(code, { useMemo: (calculate) => calculate(), stages, pipelineSessions, ballFilter, hasPrintExtras });
+    const columns = runInNewContext(code, { useMemo: (calculate) => calculate(), stages, pipelineSessions, ballFilter, hasPrintExtras, filters: { stageIds: [] } });
     assert.ok(columns.some((column) => column.code === "delivered"));
     assert.ok(columns.some((column) => column.code === "prints_completed"));
     const visibleIds = Array.from(columns.flatMap((column) => column.sessions.map((session) => session.id)));
@@ -71,6 +71,8 @@ test("pipeline keeps completion drop targets but hides finished sessions with ev
     assert.equal(visibleIds.includes("awaiting_print_selection"), ballFilter !== "you");
     assert.equal(visibleIds.includes("print_selection_received"), ballFilter !== "client");
   }
+  const stageFiltered = runInNewContext(code, { useMemo: (calculate) => calculate(), stages: stages.map((stage) => ({ ...stage, id: stage.code })), pipelineSessions, ballFilter: null, hasPrintExtras, filters: { stageIds: ["booked"] } });
+  assert.deepEqual(Array.from(stageFiltered.map((column) => column.code)), ["booked"]);
 });
 
 test("stage PATCH accepts to-one current-stage relations for print fulfillment", async (context) => {

@@ -9,7 +9,7 @@ import { ImportIcon, DuplicateIcon, PlusIcon } from "@/components/shared/icons";
 import { Modal } from "@/components/shared/modal";
 import { MultiSelectFilter } from "@/components/shared/multi-select-filter";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
-import { calculateSessionDue, canUsePrintFulfillmentStages, hasPrintExtras, PRINT_FULFILLMENT_STAGE_CODES } from "@/lib/sessions";
+import { calculateSessionDue, canUsePrintFulfillmentStages, EMPTY_SESSION_FILTERS, hasActiveSessionFilters, hasPrintExtras, navigateSessionMonth, parseSessionFilters, parseSessionMonth, PRINT_FULFILLMENT_STAGE_CODES, sessionDayKey, sessionPaymentStatus, writeSessionFilters, type SessionFilters, type SessionsSummary } from "@/lib/sessions";
 
 type Client = { id: string; first_name: string; last_name: string; email: string; is_archived: boolean };
 type Service = { id: string; name: string; saturday_surcharge_cents: number };
@@ -23,7 +23,7 @@ type Session = {
   service_name: string;
   agreed_price_cents: number;
   client: { id: string; first_name: string; last_name: string } | null;
-  current_stage: { id: string; name: string; code: string } | null;
+  current_stage: { id: string; name: string; code: string; ball_owner?: StageBallOwner | null } | null;
   payments: { amount_cents: number }[];
   extras: { line_total_cents: number; category_snapshot: string | null; quantity: number }[];
 };
@@ -32,7 +32,17 @@ type PaymentStatus = "unpaid" | "partial" | "paid";
 type SessionForm = { clientId: string; serviceTypeId: string; packageId: string; scheduledAt: string; durationMinutes: string; priceEuros: string; includedPhotos: string; location: string; serviceDetail: string; notes: string; imageConsentGranted: boolean };
 type PackageOption = { id: string; service_type_id: string; name: string; price_cents: number | null; duration_minutes: number | null; included_photos: number; is_active: boolean };
 type QuickClient = { firstName: string; lastName: string; email: string };
-type Filters = { clientId: string; serviceTypeIds: string[]; stageIds: string[]; paymentStatuses: string[]; day: string };
+type Filters = SessionFilters;
+// Un'unica risposta di /api/sessions: tutti i widget mostrano sempre lo stesso perimetro filtrato.
+type SessionsSnapshot = {
+  sessions: Session[];
+  total: number;
+  calendar: Record<string, number>;
+  summary: SessionsSummary;
+  kpis: { you: number; client: number; total: number };
+  pipeline?: Session[];
+};
+const EMPTY_SNAPSHOT: SessionsSnapshot = { sessions: [], total: 0, calendar: {}, summary: { sessions: 0, unpaid: 0, settled: 0, valueCents: 0, coveredCents: 0 }, kpis: { you: 0, client: 0, total: 0 } };
 type ExpiringVoucher = { id: string; code: string; expires_at: string; purchaser: { first_name: string; last_name: string } | null };
 type MailerLiteGroup = { id: string; name: string };
 type EligibleVoucher = { id: string; code: string; voucher_type: "service" | "value"; service_name: string | null; value_cents: number | null; purchase_price_cents: number | null };
@@ -52,6 +62,7 @@ const paymentStatusLabels: Record<PaymentStatus, string> = {
 };
 const dateTime = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeStyle: "short" });
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+const dayLabel = (dayKey: string) => new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${dayKey}T12:00:00Z`));
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const weekDays = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const monthNames = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -78,14 +89,6 @@ const columnStyles: Record<ColumnOwner, { color: string; bg: string }> = {
   client: { color: "#3f6f9b", bg: "#e0e8f1" },
   none: { color: "#675f57", bg: "#eee8df" },
 };
-function stageOwner(owner: StageBallOwner | undefined): BallOwner | null {
-  return owner === "you" || owner === "client" ? owner : null;
-}
-
-function localDayKey(iso: string) {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
 
 function toLocalInput(date: Date) {
   return `${toLocalDateKey(date)}T${toLocalTimeLabel(date)}`;
@@ -100,26 +103,20 @@ export function SessionDirectory() {
   const leadToConvert = searchParams.get("lead") ?? "";
   const leadService = leadToConvert ? searchParams.get("service") ?? "" : "";
   const [includeArchivedClients] = useState(() => Boolean(leadToConvert) && searchParams.get("includeArchived") === "1");
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
   const [packages, setPackages] = useState<PackageOption[]>([]);
-  const [calendarSessions, setCalendarSessions] = useState<Session[]>([]);
   const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
   const [pageSize, setPageSize] = useState(() => Number(searchParams.get("pageSize")) || 25);
-  const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState<Filters>(() => ({
-    clientId: searchParams.get("clientId") ?? "",
-    serviceTypeIds: searchParams.get("serviceTypeId")?.split(",").filter(Boolean) ?? [],
-    stageIds: searchParams.get("stageId")?.split(",").filter(Boolean) ?? [],
-    paymentStatuses: searchParams.get("paymentStatus")?.split(",").filter(Boolean) ?? [],
-    day: searchParams.get("day") ?? "",
-  }));
-  const [loading, setLoading] = useState(true);
+  // Fonte unica dei filtri della pagina; il mese del calendario e navigazione, non filtro.
+  const [filters, setFilters] = useState<Filters>(() => parseSessionFilters(searchParams));
+  const [todayMonth] = useState(() => sessionDayKey(new Date().toISOString()).slice(0, 7));
+  const [month, setMonth] = useState(() => parseSessionMonth(searchParams.get("month"), filters.day ? filters.day.slice(0, 7) : todayMonth));
+  const [snapshot, setSnapshot] = useState<{ key: string; data: SessionsSnapshot } | null>(null);
+  const [loadError, setLoadError] = useState<{ key: string; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [month, setMonth] = useState(() => { const now = new Date(); return { year: now.getFullYear(), month: now.getMonth() }; });
   const [nowTimestamp] = useState(() => Date.now());
 
   const [sessionForm, setSessionForm] = useState<SessionForm>(preselectClient ? { ...emptySession, clientId: preselectClient, serviceTypeId: leadService } : emptySession);
@@ -153,26 +150,19 @@ export function SessionDirectory() {
   const [movingId, setMovingId] = useState<string | null>(null);
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    if (filters.clientId) params.set("clientId", filters.clientId);
-    if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
-    if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
-    if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
+    const params = writeSessionFilters(filters, new URLSearchParams({ page: String(page), pageSize: String(pageSize), month }));
+    if (view === "board") params.set("view", "board");
     return params.toString();
-  }, [page, pageSize, filters]);
+  }, [page, pageSize, filters, month, view]);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", String(pageSize));
-    if (filters.clientId) params.set("clientId", filters.clientId);
-    if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
-    if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
-    if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
-    if (filters.day) params.set("day", filters.day);
+    const params = writeSessionFilters(filters, new URLSearchParams());
+    if (page !== 1) params.set("page", String(page));
+    if (pageSize !== 25) params.set("pageSize", String(pageSize));
+    if (month !== todayMonth && !(filters.day && filters.day.startsWith(month))) params.set("month", month);
     if (view === "board") params.set("view", "board");
-    router.replace(`/sessions?${params.toString()}`, { scroll: false });
-  }, [page, pageSize, filters, view, router]);
+    router.replace(params.size > 0 ? `/sessions?${params.toString()}` : "/sessions", { scroll: false });
+  }, [page, pageSize, filters, month, view, todayMonth, router]);
 
   useEffect(() => {
     let active = true;
@@ -190,6 +180,7 @@ export function SessionDirectory() {
     return () => { active = false; };
   }, [optionsKey, includeArchivedClients]);
 
+  const requestKey = `${query}#${refreshKey}`;
   useEffect(() => {
     let active = true;
     (async () => {
@@ -198,27 +189,35 @@ export function SessionDirectory() {
         const body = await response.json();
         if (!active) return;
         if (!response.ok) throw new Error(body.error);
-        setSelectedIds(new Set());
-        setSessions(body.sessions as Session[]);
-        setTotal(body.total as number);
+        const data = body as SessionsSnapshot;
+        const visibleIds = new Set([...data.sessions, ...(data.pipeline ?? [])].map((session) => session.id));
+        setSnapshot({ key: requestKey, data });
+        setPipelineSessions(data.pipeline ?? []);
+        setSelectedIds((current) => new Set([...current].filter((id) => visibleIds.has(id))));
       } catch (reason) {
-        if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
-      } finally {
-        if (active) setLoading(false);
+        // L'ultimo risultato coerente resta visibile: niente widget aggiornati a meta.
+        if (active) setLoadError({ key: requestKey, message: reason instanceof Error ? reason.message : "Caricamento non riuscito." });
       }
     })();
     return () => { active = false; };
-  }, [query, refreshKey]);
+  }, [query, requestKey]);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const response = await fetch("/api/sessions?page=1&pageSize=100");
-      const body = await response.json();
-      if (active && response.ok) setCalendarSessions(body.sessions as Session[]);
-    })().catch(() => {});
-    return () => { active = false; };
-  }, [refreshKey]);
+  const data = snapshot?.data ?? EMPTY_SNAPSHOT;
+  const sessions = data.sessions;
+  const total = data.total;
+  const loading = snapshot?.key !== requestKey && loadError?.key !== requestKey;
+  const filtersActive = hasActiveSessionFilters(filters);
+
+  function updateFilters(patch: Partial<Filters>) {
+    setFilters((current) => ({ ...current, ...patch }));
+    setPage(1);
+  }
+
+  function goToMonth(delta: number) {
+    const next = navigateSessionMonth({ month, filters }, delta);
+    setMonth(next.month);
+    if (next.filters !== filters) updateFilters(next.filters);
+  }
 
   useEffect(() => {
     let active = true;
@@ -229,27 +228,6 @@ export function SessionDirectory() {
     })().catch(() => {});
     return () => { active = false; };
   }, [refreshKey]);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const params = new URLSearchParams({ pageSize: "100" });
-      if (filters.clientId) params.set("clientId", filters.clientId);
-      if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
-      if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
-      const collected: Session[] = [];
-      for (let pageIndex = 1; pageIndex <= 20; pageIndex += 1) {
-        params.set("page", String(pageIndex));
-        const response = await fetch(`/api/sessions?${params.toString()}`);
-        const body = await response.json();
-        if (!response.ok) break;
-        collected.push(...(body.sessions as Session[]));
-        if (collected.length >= (body.total as number) || (body.sessions as Session[]).length === 0) break;
-      }
-      if (active) setPipelineSessions(collected);
-    })().catch(() => {});
-    return () => { active = false; };
-  }, [filters.clientId, filters.serviceTypeIds, filters.paymentStatuses, refreshKey]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectedService = services.find((service) => service.id === sessionForm.serviceTypeId);
@@ -279,7 +257,7 @@ export function SessionDirectory() {
   }
   const endTime = sessionForm.scheduledAt && Number(sessionForm.durationMinutes) > 0 ? new Date(new Date(sessionForm.scheduledAt).getTime() + Number(sessionForm.durationMinutes) * 60_000) : null;
 
-  const visibleSessions = filters.day ? sessions.filter((session) => localDayKey(session.scheduled_at) === filters.day) : sessions;
+  const visibleSessions = sessions;
 
   const stageByCode = useMemo(() => {
     const map = new Map<string, Stage>();
@@ -287,9 +265,10 @@ export function SessionDirectory() {
     return map;
   }, [stages]);
 
+  // Con il filtro Avanzamento la pipeline mostra solo le colonne delle fasi scelte.
   const boardColumns = useMemo<BoardColumn[]>(() => {
     return stages
-      .filter((stage) => !ballFilter || stage.ball_owner === "none" || stage.ball_owner === ballFilter)
+      .filter((stage) => (!ballFilter || stage.ball_owner === "none" || stage.ball_owner === ballFilter) && (filters.stageIds.length === 0 || filters.stageIds.includes(stage.id)))
       .map((stage) => ({
         code: stage.code,
         label: stage.name,
@@ -299,56 +278,23 @@ export function SessionDirectory() {
           && stage.code !== "cancelled"
           && (stage.code !== "delivered" || hasPrintExtras(session.extras))),
       }));
-  }, [stages, pipelineSessions, ballFilter]);
+  }, [stages, pipelineSessions, ballFilter, filters.stageIds]);
 
-  const ballCounts = useMemo(() => {
-    let you = 0;
-    let client = 0;
-    for (const session of pipelineSessions) {
-      const owner = stageOwner(stageByCode.get(session.current_stage?.code ?? "")?.ball_owner);
-      if (owner === "you") you += 1;
-      else if (owner === "client") client += 1;
-    }
-    return { you, client, total: you + client };
-  }, [pipelineSessions, stageByCode]);
-
-  const calendarByDay = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const session of calendarSessions) {
-      const key = localDayKey(session.scheduled_at);
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return map;
-  }, [calendarSessions]);
+  const ballCounts = data.kpis;
+  const calendarByDay = data.calendar;
 
   const calendarCells = useMemo(() => {
-    const first = new Date(month.year, month.month, 1);
-    const startOffset = (first.getDay() + 6) % 7;
-    const daysInMonth = new Date(month.year, month.month + 1, 0).getDate();
+    const [year, monthNumber] = month.split("-").map(Number);
+    const startOffset = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7;
+    const daysInMonth = new Date(year, monthNumber, 0).getDate();
     const cells: (number | null)[] = Array.from({ length: startOffset }, () => null);
     for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
     return cells;
   }, [month]);
 
-  const monthSummary = useMemo(() => {
-    const monthSessions = calendarSessions.filter((session) => {
-      const date = new Date(session.scheduled_at);
-      return date.getFullYear() === month.year && date.getMonth() === month.month && session.current_stage?.code !== "cancelled";
-    });
-    let expected = 0;
-    let collected = 0;
-    let unpaid = 0;
-    let settled = 0;
-    for (const session of monthSessions) {
-      const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-      const due = totalDue(session);
-      expected += due;
-      collected += Math.min(paid, due);
-      if (due === 0 || paid >= due) settled += 1;
-      else unpaid += 1;
-    }
-    return { total: monthSessions.length, unpaid, settled, expected, collected };
-  }, [calendarSessions, month]);
+  const monthSummary = data.summary;
+  const monthIndex = Number(month.slice(5, 7)) - 1;
+  const monthYear = Number(month.slice(0, 4));
 
   const soonExpiringVouchers = useMemo(() => {
     const soonIso = new Date(nowTimestamp + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -635,9 +581,9 @@ export function SessionDirectory() {
             <p className="mt-2 text-sm text-[#675f57]">Agenda, lavorazioni e stato degli incassi.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="flex h-11 overflow-hidden border border-[#cfc5b8]">
-              <button className={`px-4 text-sm font-semibold ${view === "list" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("list")} type="button">Lista</button>
-              <button className={`px-4 text-sm font-semibold ${view === "board" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("board")} type="button">Pipeline</button>
+            <div className="flex h-11 overflow-hidden border border-[#cfc5b8]" role="group" aria-label="Vista">
+              <button aria-pressed={view === "list"} className={`px-4 text-sm font-semibold ${view === "list" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("list")} type="button">Lista</button>
+              <button aria-pressed={view === "board"} className={`px-4 text-sm font-semibold ${view === "board" ? "bg-[#9b5d43] text-white" : "text-[#675f57] hover:bg-[#eee8df]"}`} onClick={() => setView("board")} type="button">Pipeline</button>
             </div>
             {selectedIds.size > 0 ? (
               <button className="grid h-11 place-items-center border border-[#a53e31] px-5 text-sm font-semibold text-[#a53e31] hover:bg-[#fff1ef] disabled:cursor-wait disabled:opacity-60" disabled={isDeleting} onClick={handleDeleteSelected} type="button">
@@ -659,16 +605,11 @@ export function SessionDirectory() {
             </Link>
             <ExportButton
               fetchRows={async () => {
-                const params = new URLSearchParams({ all: "1" });
-                if (filters.clientId) params.set("clientId", filters.clientId);
-                if (filters.serviceTypeIds.length > 0) params.set("serviceTypeId", filters.serviceTypeIds.join(","));
-                if (filters.stageIds.length > 0) params.set("stageId", filters.stageIds.join(","));
-                if (filters.paymentStatuses.length > 0) params.set("paymentStatus", filters.paymentStatuses.join(","));
+                const params = writeSessionFilters(filters, new URLSearchParams({ all: "1" }));
                 const response = await fetch(`/api/sessions?${params.toString()}`);
                 const body = await response.json();
                 const rows = (body.sessions ?? []) as Session[];
-                const byDay = filters.day ? rows.filter((session) => localDayKey(session.scheduled_at) === filters.day) : rows;
-                const filtered = selectedIds.size > 0 ? byDay.filter((session) => selectedIds.has(session.id)) : byDay;
+                const filtered = selectedIds.size > 0 ? rows.filter((session) => selectedIds.has(session.id)) : rows;
                 return filtered.map((session) => ({
                   Cliente: session.client ? `${session.client.first_name} ${session.client.last_name}` : "",
                   Servizio: session.service_name,
@@ -690,21 +631,38 @@ export function SessionDirectory() {
         <KpiStrip active={ballFilter} counts={ballCounts} onSelect={selectBall} />
 
         <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ClientCombobox clients={clients} emptyLabel="Tutti" onChange={(value) => { setFilters({ ...filters, clientId: value }); setPage(1); }} required={false} value={filters.clientId} />
-          <MultiSelectFilter label="Servizio" onChange={(ids) => { setFilters({ ...filters, serviceTypeIds: ids }); setPage(1); }} options={services} selected={filters.serviceTypeIds} />
-          <MultiSelectFilter label="Avanzamento" onChange={(ids) => { setFilters({ ...filters, stageIds: ids }); setPage(1); }} options={stages} selected={filters.stageIds} />
-          <MultiSelectFilter label="Pagamento" onChange={(ids) => { setFilters({ ...filters, paymentStatuses: ids }); setPage(1); }} options={paymentStatusOptions} selected={filters.paymentStatuses} />
+          <ClientCombobox clients={clients} emptyLabel="Tutti" onChange={(value) => updateFilters({ clientId: value })} required={false} value={filters.clientId} />
+          <MultiSelectFilter label="Servizio" onChange={(ids) => updateFilters({ serviceTypeIds: ids })} options={services} selected={filters.serviceTypeIds} />
+          <MultiSelectFilter label="Avanzamento" onChange={(ids) => updateFilters({ stageIds: ids })} options={stages} selected={filters.stageIds} />
+          <MultiSelectFilter label="Pagamento" onChange={(ids) => updateFilters({ paymentStatuses: ids })} options={paymentStatusOptions} selected={filters.paymentStatuses} />
         </div>
 
+        {filtersActive || loadError?.key === requestKey ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            {filters.day ? (
+              <button aria-label={`Rimuovi filtro data ${dayLabel(filters.day)}`} className="border border-[#9b5d43] bg-[#f1e3db] px-3 py-1 font-semibold text-[#8a4f37] hover:bg-[#ead8ce]" onClick={() => updateFilters({ day: "" })} type="button">
+                Giorno: {dayLabel(filters.day)} &times;
+              </button>
+            ) : null}
+            {filtersActive ? (
+              <button className="border border-[#cfc5b8] px-3 py-1 font-semibold text-[#675f57] hover:bg-[#eee8df]" onClick={() => updateFilters(EMPTY_SESSION_FILTERS)} type="button">Azzera filtri</button>
+            ) : null}
+            {loadError?.key === requestKey ? <span className="text-[#a53e31]" role="alert">{loadError.message} Sono mostrati gli ultimi dati caricati.</span> : null}
+          </div>
+        ) : null}
+
         {view === "board" ? (
-          <PipelineBoard columns={boardColumns} draggingId={draggingId} movingId={movingId} onMove={moveSessionToStage} setDraggingId={setDraggingId} />
+          <div className={loading ? "opacity-60" : ""}>
+            {!loading && pipelineSessions.length === 0 ? <p className="mt-4 border border-[#d8d0c5] bg-white p-6 text-center text-sm text-[#675f57]">{filtersActive ? "Nessuna sessione corrisponde ai filtri selezionati." : "Nessuna sessione da mostrare."}</p> : null}
+            <PipelineBoard columns={boardColumns} draggingId={draggingId} movingId={movingId} onMove={moveSessionToStage} setDraggingId={setDraggingId} />
+          </div>
         ) : (
         <>
         <div className="mt-4 flex items-center justify-between text-sm">
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2">
               <input
-                checked={visibleSessions.length > 0 && selectedIds.size === visibleSessions.length}
+                checked={visibleSessions.length > 0 && visibleSessions.every((session) => selectedIds.has(session.id))}
                 className="size-4 accent-[#9b5d43]"
                 disabled={visibleSessions.length === 0}
                 onChange={(event) => toggleSelectAll(event.target.checked)}
@@ -712,17 +670,16 @@ export function SessionDirectory() {
               />
               Seleziona tutte
             </label>
-            {filters.day ? <button className="border border-[#cfc5b8] px-3 py-1 text-xs font-semibold" onClick={() => setFilters({ ...filters, day: "" })} type="button">Giorno: {filters.day} &times;</button> : null}
+            {selectedIds.size > 0 ? <span className="text-xs text-[#675f57]">{selectedIds.size} {selectedIds.size === 1 ? "sessione selezionata" : "sessioni selezionate"}</span> : null}
           </div>
         </div>
 
         <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>
-            <section className="overflow-hidden border border-[#d8d0c5] bg-white">
-              {loading ? <p className="p-8 text-sm text-[#675f57]">Caricamento sessioni...</p> : visibleSessions.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">Nessuna sessione da mostrare.</p> : visibleSessions.map((session) => {
-                const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+            <section className={`overflow-hidden border border-[#d8d0c5] bg-white ${loading && snapshot ? "opacity-60" : ""}`}>
+              {loading && !snapshot ? <p className="p-8 text-sm text-[#675f57]">Caricamento sessioni...</p> : visibleSessions.length === 0 ? <p className="p-10 text-center text-sm text-[#675f57]">{filtersActive ? "Nessuna sessione corrisponde ai filtri selezionati." : "Nessuna sessione da mostrare."}</p> : visibleSessions.map((session) => {
                 const due = totalDue(session);
-                const paymentStatus: PaymentStatus = due === 0 ? "paid" : paid === 0 ? "unpaid" : paid < due ? "partial" : "paid";
+                const paymentStatus: PaymentStatus = sessionPaymentStatus(session);
                 const isLate = session.current_stage?.code === "booked" && new Date(session.scheduled_at) < new Date();
                 return (
                   <article className="flex flex-col gap-3 border-b border-[#eee8df] px-5 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between" key={session.id}>
@@ -802,35 +759,37 @@ export function SessionDirectory() {
           <aside className="flex flex-col gap-6">
             <div className="border border-[#d8d0c5] bg-white p-4">
               <div className="flex items-center justify-between">
-                <button className="size-8 border border-[#cfc5b8]" onClick={() => setMonth(({ year, month: current }) => current === 0 ? { year: year - 1, month: 11 } : { year, month: current - 1 })} type="button">&lt;</button>
-                <p className="text-sm font-semibold">{monthNames[month.month]} {month.year}</p>
-                <button className="size-8 border border-[#cfc5b8]" onClick={() => setMonth(({ year, month: current }) => current === 11 ? { year: year + 1, month: 0 } : { year, month: current + 1 })} type="button">&gt;</button>
+                <button aria-label="Mese precedente" className="size-8 border border-[#cfc5b8]" onClick={() => goToMonth(-1)} type="button">&lt;</button>
+                <p className="text-sm font-semibold">{monthNames[monthIndex]} {monthYear}</p>
+                <button aria-label="Mese successivo" className="size-8 border border-[#cfc5b8]" onClick={() => goToMonth(1)} type="button">&gt;</button>
               </div>
               <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-[#675f57]">{weekDays.map((day) => <span key={day}>{day}</span>)}</div>
-              <div className="mt-1 grid grid-cols-7 gap-1">
+              <div className={`mt-1 grid grid-cols-7 gap-1 ${loading && snapshot ? "opacity-60" : ""}`}>
                 {calendarCells.map((day, index) => {
                   if (!day) return <span key={`empty-${index}`} />;
-                  const key = `${month.year}-${String(month.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                  const count = calendarByDay.get(key) ?? 0;
+                  const key = `${month}-${String(day).padStart(2, "0")}`;
+                  const count = calendarByDay[key] ?? 0;
                   const isSelected = filters.day === key;
                   return (
-                    <button className={`aspect-square border text-xs ${isSelected ? "border-[#9b5d43] bg-[#9b5d43] text-white" : count ? "border-[#9b5d43] bg-[#f1e3db]" : "border-[#eee8df]"}`} key={key} onClick={() => setFilters({ ...filters, day: isSelected ? "" : key })} type="button">
+                    <button aria-label={`${dayLabel(key)}: ${count} ${count === 1 ? "sessione" : "sessioni"}`} aria-pressed={isSelected} className={`aspect-square border text-xs ${isSelected ? "border-[#9b5d43] bg-[#9b5d43] text-white" : count ? "border-[#9b5d43] bg-[#f1e3db]" : "border-[#eee8df]"}`} key={key} onClick={() => updateFilters({ day: isSelected ? "" : key })} type="button">
                       <span className="block">{day}</span>
                       {count ? <span className="block text-[10px]">{count}</span> : null}
                     </button>
                   );
                 })}
               </div>
+              <p className="mt-2 text-[11px] text-[#8a8178]">I conteggi seguono i filtri attivi. Clicca un giorno per filtrare, di nuovo per tornare al mese.</p>
             </div>
 
             <div className="border border-[#d8d0c5] bg-white p-4">
-              <h2 className="text-sm font-semibold">Riepilogo {monthNames[month.month]} {month.year}</h2>
+              <h2 className="text-sm font-semibold">Riepilogo {filters.day ? dayLabel(filters.day) : `${monthNames[monthIndex]} ${monthYear}`}</h2>
+              {filtersActive ? <p className="mt-1 text-[11px] text-[#8a8178]">Calcolato sulle sessioni filtrate.</p> : null}
               <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-xs text-[#675f57]">Sessioni</dt><dd className="font-semibold">{monthSummary.total}</dd></div>
+                <div><dt className="text-xs text-[#675f57]">Sessioni</dt><dd className="font-semibold">{monthSummary.sessions}</dd></div>
                 <div><dt className="text-xs text-[#675f57]">Da saldare</dt><dd className="font-semibold">{monthSummary.unpaid}</dd></div>
                 <div><dt className="text-xs text-[#675f57]">Saldate</dt><dd className="font-semibold">{monthSummary.settled}</dd></div>
-                <div><dt className="text-xs text-[#675f57]">Incasso previsto</dt><dd className="font-semibold">{euro.format(monthSummary.expected / 100)}</dd></div>
-                <div className="col-span-2"><dt className="text-xs text-[#675f57]">Coperto (denaro + buoni)</dt><dd className="font-semibold">{euro.format(monthSummary.collected / 100)}</dd></div>
+                <div><dt className="text-xs text-[#675f57]" title="Prezzo concordato + extra delle sessioni: valore dei servizi, non cassa.">Valore servizi</dt><dd className="font-semibold">{euro.format(monthSummary.valueCents / 100)}</dd></div>
+                <div className="col-span-2"><dt className="text-xs text-[#675f57]">Coperto (denaro + buoni)</dt><dd className="font-semibold">{euro.format(monthSummary.coveredCents / 100)}</dd></div>
               </dl>
             </div>
 
@@ -1137,9 +1096,7 @@ function PipelineBoard({ columns, onMove, draggingId, setDraggingId, movingId }:
 }
 
 function BoardCard({ session, owner, dragging, moving, setDraggingId }: { session: Session; owner: ColumnOwner; dragging: boolean; moving: boolean; setDraggingId: (id: string | null) => void }) {
-  const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-  const due = totalDue(session);
-  const paymentStatus: PaymentStatus = due === 0 ? "paid" : paid === 0 ? "unpaid" : paid < due ? "partial" : "paid";
+  const paymentStatus: PaymentStatus = sessionPaymentStatus(session);
   return (
     <article
       className={`cursor-grab border-l-4 border border-[#e2dace] bg-white p-3 shadow-sm transition-opacity active:cursor-grabbing ${dragging ? "opacity-40" : ""} ${moving ? "animate-pulse" : ""}`}
