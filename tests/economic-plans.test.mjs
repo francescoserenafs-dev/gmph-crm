@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as datetime from "../lib/datetime.ts";
 import * as economicPlans from "../lib/economic-plans.ts";
-import { computeEconomicDashboard, planCoherence, priceListFor, resolveAnnualTarget, serviceTargetValueCents, ticketAboveListMax } from "../lib/economic-plans.ts";
+import { computeEconomicDashboard, computePlanTotals, priceListFor, resolveAnnualTarget, ticketAboveListMax } from "../lib/economic-plans.ts";
 
 function loadModule(path, dependencies) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8");
@@ -83,7 +83,7 @@ test("Home gauge: payments and voucher sales never change acquired value", async
 });
 
 test("Home acquired equals Analisi Economico acquired on the same dataset", async () => {
-  const plan = { year: 2026, annualTargetCents: 1000000, expectedUpliftCents: 0, notes: null, monthlyTargets: [], serviceTargets: [] };
+  const plan = { year: 2026, notes: null, services: [{ serviceTypeId: "famiglia", plannedTicketCents: 100000, monthlySessions: [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }] };
   const economicPayments = homePayments.map((payment) => ({ amountCents: payment.amount_cents, paidDate: payment.paid_at.slice(0, 10), category: payment.category, isVoucherRedemption: payment.category === "voucher_redemption", voucherId: payment.voucher_id }));
   const economic = computeEconomicDashboard({ year: 2026, now: new Date(), plan, sessions: homeSessions, payments: economicPayments, serviceNames: new Map() });
   const { body } = await callHomeAnalytics({ target: { targetCents: 1000000, source: "plan" } });
@@ -123,6 +123,22 @@ test("acquired year follows Europe/Rome, not UTC", () => {
   assert.equal(acquired(2027), 13500);
 });
 
+test("plan payload: only canonical data is accepted, computed totals are never trusted", async () => {
+  const server = loadModule("../lib/economic-plans-server.ts", {
+    "@/lib/datetime": datetime,
+    "@/lib/economic-plans": economicPlans,
+    "@/lib/supabase/admin": { supabaseAdmin: fakeSupabase(() => ({ data: [], error: null })) },
+  });
+  const parsed = await server.parsePlanPayload({ notes: "  ", annualTargetCents: 999, totalValueCents: 1, services: [] });
+  assert.equal(JSON.stringify(parsed), JSON.stringify({ notes: null, services: [] }));
+  const service = (monthlySessions, plannedTicketCents = 24000) => ({ notes: null, services: [{ serviceTypeId: "famiglia", plannedTicketCents, monthlySessions }] });
+  assert.equal(typeof await server.parsePlanPayload(service([1.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])), "string");
+  assert.equal(typeof await server.parsePlanPayload(service([-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])), "string");
+  assert.equal(typeof await server.parsePlanPayload(service([1, 2, 3])), "string");
+  assert.equal(typeof await server.parsePlanPayload(service(Array(12).fill(0), 24000.5)), "string");
+  assert.equal(JSON.stringify(server.EMPTY_PLAN_PAYLOAD), JSON.stringify({ notes: null, services: [] }));
+});
+
 test("Home target: plan first, legacy budget fallback, 0 if neither", () => {
   assert.deepEqual(resolveAnnualTarget(1500000, null), { targetCents: 1500000, source: "plan" });
   assert.deepEqual(resolveAnnualTarget(null, 900000), { targetCents: 900000, source: "legacy_budget" });
@@ -144,22 +160,70 @@ const distribution2027 = {
 
 const plan2027 = {
   year: 2027,
-  annualTargetCents: 1500000,
-  expectedUpliftCents: 76500,
-  notes: "Piano economico centrale GMPH 2027",
-  monthlyTargets: [45000, 45000, 120000, 200000, 180000, 120000, 100000, 0, 150000, 170000, 370000, 0].map((targetCents, index) => ({ month: index + 1, targetCents })),
-  serviceTargets: [
-    ["famiglia", 15, 24000], ["maternita", 10, 23000], ["kids", 8, 12500], ["ritratto", 6, 20000],
-    ["natale", 25, 13500], ["autunno", 8, 12000], ["mamma", 6, 12500], ["battesimo", 3, 35000],
-  ].map(([serviceTypeId, targetSessions, plannedBaseTicketCents]) => ({ serviceTypeId, targetSessions, plannedBaseTicketCents, targetValueCents: serviceTargetValueCents(targetSessions, plannedBaseTicketCents), monthlySessions: distribution2027[serviceTypeId] })),
+  notes: null,
+  services: [
+    ["famiglia", 24000], ["maternita", 23000], ["kids", 12500], ["ritratto", 20000],
+    ["natale", 13500], ["autunno", 12000], ["mamma", 12500], ["battesimo", 35000],
+  ].map(([serviceTypeId, plannedTicketCents]) => ({ serviceTypeId, plannedTicketCents, monthlySessions: distribution2027[serviceTypeId] })),
 };
+const plan2027ValueCents = 360000 + 230000 + 100000 + 120000 + 337500 + 96000 + 75000;
 
-test("2027 base value = sessions x planned base ticket, per service and in total", () => {
-  const values = Object.fromEntries(plan2027.serviceTargets.map((entry) => [entry.serviceTypeId, entry.targetValueCents]));
-  assert.deepEqual(values, { famiglia: 360000, maternita: 230000, kids: 100000, ritratto: 120000, natale: 337500, autunno: 96000, mamma: 75000, battesimo: 105000 });
-  assert.equal(serviceTargetValueCents(18, 24000), 432000);
-  assert.equal(serviceTargetValueCents(15, 22500), 337500);
-  assert.equal(serviceTargetValueCents(0, 24000), 0);
+test("case 1: Famiglia 3 sessions in Mar/Apr/May/Sep/Oct at 240 EUR = 15 sessions, 3.600 EUR", () => {
+  const totals = computePlanTotals([{ serviceTypeId: "famiglia", plannedTicketCents: 24000, monthlySessions: distribution2027.famiglia }]);
+  assert.equal(totals.services[0].sessions, 15);
+  assert.equal(totals.services[0].valueCents, 360000);
+  assert.equal(totals.totalValueCents, 360000);
+  assert.equal(totals.monthlyValueCents[2], 72000);
+});
+
+test("case 2: Maternita 10 sessions at 230 EUR = 2.300 EUR", () => {
+  const totals = computePlanTotals([{ serviceTypeId: "maternita", plannedTicketCents: 23000, monthlySessions: distribution2027.maternita }]);
+  assert.equal(totals.services[0].sessions, 10);
+  assert.equal(totals.services[0].valueCents, 230000);
+});
+
+test("case 3: no sessions -> 0 sessions, 0 EUR, no division error on average ticket", () => {
+  const empty = computePlanTotals([{ serviceTypeId: "famiglia", plannedTicketCents: 24000, monthlySessions: Array(12).fill(0) }]);
+  assert.equal(empty.totalSessions, 0);
+  assert.equal(empty.totalValueCents, 0);
+  assert.equal(empty.averageTicketCents, null);
+  assert.equal(empty.plannedServices, 0);
+  assert.deepEqual(computePlanTotals([]).monthlyValueCents, Array(12).fill(0));
+});
+
+test("case 4: changing a ticket updates service value, its months and the annual total", () => {
+  const before = computePlanTotals(plan2027.services);
+  const after = computePlanTotals(plan2027.services.map((entry) => (entry.serviceTypeId === "famiglia" ? { ...entry, plannedTicketCents: 25000 } : entry)));
+  assert.equal(after.services[0].valueCents, 375000);
+  assert.equal(after.monthlyValueCents[2] - before.monthlyValueCents[2], 3000);
+  assert.equal(after.monthlyValueCents[0], before.monthlyValueCents[0]);
+  assert.equal(after.totalValueCents - before.totalValueCents, 15000);
+});
+
+test("case 5 and coherence: monthly sums equal service sums and the annual total", () => {
+  const totals = computePlanTotals(plan2027.services);
+  assert.equal(totals.monthlyValueCents.reduce((sum, value) => sum + value, 0), totals.totalValueCents);
+  assert.equal(totals.services.reduce((sum, row) => sum + row.valueCents, 0), totals.totalValueCents);
+  assert.equal(totals.monthlySessions.reduce((sum, value) => sum + value, 0), totals.totalSessions);
+  assert.equal(totals.services.reduce((sum, row) => sum + row.sessions, 0), totals.totalSessions);
+  assert.equal(totals.totalValueCents, plan2027ValueCents);
+  assert.equal(totals.totalSessions, 78);
+  assert.equal(totals.plannedServices, 7);
+  assert.equal(totals.averageTicketCents, Math.round(plan2027ValueCents / 78));
+  // Marzo: Famiglia 3x240 + Maternita 230 + Ritratto 200.
+  assert.equal(totals.monthlyValueCents[2], 72000 + 23000 + 20000);
+});
+
+test("example from spec: March 1 Ritratto + 1 Battesimo + 3 Famiglia + 1 Maternita = 1.500 EUR", () => {
+  const march = (sessions) => Array.from({ length: 12 }, (_, index) => (index === 2 ? sessions : 0));
+  const totals = computePlanTotals([
+    { serviceTypeId: "ritratto", plannedTicketCents: 20000, monthlySessions: march(1) },
+    { serviceTypeId: "battesimo", plannedTicketCents: 35000, monthlySessions: march(1) },
+    { serviceTypeId: "famiglia", plannedTicketCents: 24000, monthlySessions: march(3) },
+    { serviceTypeId: "maternita", plannedTicketCents: 23000, monthlySessions: march(1) },
+  ]);
+  assert.equal(totals.monthlyValueCents[2], 150000);
+  assert.equal(totals.totalValueCents, 150000);
 });
 
 test("current price list is reference only: active packages range, none for services without packages, warning above max", () => {
@@ -178,36 +242,6 @@ test("current price list is reference only: active packages range, none for serv
   assert.equal(ticketAboveListMax(39000, famiglia), false);
   assert.equal(ticketAboveListMax(45000, famiglia), true);
   assert.equal(ticketAboveListMax(999999, null), false);
-  // Il listino non altera il piano: il valore resta sessioni x ticket pianificato.
-  assert.equal(plan2027.serviceTargets[0].targetValueCents, 360000);
-});
-
-test("2027 monthly session distribution: per-service totals, monthly totals, Battesimo warning", () => {
-  const summary = planCoherence(plan2027);
-  const totals = Object.fromEntries(plan2027.serviceTargets.map((entry) => [entry.serviceTypeId, entry.monthlySessions.reduce((a, b) => a + b, 0)]));
-  assert.deepEqual(totals, { famiglia: 15, maternita: 10, kids: 8, ritratto: 6, natale: 25, autunno: 8, mamma: 6, battesimo: 0 });
-  assert.deepEqual(summary.distributedByMonth, [2, 2, 5, 11, 7, 5, 4, 0, 7, 9, 26, 0]);
-  assert.equal(summary.distributedSessions, 78);
-  assert.equal(summary.serviceSessions, 81);
-  assert.equal(summary.distributionDifference, -3);
-  assert.deepEqual(summary.undistributedServices, [{ serviceTypeId: "battesimo", targetSessions: 3, distributedSessions: 0 }]);
-});
-
-test("2027 seed values are coherent: 15.000 monthly, 14.235 services, 765 uplift, 15.000 planned", () => {
-  const summary = planCoherence(plan2027);
-  assert.equal(summary.monthlySumCents, 1500000);
-  assert.equal(summary.monthlyDifferenceCents, 0);
-  assert.equal(summary.serviceValueCents, 1423500);
-  assert.equal(summary.serviceSessions, 81);
-  assert.equal(summary.plannedValueCents, 1500000);
-  assert.equal(summary.plannedDifferenceCents, 0);
-});
-
-test("warnings: monthly sum or services + uplift different from annual target", () => {
-  const edited = { ...plan2027, monthlyTargets: plan2027.monthlyTargets.map((entry) => (entry.month === 1 ? { ...entry, targetCents: 50000 } : entry)) };
-  assert.equal(planCoherence(edited).monthlyDifferenceCents, 5000);
-  const lowerUplift = { ...plan2027, expectedUpliftCents: 0 };
-  assert.equal(planCoherence(lowerUplift).plannedDifferenceCents, -76500);
 });
 
 const now = new Date("2027-06-15T10:00:00.000Z");
@@ -234,8 +268,8 @@ test("dashboard with plan: cancelled excluded, extras included, future separated
   assert.equal(result.kpis.acquiredCents, 68500);
   assert.equal(result.kpis.realizedSessions, 2);
   assert.equal(result.kpis.futureSessions, 1);
-  assert.equal(result.kpis.coverage, 68500 / 1500000);
-  assert.equal(result.kpis.toGenerateCents, 1500000 - 68500);
+  assert.equal(result.kpis.coverage, 68500 / plan2027ValueCents);
+  assert.equal(result.kpis.toGenerateCents, plan2027ValueCents - 68500);
   assert.equal(result.kpis.averageTicketCents, 68500 / 3);
   assert.equal(result.kpis.cashInCents, 48500);
   assert.equal(result.cash.voucherSalesCents, 13500);
@@ -243,7 +277,8 @@ test("dashboard with plan: cancelled excluded, extras included, future separated
   assert.equal(result.cash.receivableCents, 20000);
   assert.deepEqual(result.baseVsExtra, { baseCents: 63500, extrasCents: 5000, extraShare: 5000 / 68500 });
 
-  assert.equal(result.months[0].targetCents, 45000);
+  // Gennaio pianificato: 1 Maternita x 230 + 1 Ritratto x 200.
+  assert.equal(result.months[0].targetCents, 43000);
   assert.equal(result.months[0].targetSessions, 2);
   assert.equal(result.months[0].acquiredSessions, 1);
   assert.equal(result.months[3].targetSessions, 11);
@@ -251,14 +286,14 @@ test("dashboard with plan: cancelled excluded, extras included, future separated
   assert.equal(result.months[10].acquiredSessions, 1);
   assert.equal(result.months[1].acquiredSessions, 0);
   assert.equal(result.months[0].acquiredCents, 25000);
-  assert.equal(result.months[0].gapCents, -20000);
+  assert.equal(result.months[0].gapCents, -18000);
   assert.equal(result.months[1].acquiredCents, 0);
   assert.equal(result.months[10].futureCents, 13500);
 
   const famiglia = result.services.find((row) => row.serviceTypeId === "famiglia");
   assert.equal(famiglia.acquiredSessions, 1);
-  assert.equal(famiglia.distributedSessions, 15);
-  assert.equal(result.services.find((row) => row.serviceTypeId === "battesimo").distributedSessions, 0);
+  assert.equal(famiglia.targetSessions, 15);
+  assert.equal(result.services.find((row) => row.serviceTypeId === "battesimo").targetSessions, 0);
   assert.equal(famiglia.acquiredValueCents, 25000);
   assert.equal(famiglia.gapCents, 25000 - 360000);
   const outside = result.services.find((row) => row.serviceTypeId === "commerciale");

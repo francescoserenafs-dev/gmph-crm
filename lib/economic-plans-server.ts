@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parseLocalDateTime } from "@/lib/datetime";
-import { buildServiceTargets, resolveAnnualTarget, serviceTargetValueCents, type ActivePackage, type EconomicPlan, type EconomicSession, type MonthlyTarget, type ServiceTarget } from "@/lib/economic-plans";
+import { buildPlanServices, computePlanTotals, resolveAnnualTarget, type ActivePackage, type EconomicPlan, type EconomicSession, type PlanService } from "@/lib/economic-plans";
 
 const PAGE_SIZE = 1000;
 
@@ -48,17 +48,14 @@ export async function loadEconomicSessions(year: number): Promise<EconomicSessio
 }
 
 const MAX_CENTS = 1_000_000_000;
-const MAX_SESSIONS = 100_000;
+const MAX_MONTHLY_SESSIONS = 10_000;
 const MAX_TICKET_CENTS = 10_000_000;
 
 type PlanRow = {
   id: string;
   year: number;
-  annual_target_cents: number;
-  expected_uplift_cents: number;
   notes: string | null;
-  monthly: { month: number; target_cents: number }[];
-  services: { service_type_id: string; target_sessions: number; planned_base_ticket_cents: number; target_value_cents: number }[];
+  services: { service_type_id: string; planned_ticket_cents: number }[];
   service_months: { service_type_id: string; month: number; target_sessions: number }[];
 };
 
@@ -72,23 +69,15 @@ const isAmount = (value: unknown, max: number): value is number => Number.isInte
 export async function loadPlan(year: number): Promise<{ id: string; plan: EconomicPlan } | null> {
   const { data, error } = await supabaseAdmin
     .from("annual_economic_plans")
-    .select("id, year, annual_target_cents, expected_uplift_cents, notes, monthly:economic_plan_monthly_targets(month, target_cents), services:economic_plan_service_targets(service_type_id, target_sessions, planned_base_ticket_cents, target_value_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions)")
+    .select("id, year, notes, services:economic_plan_service_targets(service_type_id, planned_ticket_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions)")
     .eq("year", year)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const row = data as unknown as PlanRow;
-  const monthly = new Map(row.monthly.map((entry) => [entry.month, entry.target_cents]));
   return {
     id: row.id,
-    plan: {
-      year: row.year,
-      annualTargetCents: row.annual_target_cents,
-      expectedUpliftCents: row.expected_uplift_cents,
-      notes: row.notes,
-      monthlyTargets: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, targetCents: monthly.get(index + 1) ?? 0 })),
-      serviceTargets: buildServiceTargets(row.services, row.service_months ?? []),
-    },
+    plan: { year: row.year, notes: row.notes, services: buildPlanServices(row.services, row.service_months ?? []) },
   };
 }
 
@@ -113,62 +102,38 @@ export async function loadActivePackages(): Promise<ActivePackage[]> {
 
 export type PlanPayload = Omit<EconomicPlan, "year">;
 
+// Solo dati canonici: i totali (sessioni, valori, mesi, anno) non vengono mai accettati dal client ne salvati.
 export async function parsePlanPayload(body: unknown): Promise<PlanPayload | string> {
   if (!body || typeof body !== "object") return "Dati del piano non validi.";
   const input = body as Record<string, unknown>;
-  if (!isAmount(input.annualTargetCents, MAX_CENTS)) return "Il target annuale deve essere un importo valido.";
-  if (!isAmount(input.expectedUpliftCents, MAX_CENTS)) return "Gli extra attesi devono essere un importo valido.";
   const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim().slice(0, 2000) : null;
 
-  if (!Array.isArray(input.monthlyTargets) || input.monthlyTargets.length !== 12) return "Servono 12 target mensili.";
-  const monthlyTargets: MonthlyTarget[] = [];
-  for (const entry of input.monthlyTargets as Record<string, unknown>[]) {
-    const month = Number(entry?.month);
-    if (!Number.isInteger(month) || month < 1 || month > 12 || monthlyTargets.some((item) => item.month === month)) return "Mese non valido.";
-    if (!isAmount(entry.targetCents, MAX_CENTS)) return "I target mensili devono essere importi validi.";
-    monthlyTargets.push({ month, targetCents: entry.targetCents });
-  }
-
-  if (!Array.isArray(input.serviceTargets)) return "Target per servizio non validi.";
-  const serviceTargets: ServiceTarget[] = [];
-  for (const entry of input.serviceTargets as Record<string, unknown>[]) {
+  if (!Array.isArray(input.services)) return "Servizi del piano non validi.";
+  const services: PlanService[] = [];
+  for (const entry of input.services as Record<string, unknown>[]) {
     const serviceTypeId = typeof entry?.serviceTypeId === "string" ? entry.serviceTypeId : "";
-    if (!serviceTypeId || serviceTargets.some((item) => item.serviceTypeId === serviceTypeId)) return "Ogni servizio puo comparire una sola volta nel piano.";
-    if (!isAmount(entry.targetSessions, MAX_SESSIONS)) return "Le sessioni target devono essere un numero intero valido.";
-    if (!isAmount(entry.plannedBaseTicketCents, MAX_TICKET_CENTS)) return "Il ticket medio base pianificato deve essere un importo valido.";
-    const monthlySessions = Array.isArray(entry.monthlySessions) ? (entry.monthlySessions as unknown[]) : Array.from({ length: 12 }, () => 0);
-    if (monthlySessions.length !== 12 || !monthlySessions.every((value) => isAmount(value, MAX_SESSIONS))) return "La distribuzione mensile delle sessioni deve contenere 12 numeri interi validi.";
-    const targetValueCents = serviceTargetValueCents(entry.targetSessions, entry.plannedBaseTicketCents);
-    if (targetValueCents > MAX_CENTS) return "Il valore base target risultante e troppo alto.";
-    serviceTargets.push({ serviceTypeId, targetSessions: entry.targetSessions, plannedBaseTicketCents: entry.plannedBaseTicketCents, targetValueCents, monthlySessions: monthlySessions as number[] });
+    if (!serviceTypeId || services.some((item) => item.serviceTypeId === serviceTypeId)) return "Ogni servizio puo comparire una sola volta nel piano.";
+    if (!isAmount(entry.plannedTicketCents, MAX_TICKET_CENTS)) return "Il ticket medio pianificato deve essere un importo valido.";
+    const monthlySessions = entry.monthlySessions;
+    if (!Array.isArray(monthlySessions) || monthlySessions.length !== 12 || !monthlySessions.every((value) => isAmount(value, MAX_MONTHLY_SESSIONS))) return "Le sessioni mensili devono essere 12 numeri interi maggiori o uguali a 0.";
+    services.push({ serviceTypeId, plannedTicketCents: entry.plannedTicketCents, monthlySessions: monthlySessions as number[] });
   }
+  if (computePlanTotals(services).totalValueCents > MAX_CENTS) return "Il fatturato pianificato risultante e troppo alto.";
 
-  if (serviceTargets.length > 0) {
+  if (services.length > 0) {
     const { data, error } = await supabaseAdmin
       .from("service_types")
       .select("id")
-      .in("id", serviceTargets.map((entry) => entry.serviceTypeId))
+      .in("id", services.map((entry) => entry.serviceTypeId))
       .eq("is_addon", false);
     if (error) return "Verifica dei servizi non riuscita.";
-    if ((data ?? []).length !== serviceTargets.length) return "Uno o piu servizi non sono validi.";
+    if ((data ?? []).length !== services.length) return "Uno o piu servizi non sono validi.";
   }
 
-  return {
-    annualTargetCents: input.annualTargetCents,
-    expectedUpliftCents: input.expectedUpliftCents,
-    notes,
-    monthlyTargets,
-    serviceTargets,
-  };
+  return { notes, services };
 }
 
-export const EMPTY_PLAN_PAYLOAD: PlanPayload = {
-  annualTargetCents: 0,
-  expectedUpliftCents: 0,
-  notes: null,
-  monthlyTargets: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, targetCents: 0 })),
-  serviceTargets: [],
-};
+export const EMPTY_PLAN_PAYLOAD: PlanPayload = { notes: null, services: [] };
 
 export type SavePlanResult = { ok: true } | { ok: false; status: number; error: string };
 
@@ -177,12 +142,9 @@ export async function savePlanAtomic(year: number, create: boolean, payload: Pla
   const { error } = await supabaseAdmin.rpc("save_economic_plan", {
     p_year: year,
     p_create: create,
-    p_annual_target_cents: payload.annualTargetCents,
-    p_expected_uplift_cents: payload.expectedUpliftCents,
     p_notes: payload.notes,
-    p_monthly: payload.monthlyTargets.map((entry) => ({ month: entry.month, target_cents: entry.targetCents })),
-    p_services: payload.serviceTargets.map((entry) => ({ service_type_id: entry.serviceTypeId, target_sessions: entry.targetSessions, planned_base_ticket_cents: entry.plannedBaseTicketCents })),
-    p_service_months: payload.serviceTargets.flatMap((entry) => entry.monthlySessions.map((sessions, index) => ({ service_type_id: entry.serviceTypeId, month: index + 1, target_sessions: sessions }))),
+    p_services: payload.services.map((entry) => ({ service_type_id: entry.serviceTypeId, planned_ticket_cents: entry.plannedTicketCents })),
+    p_service_months: payload.services.flatMap((entry) => entry.monthlySessions.map((sessions, index) => ({ service_type_id: entry.serviceTypeId, month: index + 1, target_sessions: sessions }))),
   });
   if (!error) return { ok: true };
   if (error.code === "23505") return { ok: false, status: 409, error: `Esiste gia un piano ${year}.` };
@@ -191,12 +153,12 @@ export async function savePlanAtomic(year: number, create: boolean, payload: Pla
   return { ok: false, status: 500, error: "Salvataggio non riuscito: nessuna modifica e stata applicata." };
 }
 
-// Target annuale per la Home: Piano Economico dell'anno se esiste, altrimenti il budget legacy di app_settings.
+// Target annuale per la Home: fatturato pianificato derivato dal Piano dell'anno, altrimenti il budget legacy di app_settings.
 export async function getAnnualTargetForYear(year: number): Promise<{ targetCents: number; source: "plan" | "legacy_budget" }> {
-  const [plan, settings] = await Promise.all([
-    supabaseAdmin.from("annual_economic_plans").select("annual_target_cents").eq("year", year).maybeSingle(),
+  const [loaded, settings] = await Promise.all([
+    loadPlan(year),
     supabaseAdmin.from("app_settings").select("annual_budget_cents").eq("id", true).maybeSingle(),
   ]);
-  if (settings.error && !plan.data) throw settings.error;
-  return resolveAnnualTarget(plan.data?.annual_target_cents ?? null, settings.data?.annual_budget_cents ?? null);
+  if (settings.error && !loaded) throw settings.error;
+  return resolveAnnualTarget(loaded ? computePlanTotals(loaded.plan.services).totalValueCents : null, settings.data?.annual_budget_cents ?? null);
 }

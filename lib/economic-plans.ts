@@ -1,10 +1,26 @@
-export type MonthlyTarget = { month: number; targetCents: number };
-// monthlySessions: 12 valori (gen..dic) di sessioni target pianificate nel mese.
-// targetValueCents e sempre derivato: targetSessions * plannedBaseTicketCents.
-export type ServiceTarget = { serviceTypeId: string; targetSessions: number; plannedBaseTicketCents: number; targetValueCents: number; monthlySessions: number[] };
+// Unici dati salvati per servizio: ticket medio pianificato (extra inclusi) e sessioni dei 12 mesi (gen..dic).
+export type PlanService = { serviceTypeId: string; plannedTicketCents: number; monthlySessions: number[] };
 
-export function serviceTargetValueCents(targetSessions: number, plannedBaseTicketCents: number): number {
-  return targetSessions * plannedBaseTicketCents;
+// Unica logica di calcolo del piano (UI, dashboard, Home): tutti i totali derivano da sessioni mensili x ticket, in centesimi interi.
+export function computePlanTotals(services: PlanService[]) {
+  const rows = services.map((service) => {
+    const monthlyValueCents = service.monthlySessions.map((sessions) => sessions * service.plannedTicketCents);
+    const sessions = service.monthlySessions.reduce((sum, value) => sum + value, 0);
+    return { serviceTypeId: service.serviceTypeId, sessions, valueCents: sessions * service.plannedTicketCents, monthlyValueCents };
+  });
+  const monthlySessions = Array.from({ length: 12 }, (_, index) => services.reduce((sum, service) => sum + (service.monthlySessions[index] ?? 0), 0));
+  const monthlyValueCents = Array.from({ length: 12 }, (_, index) => rows.reduce((sum, row) => sum + (row.monthlyValueCents[index] ?? 0), 0));
+  const totalSessions = rows.reduce((sum, row) => sum + row.sessions, 0);
+  const totalValueCents = rows.reduce((sum, row) => sum + row.valueCents, 0);
+  return {
+    services: rows,
+    monthlySessions,
+    monthlyValueCents,
+    totalSessions,
+    totalValueCents,
+    averageTicketCents: totalSessions > 0 ? Math.round(totalValueCents / totalSessions) : null,
+    plannedServices: rows.filter((row) => row.sessions > 0).length,
+  };
 }
 
 export type ActivePackage = { serviceTypeId: string; name: string; priceCents: number };
@@ -17,16 +33,13 @@ export function priceListFor(serviceTypeId: string, packages: ActivePackage[]) {
   return { minCents: Math.min(...prices), maxCents: Math.max(...prices), packages: own };
 }
 
-export function ticketAboveListMax(plannedBaseTicketCents: number, priceList: { maxCents: number } | null): boolean {
-  return priceList !== null && plannedBaseTicketCents > priceList.maxCents;
+export function ticketAboveListMax(plannedTicketCents: number, priceList: { maxCents: number } | null): boolean {
+  return priceList !== null && plannedTicketCents > priceList.maxCents;
 }
 export type EconomicPlan = {
   year: number;
-  annualTargetCents: number;
-  expectedUpliftCents: number;
   notes: string | null;
-  monthlyTargets: MonthlyTarget[];
-  serviceTargets: ServiceTarget[];
+  services: PlanService[];
 };
 
 export type EconomicSession = {
@@ -55,45 +68,17 @@ function localDateKey(value: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
 }
 
-export function planCoherence(plan: Pick<EconomicPlan, "annualTargetCents" | "expectedUpliftCents" | "monthlyTargets" | "serviceTargets">) {
-  const monthlySumCents = plan.monthlyTargets.reduce((sum, entry) => sum + entry.targetCents, 0);
-  const serviceValueCents = plan.serviceTargets.reduce((sum, entry) => sum + entry.targetValueCents, 0);
-  const serviceSessions = plan.serviceTargets.reduce((sum, entry) => sum + entry.targetSessions, 0);
-  const plannedValueCents = serviceValueCents + plan.expectedUpliftCents;
-  const distributedByMonth = Array.from({ length: 12 }, (_, index) => plan.serviceTargets.reduce((sum, entry) => sum + (entry.monthlySessions[index] ?? 0), 0));
-  const distributedSessions = distributedByMonth.reduce((sum, value) => sum + value, 0);
-  return {
-    monthlySumCents,
-    monthlyDifferenceCents: monthlySumCents - plan.annualTargetCents,
-    serviceValueCents,
-    serviceSessions,
-    plannedValueCents,
-    plannedDifferenceCents: plannedValueCents - plan.annualTargetCents,
-    distributedByMonth,
-    distributedSessions,
-    distributionDifference: distributedSessions - serviceSessions,
-    undistributedServices: plan.serviceTargets
-      .map((entry) => ({ serviceTypeId: entry.serviceTypeId, targetSessions: entry.targetSessions, distributedSessions: distributedTotal(entry) }))
-      .filter((entry) => entry.distributedSessions !== entry.targetSessions),
-  };
-}
-
-export function distributedTotal(target: Pick<ServiceTarget, "monthlySessions">): number {
-  return target.monthlySessions.reduce((sum, value) => sum + value, 0);
-}
-
-// I servizi del piano sono la fonte unica: la distribuzione fornisce solo i valori mese -> sessioni.
 // Mesi mancanti valgono 0; righe mensili di servizi non (piu) nel piano vengono ignorate.
-export function buildServiceTargets(
-  services: { service_type_id: string; target_sessions: number; planned_base_ticket_cents: number; target_value_cents: number }[],
+export function buildPlanServices(
+  services: { service_type_id: string; planned_ticket_cents: number }[],
   serviceMonths: { service_type_id: string; month: number; target_sessions: number }[],
-): ServiceTarget[] {
+): PlanService[] {
   return services.map((service) => {
     const monthlySessions = Array.from({ length: 12 }, () => 0);
     for (const cell of serviceMonths) {
       if (cell.service_type_id === service.service_type_id && cell.month >= 1 && cell.month <= 12) monthlySessions[cell.month - 1] = cell.target_sessions;
     }
-    return { serviceTypeId: service.service_type_id, targetSessions: service.target_sessions, plannedBaseTicketCents: service.planned_base_ticket_cents, targetValueCents: service.target_value_cents, monthlySessions };
+    return { serviceTypeId: service.service_type_id, plannedTicketCents: service.planned_ticket_cents, monthlySessions };
   });
 }
 
@@ -157,9 +142,9 @@ export function computeEconomicDashboard({
 
   const acquiredCents = total.realizedCents + total.futureCents;
   const acquiredSessions = total.realizedSessions + total.futureSessions;
-  const annualTargetCents = plan?.annualTargetCents ?? null;
-  const monthlyTargets = new Map((plan?.monthlyTargets ?? []).map((entry) => [entry.month, entry.targetCents]));
-  const planServiceIds = new Set((plan?.serviceTargets ?? []).map((entry) => entry.serviceTypeId));
+  const planTotals = plan ? computePlanTotals(plan.services) : null;
+  const annualTargetCents = planTotals?.totalValueCents ?? null;
+  const planServiceIds = new Set((plan?.services ?? []).map((entry) => entry.serviceTypeId));
 
   return {
     year,
@@ -177,12 +162,12 @@ export function computeEconomicDashboard({
       futureSessions: total.futureSessions,
     },
     months: byMonth.map((bucket, index) => {
-      const targetCents = plan ? monthlyTargets.get(index + 1) ?? 0 : null;
+      const targetCents = planTotals ? planTotals.monthlyValueCents[index] : null;
       const monthAcquired = bucket.realizedCents + bucket.futureCents;
       return {
         month: index + 1,
         label: MONTH_NAMES[index],
-        targetSessions: plan ? plan.serviceTargets.reduce((sum, target) => sum + (target.monthlySessions[index] ?? 0), 0) : null,
+        targetSessions: planTotals ? planTotals.monthlySessions[index] : null,
         acquiredSessions: bucket.realizedSessions + bucket.futureSessions,
         targetCents,
         realizedCents: bucket.realizedCents,
@@ -193,19 +178,18 @@ export function computeEconomicDashboard({
       };
     }),
     services: [
-      ...(plan?.serviceTargets ?? []).map((target) => {
+      ...(planTotals?.services ?? []).map((target) => {
         const actual = byService.get(target.serviceTypeId);
         const acquiredValue = (actual?.realizedCents ?? 0) + (actual?.futureCents ?? 0);
         return {
           serviceTypeId: target.serviceTypeId,
           name: serviceNames.get(target.serviceTypeId) ?? "Servizio non disponibile",
           inPlan: true,
-          targetSessions: target.targetSessions as number | null,
-          distributedSessions: distributedTotal(target) as number | null,
+          targetSessions: target.sessions as number | null,
           acquiredSessions: (actual?.realizedSessions ?? 0) + (actual?.futureSessions ?? 0),
-          targetValueCents: target.targetValueCents as number | null,
+          targetValueCents: target.valueCents as number | null,
           acquiredValueCents: acquiredValue,
-          gapCents: (acquiredValue - target.targetValueCents) as number | null,
+          gapCents: (acquiredValue - target.valueCents) as number | null,
         };
       }),
       ...Array.from(byService.entries())
@@ -215,7 +199,6 @@ export function computeEconomicDashboard({
           name: actual.name,
           inPlan: false,
           targetSessions: null,
-          distributedSessions: null,
           acquiredSessions: actual.realizedSessions + actual.futureSessions,
           targetValueCents: null,
           acquiredValueCents: actual.realizedCents + actual.futureCents,
