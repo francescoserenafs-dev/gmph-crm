@@ -237,6 +237,13 @@ export function ClientDirectory() {
             <p className="mt-2 text-sm text-[#675f57]">
               Anagrafiche, contatti e consensi in un unico archivio.
             </p>
+            <p aria-live="polite" aria-atomic="true" className="mt-2 text-sm font-medium text-[#514a43]">
+              {isLoading
+                ? "Conteggio in corso..."
+                : loadError
+                  ? "Conteggio non disponibile"
+                  : `${search.trim() || onlyWithBalance || privacyFilter !== "all" ? "Clienti trovati" : "Clienti totali"}: ${visibleClients.length}`}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedIds.size > 0 ? (
