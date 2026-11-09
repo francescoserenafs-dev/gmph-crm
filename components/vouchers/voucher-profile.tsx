@@ -5,7 +5,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 
-type Payment = { id: string; amount_cents: number; paid_at: string; payment_method_name: string; notes: string | null };
+type Payment = { id: string; amount_cents: number; paid_at: string; paid_date: string | null; payment_method_name: string; notes: string | null };
+type Redemption = { id: string; amount_cents: number; voucher_unused_cents: number | null; paid_date: string | null; session: { id: string; scheduled_at: string; service_name: string } | null };
 type Voucher = {
   id: string;
   code: string;
@@ -22,12 +23,15 @@ type Voucher = {
   purchaser: { id: string; first_name: string; last_name: string } | null;
   recipient: { id: string; first_name: string; last_name: string } | null;
   payments: Payment[];
+  redemptions: Redemption[];
 };
 type Client = { id: string; first_name: string; last_name: string; email: string };
 type Service = { id: string; name: string };
 type Method = { id: string; name: string };
 
-const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium" });
+const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "medium", timeZone: "Europe/Rome" });
+// paid_date e una data di calendario (Europe/Rome): mezzogiorno UTC evita slittamenti di giorno.
+const calendarDate = (dateKey: string) => dateOnly.format(new Date(`${dateKey}T12:00:00Z`));
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const statusLabels: Record<string, string> = { active: "Attivo", redeemed: "Riscattato", expired: "Scaduto", cancelled: "Annullato" };
 
@@ -161,6 +165,8 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
   if (!voucher) return <main className="p-8"><p className="text-sm text-[#a53e31]">{error ?? "Buono non trovato."}</p><Link className="mt-4 inline-block text-sm font-semibold text-[#9b5d43]" href="/vouchers">Torna ai buoni</Link></main>;
 
   const orderedPayments = [...voucher.payments].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+  const cashYears = Array.from(new Set(voucher.payments.map((payment) => (payment.paid_date ?? payment.paid_at).slice(0, 4)))).sort();
+  const nominalCents = voucher.voucher_type === "value" ? voucher.value_cents ?? 0 : voucher.purchase_price_cents;
 
   return (
     <main className="min-h-screen bg-[#f5f1eb] px-4 py-6 text-[#27231f] sm:px-8 lg:px-12">
@@ -181,14 +187,36 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
         </header>
 
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Card label="Tipo">{voucher.voucher_type === "value" ? euro.format((voucher.value_cents ?? 0) / 100) : `Sessione ${voucher.service_name ?? ""}`}</Card>
+          <Card label="Tipo">{voucher.voucher_type === "value" ? "A valore" : `Sessione ${voucher.service_name ?? ""}`}</Card>
+          <Card label="Valore nominale">{euro.format(nominalCents / 100)}</Card>
           <Card label={voucher.is_complimentary ? "Valore omaggio" : "Prezzo di acquisto"}>{euro.format(voucher.purchase_price_cents / 100)}</Card>
           <Card label="Incassato">{voucher.is_complimentary ? "Omaggio" : euro.format(paid / 100)}</Card>
-          <Card label="Saldo residuo">{euro.format(balance / 100)}</Card>
+          <Card label="Da incassare (acquisto)">{euro.format(balance / 100)}</Card>
           <Card label={voucher.is_complimentary ? "Emesso il" : "Acquistato il"}>{dateOnly.format(new Date(voucher.purchased_at))}</Card>
+          <Card label="Anno di incasso">{voucher.is_complimentary ? "Nessuno (omaggio)" : cashYears.length > 0 ? cashYears.join(", ") : "Nessun pagamento"}</Card>
           <Card label="Scadenza">{dateOnly.format(new Date(voucher.expires_at))}</Card>
           <Card label="Stato">{statusLabels[voucher.status] ?? voucher.status}</Card>
         </div>
+
+        {voucher.redemptions.length > 0 ? (
+          <section className="mt-9">
+            <h2 className="text-lg font-semibold">Riscatto</h2>
+            <div className="mt-4 overflow-hidden border border-[#d8d0c5] bg-white">
+              {voucher.redemptions.map((redemption) => (
+                <article className="grid gap-2 border-b border-[#eee8df] px-5 py-4 text-sm last:border-b-0 sm:grid-cols-4" key={redemption.id}>
+                  <div>
+                    <p className="text-xs text-[#675f57]">Sessione</p>
+                    {redemption.session ? <Link className="font-semibold text-[#9b5d43] hover:underline" href={`/sessions/${redemption.session.id}`}>{redemption.session.service_name} · {dateOnly.format(new Date(redemption.session.scheduled_at))}</Link> : <p className="font-semibold">—</p>}
+                  </div>
+                  <div><p className="text-xs text-[#675f57]">Registrato il</p><p className="font-semibold">{redemption.paid_date ? calendarDate(redemption.paid_date) : "—"}</p></div>
+                  <div><p className="text-xs text-[#675f57]">Importo applicato</p><p className="font-semibold">{euro.format(redemption.amount_cents / 100)}</p></div>
+                  <div><p className="text-xs text-[#675f57]">Credito non utilizzato</p><p className="font-semibold">{euro.format((redemption.voucher_unused_cents ?? 0) / 100)}</p></div>
+                </article>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-[#675f57]">Il riscatto copre la sessione ma non è nuova cassa: il buono è stato incassato all&apos;acquisto{voucher.is_complimentary ? " (qui omaggio, nessun incasso)" : ""}.</p>
+          </section>
+        ) : null}
 
         <form className="mt-8 bg-white p-5 sm:p-8" onSubmit={submitEdit}>
           <h2 className="text-lg font-semibold">Modifica buono</h2>
@@ -242,13 +270,13 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
         </form>
 
         <section className="mt-9">
-          <h2 className="text-lg font-semibold">Pagamenti</h2>
+          <h2 className="text-lg font-semibold">Pagamenti di acquisto</h2>
           <div className="mt-4 overflow-hidden border border-[#d8d0c5] bg-white">
             {orderedPayments.length === 0 ? <p className="p-6 text-sm text-[#675f57]">Nessun pagamento registrato.</p> : orderedPayments.map((payment) => (
               <article className="flex items-center justify-between gap-4 border-b border-[#eee8df] px-5 py-4 last:border-b-0" key={payment.id}>
                 <div>
                   <p className="text-sm font-semibold">{euro.format(payment.amount_cents / 100)}</p>
-                  <p className="mt-1 text-xs text-[#675f57]">{dateOnly.format(new Date(payment.paid_at))} - {payment.payment_method_name}</p>
+                  <p className="mt-1 text-xs text-[#675f57]">{payment.paid_date ? calendarDate(payment.paid_date) : dateOnly.format(new Date(payment.paid_at))} - {payment.payment_method_name}</p>
                 </div>
               </article>
             ))}

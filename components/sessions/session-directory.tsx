@@ -830,7 +830,7 @@ export function SessionDirectory() {
                 <div><dt className="text-xs text-[#675f57]">Da saldare</dt><dd className="font-semibold">{monthSummary.unpaid}</dd></div>
                 <div><dt className="text-xs text-[#675f57]">Saldate</dt><dd className="font-semibold">{monthSummary.settled}</dd></div>
                 <div><dt className="text-xs text-[#675f57]">Incasso previsto</dt><dd className="font-semibold">{euro.format(monthSummary.expected / 100)}</dd></div>
-                <div className="col-span-2"><dt className="text-xs text-[#675f57]">Incassato</dt><dd className="font-semibold">{euro.format(monthSummary.collected / 100)}</dd></div>
+                <div className="col-span-2"><dt className="text-xs text-[#675f57]">Coperto (denaro + buoni)</dt><dd className="font-semibold">{euro.format(monthSummary.collected / 100)}</dd></div>
               </dl>
             </div>
 

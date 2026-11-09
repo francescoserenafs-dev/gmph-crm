@@ -4,7 +4,7 @@ Theme URI: https://giuliamalosso.it
 Author: Giulia Malosso Photography
 Author URI: https://giuliamalosso.it
 Description: Tema classico leggero per fotografia di famiglia, gravidanza, newborn, bambini, battesimo, coppia, ritratto e commerciale. Pagine costruite nel Block Editor con pattern dedicati. Palette crema e terracotta.
-Version: 2.1.2
+Version: 2.2.0
 Requires at least: 6.3
 Tested up to: 6.6
 Requires PHP: 7.4
@@ -429,7 +429,7 @@ address { font-style: normal; }
 .gmph-page-intro .gmph-lead { margin-inline: auto; }
 
 /* Griglie: colonne core trasformate in griglie responsive */
-.wp-block-columns:is(.gmph-cards, .gmph-steps, .gmph-features, .gmph-prices, .gmph-testimonials) {
+.wp-block-columns:is(.gmph-cards, .gmph-steps, .gmph-features, .gmph-prices, .gmph-testimonials, .gmph-gift-options, .gmph-gift-recipients) {
   display: grid;
   gap: 1.5rem;
   margin-top: 2.5rem;
@@ -438,18 +438,18 @@ address { font-style: normal; }
 .wp-block-columns.gmph-cards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 
 /* Se una colonna contiene più blocchi (es. card duplicata nella stessa colonna), si impilano senza sovrapporsi. */
-.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials) > .wp-block-column {
+.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials, .gmph-gift-options) > .wp-block-column {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials) > .wp-block-column > * {
+.wp-block-columns:is(.gmph-cards, .gmph-prices, .gmph-testimonials, .gmph-gift-options) > .wp-block-column > * {
   flex: 1 1 auto;
   margin: 0;
 }
 .wp-block-columns.gmph-steps { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
-.wp-block-columns:is(.gmph-features, .gmph-prices, .gmph-testimonials) { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.wp-block-columns:is(.gmph-features, .gmph-prices, .gmph-testimonials, .gmph-gift-options) { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 
 .wp-block-columns.gmph-split {
   display: grid;
@@ -582,7 +582,8 @@ address { font-style: normal; }
 .gmph-step h3 { font-size: 1.4rem; }
 .gmph-step p { color: var(--muted); font-size: 1.18rem; }
 
-.gmph-price-card {
+.gmph-price-card,
+.gmph-gift-option {
   display: flex;
   flex-direction: column;
   background: var(--white);
@@ -591,7 +592,8 @@ address { font-style: normal; }
   padding: 2rem 1.8rem;
 }
 
-.gmph-price-card > .wp-block-group__inner-container {
+.gmph-price-card > .wp-block-group__inner-container,
+.gmph-gift-option > .wp-block-group__inner-container {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -713,6 +715,141 @@ address { font-style: normal; }
   border-radius: var(--radius);
   padding: 0.8rem 1rem;
 }
+
+/* ==========================================================================
+   Buoni regalo
+   ========================================================================== */
+
+/* Hero affiancato: testo su fondo chiaro e foto a lato (sopra il testo su mobile). */
+.gmph-hero--split {
+  min-height: 0;
+  align-items: stretch;
+  background: var(--cream-soft);
+  color: var(--ink);
+}
+
+.gmph-hero--split::after { content: none; }
+.gmph-hero--split :is(h1, .gmph-lead) { text-shadow: none; }
+.gmph-hero--split h1 { color: var(--ink); }
+.gmph-hero--split .gmph-eyebrow { color: var(--terracotta-dark); }
+.gmph-hero--split .gmph-lead { color: var(--muted); }
+
+/* Lo spazio della foto è riservato dalle proporzioni: nessuno spostamento al caricamento. */
+.gmph-hero--split .gmph-hero__media {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.gmph-hero--split .gmph-hero__media img {
+  position: absolute;
+  inset: 0;
+}
+
+.gmph-hero--split .gmph-hero__content {
+  align-self: center;
+  padding-block: 2.5rem 3rem;
+}
+
+.gmph-gift-perks {
+  margin: 1.6rem 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Foto affiancate al testo nelle sezioni della pagina */
+.gmph-gift-media { margin: 0 !important; }
+
+.gmph-gift-media img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+.wp-block-columns.gmph-split--reverse { grid-template-columns: 1.1fr 0.9fr; }
+.wp-block-columns.gmph-split--reverse > .wp-block-column:first-child { order: 2; }
+
+/* Foto non ancora scelta: il blocco non viene stampato e il testo resta centrato. */
+.wp-block-columns.gmph-gift-split:not(:has(.gmph-gift-media)) {
+  grid-template-columns: minmax(0, var(--content));
+  justify-content: center;
+}
+
+.gmph-gift-split:not(:has(.gmph-gift-media)) > .wp-block-column:first-child { display: none; }
+
+/* Scegli il tuo buono */
+.gmph-gift-option h3 { margin-bottom: 0.4em; }
+.gmph-gift-option p { color: var(--muted); font-size: 1.18rem; }
+.gmph-gift-option .gmph-eyebrow { margin: 0.4rem 0 0.8rem; }
+
+.entry-content ul.gmph-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.gmph-chips li {
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.gmph-gift-option .gmph-gift-note {
+  margin: auto 0 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border-soft);
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+/* Come funziona: numerazione evidente */
+.gmph-steps--numbered .gmph-step {
+  border-top: 1px solid var(--border);
+  padding-top: 1.4rem;
+}
+
+.gmph-step .gmph-step__number {
+  margin: 0 0 0.6rem;
+  font-size: 2.6rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--terracotta);
+}
+
+/* Pronto da regalare */
+.gmph-gift-format {
+  margin-top: 1.6rem;
+  padding-left: 1.2rem;
+  border-left: 2px solid var(--terracotta);
+}
+
+.gmph-gift-format h3 { margin-bottom: 0.25em; }
+.gmph-gift-format p { margin: 0; color: var(--muted); font-size: 1.18rem; }
+
+/* Per chi è perfetto: griglia editoriale leggera */
+.wp-block-columns.gmph-gift-recipients { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.gmph-gift-recipient {
+  border-top: 2px solid var(--terracotta);
+  padding-top: 1.2rem;
+}
+
+.gmph-gift-recipient h3 { font-size: 1.4rem; margin-bottom: 0.35em; }
+.gmph-gift-recipient p { margin: 0; color: var(--muted); font-size: 1.15rem; }
 
 /* ==========================================================================
    Contatti e modulo
@@ -987,11 +1124,34 @@ address { font-style: normal; }
   }
 
   .main-nav .menu-item-has-children > a::after { display: none; }
+
+  .wp-block-columns.gmph-gift-recipients { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 901px) {
+  .gmph-hero--split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: min(78vh, 720px); }
+  .gmph-hero--split:not(:has(.gmph-hero__media)) { grid-template-columns: minmax(0, 1fr); }
+
+  .gmph-hero--split .gmph-hero__media {
+    grid-column: 2;
+    grid-row: 1;
+    aspect-ratio: auto;
+  }
+
+  .gmph-hero--split .gmph-hero__content {
+    grid-column: 1;
+    grid-row: 1;
+    width: auto;
+    margin: 0;
+    padding-block: clamp(4rem, 8vw, 6rem);
+    padding-inline: calc(max(0px, (100vw - var(--maxw)) / 2) + var(--gutter)) clamp(2rem, 5vw, 4.5rem);
+  }
 }
 
 @media (max-width: 900px) {
   .wp-block-columns.gmph-split,
   .contact { grid-template-columns: 1fr; gap: 2rem; }
+  .wp-block-columns.gmph-split--reverse > .wp-block-column:first-child { order: 0; }
   .site-footer__grid { grid-template-columns: 1fr 1fr; }
 }
 
@@ -1001,6 +1161,8 @@ address { font-style: normal; }
   .site-footer__grid { grid-template-columns: 1fr; }
   .gmph-hero .wp-block-buttons { flex-direction: column; align-items: stretch; }
   .gmph-hero .wp-block-button__link { width: 100%; }
+  .gmph-gift-option { padding: 1.6rem 1.3rem; }
+  .wp-block-columns.gmph-gift-recipients { grid-template-columns: 1fr; }
   .alignleft,
   .alignright { float: none; margin-inline: 0; }
 }

@@ -15,14 +15,6 @@ export async function PATCH(request: NextRequest) {
     update.voucher_validity_months = months;
   }
 
-  if (body && "annualBudgetEuros" in body) {
-    const budgetEuros = Number(body.annualBudgetEuros);
-    if (!Number.isInteger(budgetEuros) || budgetEuros < 0) {
-      return NextResponse.json({ error: "Il budget deve essere un importo valido." }, { status: 400 });
-    }
-    update.annual_budget_cents = budgetEuros * 100;
-  }
-
   for (const [key, column] of [["mailerliteTransactionalGroupId", "mailerlite_transactional_group_id"], ["mailerliteMarketingGroupId", "mailerlite_marketing_group_id"]] as const) {
     if (body && key in body) {
       const value = body[key];

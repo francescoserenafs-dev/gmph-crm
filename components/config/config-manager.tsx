@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 
 type BallOwner = "you" | "client" | "none";
 type Item = { id: string; name: string; is_active: boolean; is_system?: boolean; sort_order: number; ball_owner?: BallOwner };
-type Config = { methods: Item[]; stages: Item[]; voucherValidityMonths: number; annualBudgetCents: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
+type Config = { methods: Item[]; stages: Item[]; voucherValidityMonths: number; mailerliteTransactionalGroupId: string; mailerliteMarketingGroupId: string; mailerliteLastSyncAt: string | null };
 
 const entityLabels = { methods: "Metodi di pagamento", stages: "Avanzamenti sessione" } as const;
 type EntityKey = keyof typeof entityLabels;
@@ -17,7 +17,6 @@ export function ConfigManager() {
   const [busy, setBusy] = useState(false);
   const [newName, setNewName] = useState<Record<EntityKey, string>>({ methods: "", stages: "" });
   const [months, setMonths] = useState("12");
-  const [budgetEuros, setBudgetEuros] = useState("0");
   const [refreshKey, setRefreshKey] = useState(0);
   const [dragItem, setDragItem] = useState<{ entity: EntityKey; index: number } | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -37,7 +36,6 @@ export function ConfigManager() {
         if (!active) return;
         setConfig(body);
         setMonths(String(body.voucherValidityMonths));
-        setBudgetEuros(String(body.annualBudgetCents / 100));
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Caricamento non riuscito.");
       } finally {
@@ -117,11 +115,6 @@ export function ConfigManager() {
     void run(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voucherValidityMonths: Number(months) }) }));
   }
 
-  function saveBudget(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void run(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ annualBudgetEuros: Number(budgetEuros) }) }));
-  }
-
   function renderEntitySection(entity: EntityKey) {
     if (!config) return null;
     const items = config[entity];
@@ -198,15 +191,8 @@ export function ConfigManager() {
               </section>
 
               <section className="border border-[#d8d0c5] bg-white p-5">
-                <h2 className="text-lg font-semibold">Budget anno corrente</h2>
-                <p className="mt-2 text-sm text-[#675f57]">Stima di incasso annuale, usata per il progress gauge nella home.</p>
-                <p className="mt-1 text-xs text-[#8a8178]">Usato come fallback quando non esiste un Piano Economico per l&apos;anno corrente.</p>
-                <form className="mt-4 flex items-end gap-3" onSubmit={saveBudget}>
-                  <label className="flex flex-col gap-2 text-sm font-medium">Budget (EUR)
-                    <input className="h-10 w-32 border border-[#cfc5b8] bg-white px-3 text-sm" min="0" onChange={(e) => setBudgetEuros(e.target.value)} type="number" value={budgetEuros} />
-                  </label>
-                  <button className="h-10 bg-[#9b5d43] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={busy} type="submit">Salva</button>
-                </form>
+                <h2 className="text-lg font-semibold">Obiettivo annuale</h2>
+                <p className="mt-2 text-sm text-[#675f57]">Il riferimento annuale è il valore servizi pianificato nel Piano Economico di ciascun anno (Analisi → Economico → Piano).</p>
               </section>
             </div>
           </div>

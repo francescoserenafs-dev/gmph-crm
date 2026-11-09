@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parseLocalDateTime } from "@/lib/datetime";
-import { buildPlanServices, computePlanTotals, resolveAnnualTarget, type ActivePackage, type EconomicPlan, type EconomicSession, type PlanService } from "@/lib/economic-plans";
+import { buildPlanServices, computePlanTotals, computeVoucherPlanTotals, paymentDateKey, voucherCreditCents, type ActivePackage, type EconomicPayment, type EconomicPlan, type EconomicSession, type EconomicVoucher, type PlanService } from "@/lib/economic-plans";
 
 const PAGE_SIZE = 1000;
 
@@ -21,17 +21,22 @@ type EconomicSessionRow = {
   service_name: string;
   agreed_price_cents: number;
   current_stage: { code: string } | null;
+  service: { is_addon: boolean } | null;
   extras: { line_total_cents: number }[];
-  payments: { amount_cents: number }[];
+  payments: { amount_cents: number; category: string; applied_voucher_id: string | null }[];
 };
 
-// Sessioni dell'anno (confini Europe/Rome) nella forma usata da computeEconomicDashboard: unica fonte del valore commerciale.
+const yearBounds = (year: number) => ({
+  start: parseLocalDateTime(`${year}-01-01T00:00`).toISOString(),
+  end: parseLocalDateTime(`${year + 1}-01-01T00:00`).toISOString(),
+});
+
+// Sessioni dell'anno (confini Europe/Rome): unica fonte del valore servizi per Home e Analisi -> Economico.
 export async function loadEconomicSessions(year: number): Promise<EconomicSession[]> {
-  const start = parseLocalDateTime(`${year}-01-01T00:00`).toISOString();
-  const end = parseLocalDateTime(`${year + 1}-01-01T00:00`).toISOString();
+  const { start, end } = yearBounds(year);
   const rows = await loadPaged<EconomicSessionRow>((from, to) => supabaseAdmin
     .from("sessions")
-    .select("scheduled_at, service_type_id, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), extras:session_extras(line_total_cents), payments(amount_cents)")
+    .select("scheduled_at, service_type_id, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), service:service_types(is_addon), extras:session_extras(line_total_cents), payments(amount_cents, category, applied_voucher_id)")
     .gte("scheduled_at", start)
     .lt("scheduled_at", end)
     .order("scheduled_at")
@@ -40,23 +45,95 @@ export async function loadEconomicSessions(year: number): Promise<EconomicSessio
     scheduledAt: row.scheduled_at,
     serviceTypeId: row.service_type_id,
     serviceName: row.service_name,
+    isAddonService: row.service?.is_addon === true,
     agreedPriceCents: row.agreed_price_cents,
     extrasCents: (row.extras ?? []).reduce((sum, extra) => sum + extra.line_total_cents, 0),
-    paidCents: (row.payments ?? []).reduce((sum, payment) => sum + payment.amount_cents, 0),
+    payments: (row.payments ?? []).map((payment) => ({ amountCents: payment.amount_cents, category: payment.category, appliedVoucherId: payment.applied_voucher_id })),
     isCancelled: row.current_stage?.code === "cancelled",
   }));
 }
 
+type EconomicPaymentRow = {
+  amount_cents: number;
+  paid_date: string | null;
+  paid_at: string | null;
+  category: string;
+  payment_method_name: string;
+  applied_voucher_id: string | null;
+  voucher_id: string | null;
+  session_id: string | null;
+  session: { scheduled_at: string; service_name: string } | null;
+};
+
+// Pagamenti per data di pagamento (paid_date, gia in Europe/Rome): base della cassa e dei riscatti per data.
+export async function loadEconomicPayments(year: number): Promise<EconomicPayment[]> {
+  const rows = await loadPaged<EconomicPaymentRow>((from, to) => supabaseAdmin
+    .from("payments")
+    .select("amount_cents, paid_date, paid_at, category, payment_method_name, applied_voucher_id, voucher_id, session_id, session:sessions!payments_session_id_fkey(scheduled_at, service_name)")
+    .gte("paid_date", `${year}-01-01`)
+    .lt("paid_date", `${year + 1}-01-01`)
+    .order("paid_date")
+    .range(from, to));
+  return rows.map((row) => ({
+    amountCents: row.amount_cents,
+    paidDate: row.paid_date,
+    paidAt: row.paid_at,
+    category: row.category,
+    methodName: row.payment_method_name,
+    appliedVoucherId: row.applied_voucher_id,
+    voucherId: row.voucher_id,
+    sessionId: row.session_id,
+    sessionScheduledAt: row.session?.scheduled_at ?? null,
+    sessionServiceName: row.session?.service_name ?? null,
+  }));
+}
+
+type EconomicVoucherRow = {
+  id: string;
+  status: string;
+  is_complimentary: boolean;
+  voucher_type: string;
+  value_cents: number | null;
+  purchase_price_cents: number;
+  purchases: { paid_date: string | null; paid_at: string | null; category: string }[];
+};
+
+// Tutti i buoni con le date dei pagamenti voucher_purchase: servono a classificare i riscatti di qualsiasi anno.
+export async function loadEconomicVouchers(): Promise<EconomicVoucher[]> {
+  const rows = await loadPaged<EconomicVoucherRow>((from, to) => supabaseAdmin
+    .from("gift_vouchers")
+    .select("id, status, is_complimentary, voucher_type, value_cents, purchase_price_cents, purchases:payments!payments_voucher_id_fkey(paid_date, paid_at, category)")
+    .order("created_at")
+    .range(from, to));
+  return rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    isComplimentary: row.is_complimentary,
+    creditCents: voucherCreditCents(row),
+    purchaseDates: (row.purchases ?? [])
+      .filter((payment) => payment.category === "voucher_purchase")
+      .map((payment) => paymentDateKey({ paidDate: payment.paid_date, paidAt: payment.paid_at })),
+  }));
+}
+
+export async function loadEconomicDataset(year: number) {
+  const [sessions, payments, vouchers] = await Promise.all([loadEconomicSessions(year), loadEconomicPayments(year), loadEconomicVouchers()]);
+  return { sessions, payments, vouchers };
+}
+
 const MAX_CENTS = 1_000_000_000;
 const MAX_MONTHLY_SESSIONS = 10_000;
+const MAX_MONTHLY_VOUCHERS = 10_000;
 const MAX_TICKET_CENTS = 10_000_000;
 
 type PlanRow = {
   id: string;
   year: number;
   notes: string | null;
+  planned_voucher_ticket_cents: number;
   services: { service_type_id: string; planned_ticket_cents: number }[];
   service_months: { service_type_id: string; month: number; target_sessions: number }[];
+  voucher_months: { month: number; target_count: number }[];
 };
 
 export function parseYear(value: unknown): number | null {
@@ -69,15 +146,24 @@ const isAmount = (value: unknown, max: number): value is number => Number.isInte
 export async function loadPlan(year: number): Promise<{ id: string; plan: EconomicPlan } | null> {
   const { data, error } = await supabaseAdmin
     .from("annual_economic_plans")
-    .select("id, year, notes, services:economic_plan_service_targets(service_type_id, planned_ticket_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions)")
+    .select("id, year, notes, planned_voucher_ticket_cents, services:economic_plan_service_targets(service_type_id, planned_ticket_cents), service_months:economic_plan_monthly_service_targets(service_type_id, month, target_sessions), voucher_months:economic_plan_monthly_voucher_targets(month, target_count)")
     .eq("year", year)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const row = data as unknown as PlanRow;
+  const monthlyCounts = Array.from({ length: 12 }, () => 0);
+  for (const cell of row.voucher_months ?? []) {
+    if (cell.month >= 1 && cell.month <= 12) monthlyCounts[cell.month - 1] = cell.target_count;
+  }
   return {
     id: row.id,
-    plan: { year: row.year, notes: row.notes, services: buildPlanServices(row.services, row.service_months ?? []) },
+    plan: {
+      year: row.year,
+      notes: row.notes,
+      services: buildPlanServices(row.services, row.service_months ?? []),
+      voucherPlan: { plannedTicketCents: row.planned_voucher_ticket_cents ?? 0, monthlyCounts },
+    },
   };
 }
 
@@ -118,7 +204,15 @@ export async function parsePlanPayload(body: unknown): Promise<PlanPayload | str
     if (!Array.isArray(monthlySessions) || monthlySessions.length !== 12 || !monthlySessions.every((value) => isAmount(value, MAX_MONTHLY_SESSIONS))) return "Le sessioni mensili devono essere 12 numeri interi maggiori o uguali a 0.";
     services.push({ serviceTypeId, plannedTicketCents: entry.plannedTicketCents, monthlySessions: monthlySessions as number[] });
   }
-  if (computePlanTotals(services).totalValueCents > MAX_CENTS) return "Il fatturato pianificato risultante e troppo alto.";
+  if (computePlanTotals(services).totalValueCents > MAX_CENTS) return "Il valore servizi pianificato risultante e troppo alto.";
+
+  const voucherInput = input.voucherPlan as Record<string, unknown> | undefined;
+  if (!voucherInput || typeof voucherInput !== "object") return "Piano vendite buoni non valido.";
+  if (!isAmount(voucherInput.plannedTicketCents, MAX_TICKET_CENTS)) return "Il ticket medio buono deve essere un importo valido.";
+  const monthlyCounts = voucherInput.monthlyCounts;
+  if (!Array.isArray(monthlyCounts) || monthlyCounts.length !== 12 || !monthlyCounts.every((value) => isAmount(value, MAX_MONTHLY_VOUCHERS))) return "I buoni previsti per mese devono essere 12 numeri interi maggiori o uguali a 0.";
+  const voucherPlan = { plannedTicketCents: voucherInput.plannedTicketCents, monthlyCounts: monthlyCounts as number[] };
+  if (computeVoucherPlanTotals(voucherPlan).totalValueCents > MAX_CENTS) return "Le vendite buoni previste risultanti sono troppo alte.";
 
   if (services.length > 0) {
     const { data, error } = await supabaseAdmin
@@ -130,10 +224,10 @@ export async function parsePlanPayload(body: unknown): Promise<PlanPayload | str
     if ((data ?? []).length !== services.length) return "Uno o piu servizi non sono validi.";
   }
 
-  return { notes, services };
+  return { notes, services, voucherPlan };
 }
 
-export const EMPTY_PLAN_PAYLOAD: PlanPayload = { notes: null, services: [] };
+export const EMPTY_PLAN_PAYLOAD: PlanPayload = { notes: null, services: [], voucherPlan: { plannedTicketCents: 0, monthlyCounts: Array.from({ length: 12 }, () => 0) } };
 
 export type SavePlanResult = { ok: true } | { ok: false; status: number; error: string };
 
@@ -145,6 +239,8 @@ export async function savePlanAtomic(year: number, create: boolean, payload: Pla
     p_notes: payload.notes,
     p_services: payload.services.map((entry) => ({ service_type_id: entry.serviceTypeId, planned_ticket_cents: entry.plannedTicketCents })),
     p_service_months: payload.services.flatMap((entry) => entry.monthlySessions.map((sessions, index) => ({ service_type_id: entry.serviceTypeId, month: index + 1, target_sessions: sessions }))),
+    p_voucher_ticket_cents: payload.voucherPlan.plannedTicketCents,
+    p_voucher_months: payload.voucherPlan.monthlyCounts.map((count, index) => ({ month: index + 1, target_count: count })),
   });
   if (!error) return { ok: true };
   if (error.code === "23505") return { ok: false, status: 409, error: `Esiste gia un piano ${year}.` };
@@ -153,12 +249,8 @@ export async function savePlanAtomic(year: number, create: boolean, payload: Pla
   return { ok: false, status: 500, error: "Salvataggio non riuscito: nessuna modifica e stata applicata." };
 }
 
-// Target annuale per la Home: fatturato pianificato derivato dal Piano dell'anno, altrimenti il budget legacy di app_settings.
-export async function getAnnualTargetForYear(year: number): Promise<{ targetCents: number; source: "plan" | "legacy_budget" }> {
-  const [loaded, settings] = await Promise.all([
-    loadPlan(year),
-    supabaseAdmin.from("app_settings").select("annual_budget_cents").eq("id", true).maybeSingle(),
-  ]);
-  if (settings.error && !loaded) throw settings.error;
-  return resolveAnnualTarget(loaded ? computePlanTotals(loaded.plan.services).totalValueCents : null, settings.data?.annual_budget_cents ?? null);
+// Valore servizi pianificato dell'anno, null se il Piano non esiste. Nessun ripiego su app_settings.annual_budget_cents (legacy, non piu usato).
+export async function getPlannedServiceValueForYear(year: number): Promise<number | null> {
+  const loaded = await loadPlan(year);
+  return loaded ? computePlanTotals(loaded.plan.services).totalValueCents : null;
 }

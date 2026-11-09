@@ -29,12 +29,16 @@ type MonthEntry = { month: number; label: string; total_cents: number };
 type Analytics = {
   year: number;
   years: number[];
-  total: number;
+  cashTotalCents: number;
   byMonth: MonthEntry[];
   byServiceType: AnalyticsEntry[];
   byMethod: AnalyticsEntry[];
   cumulative: MonthEntry[];
+  plannedServiceValueCents: number | null;
+  acquiredServiceValueCents: number;
 };
+
+const CASH_TOOLTIP = "Denaro effettivamente ricevuto, per data del pagamento. Comprende anche i buoni regalo venduti, ma non i riscatti dei buoni.";
 
 const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const dateOnly = new Intl.DateTimeFormat("it-IT", { dateStyle: "long" });
@@ -61,7 +65,7 @@ export function Dashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsYear, setAnalyticsYear] = useState<number | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
-  const [budgetProgress, setBudgetProgress] = useState<{ achieved: number; budget: number } | null>(null);
+  const [budgetProgress, setBudgetProgress] = useState<{ year: number; acquired: number; planned: number | null } | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -110,10 +114,10 @@ export function Dashboard() {
     let active = true;
     (async () => {
       try {
-        const response = await fetch(`/api/dashboard/analytics?year=${new Date().getFullYear()}`);
+        const response = await fetch("/api/dashboard/analytics");
         const body = await response.json();
         if (active && response.ok) {
-          setBudgetProgress({ achieved: body.annualAcquiredCents, budget: body.annualBudgetCents });
+          setBudgetProgress({ year: body.year, acquired: body.acquiredServiceValueCents, planned: body.plannedServiceValueCents });
         }
       } catch {
         if (active) setBudgetProgress(null);
@@ -218,23 +222,33 @@ export function Dashboard() {
                 {budgetProgress ? (
                   <section className="flex min-h-0 flex-1 flex-col border border-[#d8d0c5] bg-white p-4">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Target annuale {new Date().getFullYear()}</p>
-                      <InfoTooltip label="Informazioni su Target annuale" text="Mostra quanto del target annuale è già coperto dal valore commerciale delle sessioni acquisite nell'anno, comprese quelle future già prenotate. Il valore comprende il prezzo concordato e gli eventuali Extra. L'incassato è calcolato separatamente. Il target è quello del Piano Economico; senza piano si usa il budget configurato." />
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">Valore servizi vs piano {budgetProgress.year}</p>
+                      <InfoTooltip label="Informazioni su Valore servizi vs piano" text="Valore servizi acquisiti dell'anno (prezzo concordato + extra delle sessioni svolte e future già prenotate) confrontato con il valore servizi pianificato nel Piano Economico. Non usa la cassa, mostrata a parte." />
                     </div>
-                    <BudgetGaugeChart achievedCents={budgetProgress.achieved} budgetCents={budgetProgress.budget} />
-                    <p className="mt-1 text-center text-xs text-[#675f57]">Acquisito {euro.format(budgetProgress.achieved / 100)} di {euro.format(budgetProgress.budget / 100)}</p>
+                    {budgetProgress.planned === null ? (
+                      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-[#675f57]">
+                        <p>Nessun Piano Economico per il {budgetProgress.year}.</p>
+                        <p>Valore servizi acquisiti: <span className="font-semibold text-[#27231f]">{euro.format(budgetProgress.acquired / 100)}</span></p>
+                        <Link className="font-semibold text-[#9b5d43] underline" href={`/analisi/economico?tab=piano&year=${budgetProgress.year}`}>Apri il Piano</Link>
+                      </div>
+                    ) : (
+                      <>
+                        <BudgetGaugeChart achievedCents={budgetProgress.acquired} budgetCents={budgetProgress.planned} />
+                        <p className="mt-1 text-center text-xs text-[#675f57]">Acquisiti {euro.format(budgetProgress.acquired / 100)} di {euro.format(budgetProgress.planned / 100)} pianificati</p>
+                      </>
+                    )}
                   </section>
                 ) : null}
                 <section className="min-h-0 flex-1 border border-[#d8d0c5] bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold">Incassi</h2>
+                    <h2 className="flex items-center gap-1.5 text-lg font-semibold">Cassa<InfoTooltip label="Informazioni su Cassa" text={CASH_TOOLTIP} /></h2>
                     <select className="h-9 border border-[#cfc5b8] bg-white px-2 text-sm" onChange={(e) => setPeriod(e.target.value)} value={period}>
                       {periods.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                   </div>
                   <p className="mt-4 text-3xl font-semibold">{euro.format(data.income.total / 100)}</p>
                   <div className="mt-4 space-y-2">
-                    {Object.keys(data.income.byMethod).length === 0 ? <p className="text-sm text-[#675f57]">Nessun incasso nel periodo.</p> : Object.entries(data.income.byMethod).map(([method, amount]) => (
+                    {Object.keys(data.income.byMethod).length === 0 ? <p className="text-sm text-[#675f57]">Nessun movimento di cassa nel periodo.</p> : Object.entries(data.income.byMethod).map(([method, amount]) => (
                       <div className="flex items-center justify-between text-sm" key={method}>
                         <span>{method}</span>
                         <span className="font-medium">{euro.format(amount / 100)}</span>
@@ -247,7 +261,7 @@ export function Dashboard() {
               <section className="flex w-full max-w-[360px] flex-col border border-[#d8d0c5] bg-white p-4 lg:h-[420px]">
                 <h2 className="text-lg font-semibold">Buoni regalo</h2>
                 <div className="mt-4 grid min-h-0 flex-1 grid-cols-2 grid-rows-3 gap-3">
-                  <Metric centered label="Venduti" value={String(data.vouchers.sold)} small />
+                  <Metric centered label="Emessi" value={String(data.vouchers.sold)} small />
                   <Metric centered label="Attivi" value={String(data.vouchers.active)} small />
                   <Metric centered label="Riscattati" value={String(data.vouchers.redeemed)} small />
                   <Metric centered label="Scaduti" value={String(data.vouchers.expired)} small />
@@ -261,7 +275,7 @@ export function Dashboard() {
 
         <section className="mt-8 border border-[#d8d0c5] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Analisi incassi</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold">Analisi cassa<InfoTooltip label="Informazioni su Analisi cassa" text={CASH_TOOLTIP} /></h2>
             {analytics ? (
               <label className="flex items-center gap-2 text-sm font-medium">
                 Anno
@@ -284,7 +298,7 @@ export function Dashboard() {
             <p className="mt-4 text-sm text-[#a53e31]">Non e stato possibile caricare le analisi.</p>
           ) : (
             <>
-              <p className="mt-4 text-sm text-[#675f57]">Totale incassato nel {analytics.year}: <span className="font-semibold text-[#27231f]">{euro.format(analytics.total / 100)}</span></p>
+              <p className="mt-4 text-sm text-[#675f57]">Cassa {analytics.year}: <span className="font-semibold text-[#27231f]">{euro.format(analytics.cashTotalCents / 100)}</span></p>
 
               <div className="mt-6">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-[#675f57]">Andamento progressivo</h3>
@@ -300,17 +314,17 @@ export function Dashboard() {
                 <AnalyticsTable
                   columnLabel="Mese"
                   rows={analytics.byMonth.map((entry) => ({ label: entry.label, total_cents: entry.total_cents }))}
-                  title="Incassi per mese"
+                  title="Cassa per mese"
                 />
                 <AnalyticsTable
-                  columnLabel="Tipo sessione"
+                  columnLabel="Origine"
                   rows={analytics.byServiceType}
-                  title="Incassi per tipo di sessione"
+                  title="Cassa per origine"
                 />
                 <AnalyticsTable
                   columnLabel="Metodo"
                   rows={analytics.byMethod}
-                  title="Incassi per metodo"
+                  title="Cassa per metodo"
                 />
               </div>
             </>

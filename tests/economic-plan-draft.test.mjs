@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPlanServices, computePlanTotals } from "../lib/economic-plans.ts";
-import { addDraftService, centsToEuroInput, draftToServices, euroToCents, removeDraftService, servicesToDraft, toSessions, updateDraftService, updateDraftServiceMonth } from "../lib/economic-plan-draft.ts";
+import { addDraftService, centsToEuroInput, draftToServices, draftToVoucherPlan, euroToCents, removeDraftService, servicesToDraft, toSessions, updateDraftService, updateDraftServiceMonth, voucherPlanToDraft } from "../lib/economic-plan-draft.ts";
 
 const battesimo = { serviceTypeId: "battesimo", ticket: "350", monthlySessions: Array(12).fill("0") };
 
@@ -70,4 +70,13 @@ test("loading: missing months become 0, orphan monthly rows are ignored, draft r
   assert.deepEqual(services[0].monthlySessions, [0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0]);
   assert.deepEqual(services[1].monthlySessions, Array(12).fill(0));
   assert.deepEqual(draftToServices(servicesToDraft(services)), services);
+});
+
+test("voucher plan draft: exact cents, integer monthly counts, round-trip", () => {
+  const plan = { plannedTicketCents: 14999, monthlyCounts: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 8] };
+  const draft = voucherPlanToDraft(plan);
+  assert.equal(draft.ticket, "149.99");
+  assert.deepEqual(draftToVoucherPlan(draft), plan);
+  assert.deepEqual(draftToVoucherPlan({ ticket: "150,5", monthlyCounts: ["2", "", "1.5", "-1", ...Array(8).fill("0")] }).monthlyCounts.slice(0, 4), [2, 0, 0, 0]);
+  assert.equal(draftToVoucherPlan({ ticket: "150,5", monthlyCounts: Array(12).fill("0") }).plannedTicketCents, 15050);
 });

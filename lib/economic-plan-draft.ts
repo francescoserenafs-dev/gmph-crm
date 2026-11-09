@@ -1,4 +1,4 @@
-import type { EconomicPlan, PlanService } from "@/lib/economic-plans";
+import type { EconomicPlan, PlanService, VoucherSalesPlan } from "@/lib/economic-plans";
 
 // Bozza del Piano: un'unica lista di servizi alimenta piano per servizio, distribuzione mensile e fatturato.
 // ticket = ticket medio pianificato (EUR, extra inclusi); le sessioni del servizio sono la somma dei 12 mesi.
@@ -28,6 +28,17 @@ export function draftToServices(services: DraftService[]): PlanService[] {
 
 export function servicesToDraft(services: EconomicPlan["services"]): DraftService[] {
   return services.map((entry) => ({ serviceTypeId: entry.serviceTypeId, ticket: centsToEuroInput(entry.plannedTicketCents), monthlySessions: entry.monthlySessions.map(String) }));
+}
+
+// Piano vendite buoni in bozza: ticket medio buono (EUR) e numero di buoni previsti per mese.
+export type DraftVoucherPlan = { ticket: string; monthlyCounts: string[] };
+
+export function voucherPlanToDraft(plan: VoucherSalesPlan): DraftVoucherPlan {
+  return { ticket: centsToEuroInput(plan.plannedTicketCents), monthlyCounts: plan.monthlyCounts.map(String) };
+}
+
+export function draftToVoucherPlan(draft: DraftVoucherPlan): VoucherSalesPlan {
+  return { plannedTicketCents: euroToCents(draft.ticket), monthlyCounts: draft.monthlyCounts.map(toSessions) };
 }
 
 export function addDraftService(services: DraftService[], serviceTypeId: string): DraftService[] {

@@ -39,7 +39,7 @@ const categoryLabels: Record<string, string> = {
   deposit: "Caparra",
   balance: "Saldo",
   full_payment: "Pagamento completo",
-  voucher_purchase: "Pagamento completo",
+  voucher_purchase: "Vendita buono regalo",
   voucher_redemption: "Utilizzo buono regalo",
 };
 

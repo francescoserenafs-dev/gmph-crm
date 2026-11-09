@@ -4,6 +4,10 @@ Questa guida porta dall'installazione del tema fino al sito pronto per essere pu
 
 Tutto si fa dalla bacheca di WordPress (`https://TUO-DOMINIO/wp-admin`). Non serve modificare file del tema.
 
+> **Guide collegate**
+> - **Aggiornare il tema a una nuova versione senza perdere contenuti:** §2.5 di questa guida.
+> - **Pagina Buoni Regalo (nuova struttura, foto, testi, FAQ):** [`GUIDA-BUONI-REGALO.md`](GUIDA-BUONI-REGALO.md).
+
 Convenzioni usate:
 
 - **Aspetto → Menu** = voce del menu laterale di WordPress, poi sottovoce.
@@ -77,7 +81,7 @@ Puoi iniziare a configurare anche senza tutto pronto: i pattern contengono segna
 - [ ] Ritratto: hero 2400 × 1350 + 6–12 foto galleria
 - [ ] Commerciale: hero 2400 × 1350 + 6–12 foto galleria (prodotti, spazi, persone al lavoro, con il permesso dell'attività)
 - [ ] Mini sessioni: per ognuna hero 2400 × 1350 e galleria; 3 foto per le card dell'hub 1200 × 1500
-- [ ] Buoni regalo: hero 2400 × 1350
+- [ ] Buoni regalo: hero verticale 1600 × 2000 + due foto verticali 1200 × 1500 (momento insieme, buono confezionato) — vedi `GUIDA-BUONI-REGALO.md`, §4
 - [ ] Chi sono: ritratto di Giulia 1200 × 1500 (usato anche in Home)
 - [ ] Sezione "Non dovete saper posare" (Home e Hub Servizi): 1200 × 1500
 - [ ] Logo (§9.2), icona del sito 512 × 512, immagine per i social 1200 × 630
@@ -148,6 +152,67 @@ Su Windows: tasto destro sulla cartella `giulia-malosso-photography` → *Invia 
 ### 2.4 Dati del vecchio tema
 
 Il tema usa gli stessi campi del prototipo per email, telefono, città, Instagram e Facebook. In *Aspetto → Personalizza → Dati attività e contatti* controlla che non siano rimasti valori di prova (ad esempio `+39 000 000 0000`): se ci sono, cancellali o sostituiscili con dati reali.
+
+### 2.5 Aggiornamento del tema
+
+Quando ricevi una nuova versione del tema (ad esempio la 2.2.0 con la nuova pagina Buoni Regalo), segui questa procedura. **Aggiornare il tema non cancella nulla di ciò che hai costruito.**
+
+**Cosa è nel tema e cosa no**
+
+| Resta nel database di WordPress (non viene toccato) | È nel tema (viene sostituito) |
+|---|---|
+| Testi e struttura di tutte le pagine e degli articoli | Aspetto grafico (CSS) |
+| Immagini caricate nella Libreria Media | Header, footer, template |
+| Menu, logo, favicon, *Personalizza → Dati attività e contatti* | Modulo contatti (funzionamento) |
+| Impostazioni WordPress e permalink | Pattern (modelli per **nuove** pagine) |
+| Plugin e loro impostazioni: Complianz, PixelYourSite, SEO, SMTP, MailerLite | |
+| Richieste già ricevute via email | |
+
+> I **pattern** sono solo modelli: una pagina già pubblicata **non cambia** quando il tema aggiorna il pattern. Se una nuova versione porta una pagina ridisegnata (es. Buoni Regalo), va applicata a mano con la guida dedicata.
+
+> **Non** eliminare il tema da *Aspetto → Temi* per reinstallarlo, e non cancellare la cartella del tema dal server senza averne una copia: non serve e rischi di lasciare il sito senza tema attivo.
+
+#### Prima dell'aggiornamento: backup
+
+- [ ] **Backup SiteGround:** *Site Tools → Sicurezza → Backup → Crea backup* (nome: "prima tema 2.2.0"). Permette di tornare indietro in un clic.
+- [ ] **Copia del tema attuale** (consigliata): *Site Tools → Sito → Gestore file* → `public_html/wp-content/themes/` → tasto destro su `giulia-malosso-photography` → **Archivia** (crea uno ZIP) → scaricalo sul computer.
+- [ ] **Sito funzionante:** apri Home, Buoni Regalo e Contatti e verifica che si vedano correttamente *prima* di aggiornare, così sai che eventuali problemi successivi dipendono dall'aggiornamento.
+
+#### Metodo consigliato: caricamento dalla bacheca WordPress
+
+1. Crea lo ZIP della nuova versione come in §2.1 (la cartella `giulia-malosso-photography`, non quella che la contiene).
+2. *Aspetto → Temi → Aggiungi nuovo tema → Carica tema* → seleziona lo ZIP → **Installa ora**.
+3. WordPress mostra il confronto tra versione installata e caricata: scegli **"Sostituisci la versione installata con quella caricata"**.
+4. Al termine il tema resta attivo: non serve riattivarlo.
+5. Esegui i controlli finali (sotto).
+
+#### Metodo alternativo: Gestore file di SiteGround
+
+Utile se il caricamento dalla bacheca dà errore (es. file troppo grande o permessi).
+
+1. *Site Tools → Sito → Gestore file* → `public_html/wp-content/themes/`.
+2. Rinomina la cartella attuale `giulia-malosso-photography` in `giulia-malosso-photography-vecchio` (resta come copia di sicurezza).
+3. **Carica** lo ZIP della nuova versione nella stessa cartella `themes` → tasto destro → **Estrai**. Deve comparire di nuovo una cartella chiamata esattamente `giulia-malosso-photography` con dentro `style.css` e `functions.php`.
+4. Apri il sito: WordPress usa subito la nuova versione, perché il nome della cartella è lo stesso.
+5. Esegui i controlli finali. Se tutto è a posto, dopo qualche giorno elimina `giulia-malosso-photography-vecchio`.
+
+Se qualcosa non funziona: elimina la nuova cartella e rinomina `giulia-malosso-photography-vecchio` in `giulia-malosso-photography` (oppure ripristina il backup SiteGround).
+
+#### Dopo l'aggiornamento: controlli
+
+- [ ] *Aspetto → Temi*: la scheda del tema riporta la nuova versione (es. **2.2.0**).
+- [ ] Svuota la **cache SiteGround**: *Site Tools → Velocità → Caching → Svuota cache*, oppure in bacheca *Speed Optimizer → Purge SG Cache*.
+- [ ] Svuota la cache del browser o apri il sito in una **finestra anonima**.
+- [ ] **Home**: si apre correttamente, foto e sezioni al loro posto.
+- [ ] **Buoni Regalo**: si apre correttamente; i pulsanti portano a Contatti con "Buono regalo" già selezionato.
+- [ ] **Contatti**: il modulo compare; scegliendo "Buono regalo" compaiono i campi del buono.
+- [ ] **Menu** principale (anche da smartphone) e **footer** (contatti, social, P.IVA, link legali).
+- [ ] **Banner Complianz**: compare in una finestra anonima; Accetta/Rifiuta funzionano.
+- [ ] **Test del modulo**: invia una richiesta di prova e verifica che l'email arrivi (§12).
+- [ ] **Smartphone**: almeno Home, Buoni Regalo e Contatti, nessun elemento tagliato o fuori schermo.
+- [ ] **Console del browser** (F12 → scheda *Console*, su computer): nessun errore in rosso relativo al tema.
+
+> Se la nuova versione include una pagina ridisegnata, applicala dopo questi controlli seguendo la guida dedicata (per i Buoni Regalo: `GUIDA-BUONI-REGALO.md`).
 
 ---
 
@@ -948,16 +1013,17 @@ Il pattern li collega inizialmente alla pagina Contatti: sostituisci il link con
 
 ### 16.1 Buoni regalo (`/buoni-regalo/`)
 
-Pattern **Buoni regalo**: hero con H1 "Regala un servizio fotografico" e pulsante "Richiedi un buono regalo". La CTA deve continuare a portare a `/contatti/?servizio=buono-regalo`, dove "Buono regalo" è preselezionato e il form mostra subito i campi voucher (§10, §12). Seguono "Perché regalare fotografie", "Come funziona", "Due tipi di buono" (a valore, per un servizio), validità e destinatari, FAQ e CTA.
+Pattern **Buoni regalo**: hero fotografico con H1 "Regala un servizio fotografico", pulsante "Richiedi un buono regalo" e riga "Digitale o cartaceo · Validità 12 mesi · Personalizzabile"; poi "Un regalo che diventa un ricordo" (foto + testo), "Scegli il tuo buono" (Buono a valore e Buono per un servizio), "Come funziona" (01–02–03), "Pronto da regalare" (foto + Cartaceo/Digitale), "Per chi è perfetto", FAQ e CTA finale "Un regalo che resta". Entrambi i pulsanti portano a `/contatti/?servizio=buono-regalo`, dove "Buono regalo" è preselezionato e il form mostra subito i campi voucher (§10, §12).
+
+> **Guida completa della pagina:** [`GUIDA-BUONI-REGALO.md`](GUIDA-BUONI-REGALO.md) — come applicare la nuova struttura alla pagina già pubblicata (l'aggiornamento del tema non lo fa da solo), foto consigliate, modifica di testi, importi, servizi e FAQ.
 
 Il form raccoglie soltanto una richiesta iniziale: non effettua pagamenti, non crea voucher e non salva automaticamente i dati nel CRM. L'email ricevuta riporta Nome, Email, Telefono, Servizio, Tipo di buono, l'eventuale Importo indicativo o Servizio da regalare, Consegna, gli eventuali dati facoltativi del destinatario e il messaggio personale, oltre alle Note (il campo Messaggio principale). Non include Periodo desiderato.
 
-- [ ] Foto dell'hero.
-- [ ] Perché regalare fotografie.
-- [ ] Come viene preparato e consegnato il buono.
-- [ ] Importi disponibili.
-- [ ] Validità e a chi può essere regalato.
-- [ ] Risposte alle FAQ.
+- [ ] Foto dell'hero (verticale 4:5, 1600 × 2000).
+- [ ] Foto "Un regalo che diventa un ricordo" (1200 × 1500).
+- [ ] Foto del buono confezionato per "Pronto da regalare" (1200 × 1500).
+- [ ] Testi e importi di esempio verificati.
+- [ ] Risposte alle FAQ verificate (validità 12 mesi, credito residuo, integrazione della differenza).
 
 ### 16.2 Chi sono (`/chi-sono/`)
 
@@ -1022,7 +1088,9 @@ Esporta ogni foto **già nella proporzione e nella misura della tabella**. Così
 
 | Posizione | Dove | Orientamento e proporzione | Misura da esportare (px) | Peso massimo indicativo |
 |---|---|---|---|---|
-| **Hero** | Prima sezione di Home, servizi, mini sessioni, buoni regalo | Orizzontale **16:9** | **2400 × 1350** | 400 KB |
+| **Hero** | Prima sezione di Home, servizi, mini sessioni | Orizzontale **16:9** | **2400 × 1350** | 400 KB |
+| **Hero Buoni regalo** | Foto accanto al titolo della pagina Buoni regalo | Verticale **4:5** | **1600 × 2000** | 350 KB |
+| **Foto Buoni regalo** | "Un regalo che diventa un ricordo", "Pronto da regalare" | Verticale **4:5** | **1200 × 1500** | 250 KB |
 | **Card** | Card dei servizi (Home, Hub Servizi), card dell'Hub Mini Sessioni | Verticale **4:5** | **1200 × 1500** | 250 KB |
 | **Ritratto e foto affiancate al testo** | "Ciao, sono Giulia" (Home, Chi sono), "Non dovete saper posare" (Home, Hub Servizi) | Verticale **4:5** | **1200 × 1500** | 250 KB |
 | **Galleria** | "Alcune fotografie" (servizi e mini sessioni) | **Tutte uguali nella stessa galleria**: orizzontali **3:2** oppure verticali **2:3** | **1800 × 1200** oppure **1200 × 1800** | 300 KB |
@@ -1071,6 +1139,8 @@ Le card ritagliano le foto in verticale 4:5 e l'hero le adatta a tutta la larghe
 ### 19.4 Immagine principale (hero)
 
 L'hero è la prima sezione delle pagine **Home, servizi, mini sessioni e buoni regalo**. La sua foto è la più importante per la velocità percepita: il tema la carica subito e con priorità alta, le altre immagini vengono caricate quando servono.
+
+> **Buoni regalo** usa una variante dell'hero: testo su fondo chiaro e foto **verticale 4:5 accanto** al titolo (sopra il testo su smartphone). Misure e consigli in [`GUIDA-BUONI-REGALO.md`](GUIDA-BUONI-REGALO.md), §4. Quanto segue vale per le altre pagine.
 
 **Misura: 2400 × 1350 px (16:9), massimo circa 400 KB.**
 

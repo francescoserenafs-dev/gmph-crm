@@ -198,6 +198,22 @@ function gmph_columns( $columns, $className = '' ) {
 }
 
 /**
+ * Elenco puntato (blocco Elenco con voci singole modificabili).
+ *
+ * @param array  $items     Voci (testo semplice).
+ * @param string $className Classe.
+ * @return string
+ */
+function gmph_list( $items, $className = '' ) {
+	$out = '';
+	foreach ( $items as $item ) {
+		$out .= gmph_bo( 'list-item' ) . '<li>' . esc_html( $item ) . '</li><!-- /wp:list-item -->';
+	}
+	$attrs = $className ? array( 'className' => $className ) : array();
+	return gmph_bo( 'list', $attrs ) . '<ul' . gmph_class_attr( array( 'wp-block-list', $className ) ) . '>' . $out . '</ul><!-- /wp:list -->';
+}
+
+/**
  * Domanda FAQ (blocco Dettagli).
  *
  * @param string $question Domanda.
@@ -211,16 +227,17 @@ function gmph_faq_item( $question, $answer ) {
 /**
  * Sezione FAQ.
  *
- * @param array  $items Elenco [domanda, risposta].
- * @param string $title Titolo.
+ * @param array  $items    Elenco [domanda, risposta].
+ * @param string $title    Titolo.
+ * @param string $modifier Classi aggiuntive della sezione.
  * @return string
  */
-function gmph_faq( $items, $title = 'Domande frequenti' ) {
+function gmph_faq( $items, $title = 'Domande frequenti', $modifier = '' ) {
 	$out = gmph_h( esc_html( $title ), 2, array( 'textAlign' => 'center' ) );
 	foreach ( $items as $item ) {
 		$out .= gmph_faq_item( $item[0], $item[1] );
 	}
-	return gmph_section( gmph_group( $out, array( 'className' => 'gmph-faq' ) ) );
+	return gmph_section( gmph_group( $out, array( 'className' => 'gmph-faq' ) ), $modifier );
 }
 
 /**
@@ -264,12 +281,14 @@ function gmph_card( $title, $url, $text ) {
 /**
  * Passaggio numerato.
  *
- * @param string $title Titolo.
- * @param string $text  Testo.
+ * @param string $title  Titolo.
+ * @param string $text   Testo.
+ * @param string $number Numero mostrato sopra il titolo (es. "01").
  * @return string
  */
-function gmph_step( $title, $text ) {
-	return gmph_group( gmph_h( esc_html( $title ), 3 ) . gmph_p( esc_html( $text ) ), array( 'className' => 'gmph-step' ) );
+function gmph_step( $title, $text, $number = '' ) {
+	$number = $number ? gmph_p( esc_html( $number ), array( 'className' => 'gmph-step__number' ) ) : '';
+	return gmph_group( $number . gmph_h( esc_html( $title ), 3 ) . gmph_p( esc_html( $text ) ), array( 'className' => 'gmph-step' ) );
 }
 
 /* --------------------------------------------------------------------------
@@ -283,20 +302,24 @@ function gmph_step( $title, $text ) {
  * @param string $text     Sottotitolo.
  * @param array  $buttons  Pulsanti.
  * @param string $eyebrow  Testo sopra il titolo.
+ * @param array  $args     modifier (classe aggiuntiva dell'hero), after (blocchi dopo i pulsanti).
  * @return string
  */
-function gmph_hero( $h1, $text, $buttons, $eyebrow = '' ) {
-	$content = ( $eyebrow ? gmph_p( esc_html( $eyebrow ), array( 'className' => 'gmph-eyebrow' ) ) : '' )
+function gmph_hero( $h1, $text, $buttons, $eyebrow = '', $args = array() ) {
+	$modifier = isset( $args['modifier'] ) ? $args['modifier'] : '';
+	$split    = false !== strpos( $modifier, 'gmph-hero--split' );
+	$content  = ( $eyebrow ? gmph_p( esc_html( $eyebrow ), array( 'className' => 'gmph-eyebrow' ) ) : '' )
 		. gmph_h( esc_html( $h1 ), 1 )
 		. gmph_p( esc_html( $text ), array( 'className' => 'gmph-lead' ) )
-		. gmph_buttons( $buttons );
+		. gmph_buttons( $buttons )
+		. ( isset( $args['after'] ) ? $args['after'] : '' );
 
 	return gmph_group(
-		gmph_img( 'gmph-hero__media', 'full' ) . gmph_group( $content, array( 'className' => 'gmph-hero__content' ) ),
+		gmph_img( $split ? 'gmph-hero__media gmph-hero__media--split' : 'gmph-hero__media', 'full' ) . gmph_group( $content, array( 'className' => 'gmph-hero__content' ) ),
 		array(
 			'tagName'   => 'section',
 			'align'     => 'full',
-			'className' => 'gmph-hero',
+			'className' => trim( 'gmph-hero ' . $modifier ),
 		)
 	);
 }
@@ -856,45 +879,110 @@ function gmph_pattern_mini( $h1 ) {
 
 /**
  * Buoni regalo.
+ * Modello per costruire o ricostruire la pagina: non modifica una pagina già pubblicata (vedi GUIDA-BUONI-REGALO.md).
  *
  * @return string
  */
 function gmph_pattern_gift() {
 	$contact = gmph_link( '/contatti/?servizio=buono-regalo' );
-	return gmph_hero( 'Regala un servizio fotografico', 'Un ricordo da custodire negli anni, da regalare a chi ami.', array( array( 'Richiedi un buono regalo', $contact ) ) )
-		. gmph_section( gmph_h( 'Perché regalare fotografie' ) . gmph_p( '[DA INSERIRE: perché un servizio fotografico è un regalo speciale.]' ) )
+	return gmph_hero(
+		'Regala un servizio fotografico',
+		'Un ricordo da custodire negli anni, da regalare a chi ami.',
+		array( array( 'Richiedi un buono regalo', $contact ) ),
+		'Buono regalo fotografico',
+		array(
+			'modifier' => 'gmph-hero--split',
+			'after'    => gmph_p( 'Digitale o cartaceo · Validità 12 mesi · Personalizzabile', array( 'className' => 'gmph-gift-perks' ) ),
+		)
+	)
 		. gmph_section(
-			gmph_h( 'Come funziona', 2, array( 'textAlign' => 'center' ) )
+			gmph_columns(
+				array(
+					gmph_img( 'gmph-gift-media' ),
+					gmph_h( 'Un regalo che diventa un ricordo' )
+					. gmph_p( 'Un servizio fotografico non è un oggetto in più da sistemare in casa. È tempo da passare insieme, senza fretta, e fotografie che restano anche quando i bambini saranno cresciuti.' )
+					. gmph_p( 'Tu scegli il regalo, io mi occupo del resto: durante la sessione faccio sentire tutti a proprio agio, così le immagini raccontano davvero chi sono.' ),
+				),
+				'gmph-split gmph-gift-split'
+			)
+		)
+		. gmph_section(
+			gmph_h( 'Scegli il tuo buono', 2, array( 'textAlign' => 'center' ) )
+			. gmph_p( 'Puoi scegliere un importo oppure regalare direttamente un servizio fotografico.', array( 'align' => 'center', 'className' => 'gmph-lead' ) )
 			. gmph_columns(
 				array(
-					gmph_step( '1. Mi scrivi', 'Mi racconti a chi vuoi fare il regalo e quale buono preferisci.' ),
-					gmph_step( '2. Prepariamo il buono', '[DA INSERIRE: come viene preparato e consegnato il buono.]' ),
-					gmph_step( '3. Si prenota la sessione', 'Chi riceve il buono mi contatta per scegliere la data.' ),
+					gmph_group(
+						gmph_h( 'Buono a valore', 3 )
+						. gmph_p( 'Scegli tu l’importo. Chi lo riceve potrà utilizzarlo per il servizio fotografico che preferisce.' )
+						. gmph_p( 'Per esempio', array( 'className' => 'gmph-eyebrow' ) )
+						. gmph_list( array( '100 €', '150 €', '200 €', '250 €', 'Importo personalizzato' ), 'gmph-chips' )
+						. gmph_p( 'Il valore del buono può essere utilizzato anche per fotografie, stampe o prodotti extra collegati alla sessione. Se il servizio scelto ha un valore superiore, sarà possibile integrare la differenza.', array( 'className' => 'gmph-gift-note' ) ),
+						array( 'className' => 'gmph-gift-option' )
+					),
+					gmph_group(
+						gmph_h( 'Buono per un servizio', 3 )
+						. gmph_p( 'Regala direttamente un’esperienza fotografica già scelta.' )
+						. gmph_p( 'Alcune idee', array( 'className' => 'gmph-eyebrow' ) )
+						. gmph_list( array( 'Famiglia', 'Gravidanza', 'Bambini', 'Coppia', 'Primi Ricordi' ), 'gmph-chips' )
+						. gmph_p( 'Se non sai quale soluzione scegliere, puoi scrivermi e ti aiuterò a trovare quella più adatta.', array( 'className' => 'gmph-gift-note' ) ),
+						array( 'className' => 'gmph-gift-option' )
+					),
 				),
-				'gmph-steps'
+				'gmph-gift-options'
 			),
 			'gmph-section--soft'
 		)
 		. gmph_section(
-			gmph_h( 'Due tipi di buono', 2, array( 'textAlign' => 'center' ) )
+			gmph_h( 'Come funziona', 2, array( 'textAlign' => 'center' ) )
 			. gmph_columns(
 				array(
-					gmph_step( 'Buono a valore', 'Un importo da usare per il servizio preferito. [DA INSERIRE: importi disponibili]' ),
-					gmph_step( 'Buono per un servizio', 'Un servizio specifico già scelto, ad esempio una sessione di famiglia.' ),
+					gmph_step( 'Scegli', 'Mi racconti per chi è il regalo e scegliamo insieme il buono più adatto.', '01' ),
+					gmph_step( 'Personalizziamo', 'Il buono può essere digitale oppure cartaceo, con nome e messaggio personale.', '02' ),
+					gmph_step( 'Si prenota', 'Chi riceve il buono mi contatta e scegliamo insieme la data della sessione.', '03' ),
 				),
-				'gmph-features'
+				'gmph-steps gmph-steps--numbered'
 			)
-			. gmph_p( 'Validità: [DA INSERIRE] · A chi può essere regalato: [DA INSERIRE]', array( 'align' => 'center' ) )
+		)
+		. gmph_section(
+			gmph_columns(
+				array(
+					gmph_img( 'gmph-gift-media' ),
+					gmph_h( 'Pronto da regalare' )
+					. gmph_p( 'Ogni buono fotografico è pensato per essere aperto come un regalo vero, non come un semplice codice.' )
+					. gmph_group( gmph_h( 'Cartaceo', 3 ) . gmph_p( 'Preparato e confezionato, pronto per essere consegnato come regalo.' ), array( 'className' => 'gmph-gift-format' ) )
+					. gmph_group( gmph_h( 'Digitale', 3 ) . gmph_p( 'Ricevuto via email, pronto da inviare o stampare anche per un regalo dell’ultimo momento.' ), array( 'className' => 'gmph-gift-format' ) ),
+				),
+				'gmph-split gmph-split--reverse gmph-gift-split'
+			),
+			'gmph-section--soft'
+		)
+		. gmph_section(
+			gmph_h( 'Per chi è perfetto', 2, array( 'textAlign' => 'center' ) )
+			. gmph_columns(
+				array(
+					gmph_group( gmph_h( 'Per una famiglia', 3 ) . gmph_p( 'Per regalare del tempo insieme e fotografie che raccontino davvero chi sono.' ), array( 'className' => 'gmph-gift-recipient' ) ),
+					gmph_group( gmph_h( 'Per chi aspetta un bambino', 3 ) . gmph_p( 'Per conservare un momento che cambia velocemente e non torna più nello stesso modo.' ), array( 'className' => 'gmph-gift-recipient' ) ),
+					gmph_group( gmph_h( 'Per i nonni', 3 ) . gmph_p( 'Per trasformare un regalo in fotografie con figli e nipoti.' ), array( 'className' => 'gmph-gift-recipient' ) ),
+					gmph_group( gmph_h( 'Per una coppia', 3 ) . gmph_p( 'Per celebrare un anniversario, un momento importante o semplicemente la propria storia.' ), array( 'className' => 'gmph-gift-recipient' ) ),
+				),
+				'gmph-gift-recipients'
+			)
 		)
 		. gmph_faq(
 			array(
-				array( 'Quanto dura la validità del buono?' ),
-				array( 'Come viene consegnato?' ),
-				array( 'Chi riceve il buono può scegliere il servizio?' ),
-				array( 'Posso aggiungere un messaggio personale?' ),
-			)
+				array( 'Quanto dura la validità del buono?', 'Il buono ha validità 12 mesi dalla data di acquisto: c’è tutto il tempo per scegliere con calma il momento giusto.' ),
+				array( 'Come viene consegnato?', 'Puoi scegliere la versione digitale, che ricevi via email pronta da inviare o stampare, oppure quella cartacea, preparata e confezionata da consegnare a mano.' ),
+				array( 'Chi riceve il buono può scegliere il servizio?', 'Con il buono a valore sì: chi lo riceve sceglie il servizio fotografico che preferisce. Con il buono per un servizio, invece, l’esperienza è già scelta da te, ad esempio una sessione di famiglia o di gravidanza.' ),
+				array( 'Posso aggiungere un messaggio personale?', 'Sì. Puoi indicarmi il nome di chi riceve il buono e un breve messaggio: lo inserisco nel buono, sia digitale sia cartaceo.' ),
+				array( 'Cosa succede se il servizio costa più del valore del buono?', 'Nessun problema: chi riceve il buono può integrare la differenza al momento della prenotazione.' ),
+				array( 'Cosa succede se rimane del credito?', 'Il credito residuo può essere utilizzato per fotografie, stampe o prodotti extra collegati alla stessa sessione, secondo le condizioni del buono.' ),
+				array( 'Posso scegliere un importo diverso?', 'Sì. Gli importi indicati sono solo esempi: scrivimi l’importo che hai in mente e preparo il buono su misura.' ),
+				array( 'Chi sceglie la data?', 'Chi riceve il buono mi contatta e scegliamo insieme la data, in base alle disponibilità.' ),
+			),
+			'Domande frequenti',
+			'gmph-section--soft'
 		)
-		. gmph_cta( 'Un regalo che resta', 'Scrivimi per chiedere informazioni su importi, servizi e consegna del buono.', 'Richiedi un buono regalo', $contact );
+		. gmph_cta( 'Un regalo che resta', 'Dimmi per chi è il regalo. Ti aiuterò a scegliere il buono più adatto.', 'Richiedi il tuo buono regalo', $contact );
 }
 
 /**

@@ -79,7 +79,7 @@ const categoryLabels: Record<string, string> = {
   deposit: "Caparra",
   balance: "Saldo",
   full_payment: "Pagamento completo",
-  voucher_purchase: "Pagamento completo",
+  voucher_purchase: "Vendita buono regalo",
   voucher_redemption: "Utilizzo buono regalo",
 };
 
@@ -420,7 +420,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
           <Card label="Saldo residuo">{euro.format(balance / 100)}</Card>
           <Card label="Avanzamento">{session.current_stage?.name ?? "-"}</Card>
           <Card label="Luogo">{session.location ?? "-"}</Card>
-          <Card label="Incassato">{euro.format(paid / 100)}</Card>
+          <Card label="Pagato (denaro + buoni)">{euro.format(paid / 100)}</Card>
           <Card label="Stato pagamento">{due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata"}</Card>
         </div>
 

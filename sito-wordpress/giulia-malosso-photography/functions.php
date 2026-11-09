@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GMPH_VERSION', '2.1.2' );
+define( 'GMPH_VERSION', '2.2.0' );
 define( 'GMPH_FONTS_URL', 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap' );
 
 require get_template_directory() . '/inc/contact-form.php';
@@ -216,9 +216,17 @@ function gmph_render_image_blocks( $content, $block ) {
 	if ( false !== strpos( $class, 'gmph-hero__media' ) ) {
 		$tags = new WP_HTML_Tag_Processor( $content );
 		if ( $tags->next_tag( 'img' ) ) {
-			$tags->add_class( 'gmph-hero__img' );
+			$tags->add_class( false !== strpos( $class, 'gmph-hero__media--split' ) ? 'gmph-hero__img--split' : 'gmph-hero__img' );
 			$tags->set_attribute( 'loading', 'eager' );
 			$tags->set_attribute( 'fetchpriority', 'high' );
+			$tags->set_attribute( 'decoding', 'async' );
+			$content = $tags->get_updated_html();
+		}
+	} elseif ( false !== strpos( $class, 'gmph-gift-media' ) ) {
+		// Sempre sotto la piega: WordPress non applicherebbe il lazy loading alle prime immagini del contenuto.
+		$tags = new WP_HTML_Tag_Processor( $content );
+		if ( $tags->next_tag( 'img' ) ) {
+			$tags->set_attribute( 'loading', 'lazy' );
 			$tags->set_attribute( 'decoding', 'async' );
 			$content = $tags->get_updated_html();
 		}
@@ -239,7 +247,7 @@ function gmph_hero_image_sizes( $image ) {
 	}
 	$tags = new WP_HTML_Tag_Processor( $image );
 	if ( $tags->next_tag( 'img' ) && $tags->get_attribute( 'srcset' ) ) {
-		$tags->set_attribute( 'sizes', '100vw' );
+		$tags->set_attribute( 'sizes', false !== strpos( $image, 'gmph-hero__img--split' ) ? '(min-width: 901px) 50vw, 100vw' : '100vw' );
 		return $tags->get_updated_html();
 	}
 	return $image;

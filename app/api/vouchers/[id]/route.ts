@@ -5,7 +5,7 @@ import { expireOverdueVouchers } from "@/lib/vouchers";
 export const dynamic = "force-dynamic";
 
 const voucherFields =
-  "id, code, voucher_type, service_type_id, service_name, value_cents, purchase_price_cents, is_complimentary, status, purchased_at, expires_at, redeemed_session_id, notes, purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name), recipient:clients!gift_vouchers_recipient_client_id_fkey(id,first_name,last_name), payments!payments_voucher_id_fkey(id,amount_cents,paid_at,payment_method_name,notes)";
+  "id, code, voucher_type, service_type_id, service_name, value_cents, purchase_price_cents, is_complimentary, status, purchased_at, expires_at, redeemed_session_id, notes, purchaser:clients!gift_vouchers_purchaser_client_id_fkey(id,first_name,last_name), recipient:clients!gift_vouchers_recipient_client_id_fkey(id,first_name,last_name), payments!payments_voucher_id_fkey(id,amount_cents,paid_at,paid_date,payment_method_name,notes), redemptions:payments!payments_applied_voucher_id_fkey(id,amount_cents,voucher_unused_cents,paid_date,session:sessions!payments_session_id_fkey(id,scheduled_at,service_name))";
 
 async function loadVoucher(id: string) {
   await expireOverdueVouchers();

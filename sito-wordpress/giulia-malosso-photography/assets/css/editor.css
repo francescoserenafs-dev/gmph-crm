@@ -112,3 +112,23 @@ a { color: var(--terracotta); }
 
 .wp-block-quote { border-left: 3px solid var(--terracotta); padding-left: 1.2rem; }
 .wp-block-details summary { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 600; }
+
+/* Buoni regalo */
+.gmph-hero--split { background: var(--cream-soft); color: var(--ink); }
+.gmph-hero--split h1,
+.gmph-hero--split p { color: var(--ink); }
+
+.gmph-gift-option {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+}
+
+.gmph-chips { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; font-family: var(--font-sans); font-size: 0.95rem; }
+.gmph-chips li { padding: 0.3rem 0.9rem; border: 1px solid var(--border); border-radius: 999px; }
+.gmph-gift-perks,
+.gmph-gift-note { font-family: var(--font-sans); font-size: 0.9rem; color: var(--muted); }
+.gmph-step__number { font-size: 2.4rem; font-weight: 600; color: var(--terracotta); }
+.gmph-gift-format { border-left: 2px solid var(--terracotta); padding-left: 1rem; }
+.gmph-gift-recipient { border-top: 2px solid var(--terracotta); padding-top: 0.8rem; }

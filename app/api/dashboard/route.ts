@@ -2,6 +2,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { expireOverdueVouchers } from "@/lib/vouchers";
 import { promotePastBookedSessions } from "@/lib/sessions-server";
+import { calculateSessionDue } from "@/lib/sessions";
+import { addDaysToDateKey, toLocalDateKey } from "@/lib/datetime";
+import { isCashPayment, paymentDateKey, voucherCreditCents } from "@/lib/economic-plans";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +19,21 @@ type DashboardSession = {
   extras: { line_total_cents: number }[];
 };
 
-function periodStart(period: string): string | null {
-  const now = new Date();
-  if (period === "month") return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  if (period === "year") return new Date(now.getFullYear(), 0, 1).toISOString();
-  if (period === "last30") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+// Primo giorno (Europe/Rome) del periodo di cassa; null = sempre.
+function periodStartKey(period: string): string | null {
+  const today = toLocalDateKey(new Date());
+  if (period === "month") return `${today.slice(0, 7)}-01`;
+  if (period === "year") return `${today.slice(0, 4)}-01-01`;
+  if (period === "last30") return addDaysToDateKey(today, -29);
   return null;
+}
+
+// Dovuto = prezzo + extra; i riscatti buono coprono la sessione anche senza nuova cassa.
+function paymentStatus(session: DashboardSession) {
+  const due = calculateSessionDue({ agreed_price_cents: session.agreed_price_cents, extras: session.extras });
+  const covered = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
+  const status = due === 0 || covered >= due ? "settled" : covered === 0 ? "unpaid" : "partial";
+  return { due, covered, status, label: status === "settled" ? "Saldata" : status === "unpaid" ? "Da saldare" : "Parzialmente pagata" };
 }
 
 export async function GET(request: NextRequest) {
@@ -29,7 +41,7 @@ export async function GET(request: NextRequest) {
   await promotePastBookedSessions();
 
   const period = request.nextUrl.searchParams.get("period") ?? "month";
-  const start = periodStart(period);
+  const start = periodStartKey(period);
   const nowIso = new Date().toISOString();
   const soonIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -37,8 +49,8 @@ export async function GET(request: NextRequest) {
     supabaseAdmin
       .from("sessions")
       .select("id, scheduled_at, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(name,code), client:clients!sessions_client_id_fkey(id,first_name,last_name), payments(amount_cents), extras:session_extras(line_total_cents)"),
-    supabaseAdmin.from("payments").select("amount_cents, paid_at, category, payment_method_name"),
-    supabaseAdmin.from("gift_vouchers").select("status, value_cents, purchase_price_cents, expires_at"),
+    supabaseAdmin.from("payments").select("amount_cents, paid_at, paid_date, category, applied_voucher_id, payment_method_name"),
+    supabaseAdmin.from("gift_vouchers").select("status, voucher_type, value_cents, purchase_price_cents, expires_at"),
   ]);
 
   if (sessionsResult.error || paymentsResult.error || vouchersResult.error) {
@@ -51,18 +63,14 @@ export async function GET(request: NextRequest) {
     .filter((session) => session.scheduled_at >= nowIso)
     .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
     .slice(0, 6)
-    .map((session) => {
-      const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-      const due = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
-      return {
-        id: session.id,
-        scheduled_at: session.scheduled_at,
-        service_name: session.service_name,
-        client: session.client,
-        stage: session.current_stage?.name ?? "-",
-        status: due === 0 ? "Saldata" : paid === 0 ? "Da saldare" : paid < due ? "Parzialmente pagata" : "Saldata",
-      };
-    });
+    .map((session) => ({
+      id: session.id,
+      scheduled_at: session.scheduled_at,
+      service_name: session.service_name,
+      client: session.client,
+      stage: session.current_stage?.name ?? "-",
+      status: paymentStatus(session).label,
+    }));
 
   let receivable = 0;
   let unpaid = 0;
@@ -71,19 +79,21 @@ export async function GET(request: NextRequest) {
   let sessionsTotalValue = 0;
   let lateSessions = 0;
   for (const session of activeSessions) {
-    const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-    const due = session.agreed_price_cents + session.extras.reduce((sum, extra) => sum + extra.line_total_cents, 0);
-    const balance = due - paid;
-    if (balance > 0) receivable += balance;
-    if (due === 0 || paid >= due) settled += 1;
-    else if (paid === 0) unpaid += 1;
+    const { due, covered, status } = paymentStatus(session);
+    receivable += Math.max(due - covered, 0);
+    if (status === "settled") settled += 1;
+    else if (status === "unpaid") unpaid += 1;
     else partial += 1;
     sessionsTotalValue += due;
     if (session.current_stage?.code === "booked" && session.scheduled_at < nowIso) lateSessions += 1;
   }
 
   const payments = paymentsResult.data ?? [];
-  const incomePayments = payments.filter((payment) => payment.payment_method_name !== "Buono regalo" && (!start || payment.paid_at >= start));
+  const incomePayments = payments.filter((payment) => {
+    if (!isCashPayment({ category: payment.category, appliedVoucherId: payment.applied_voucher_id })) return false;
+    const dateKey = paymentDateKey({ paidDate: payment.paid_date, paidAt: payment.paid_at });
+    return !start || (dateKey !== null && dateKey >= start);
+  });
   const incomeTotal = incomePayments.reduce((sum, payment) => sum + payment.amount_cents, 0);
   const incomeByMethod: Record<string, number> = {};
   for (const payment of incomePayments) {
@@ -97,22 +107,19 @@ export async function GET(request: NextRequest) {
     redeemed: vouchers.filter((voucher) => voucher.status === "redeemed").length,
     expired: vouchers.filter((voucher) => voucher.status === "expired").length,
     expiringSoon: vouchers.filter((voucher) => voucher.status === "active" && voucher.expires_at <= soonIso).length,
-    activeValue: vouchers.filter((voucher) => voucher.status === "active").reduce((sum, voucher) => sum + (voucher.value_cents ?? voucher.purchase_price_cents), 0),
+    activeValue: vouchers.filter((voucher) => voucher.status === "active").reduce((sum, voucher) => sum + voucherCreditCents(voucher), 0),
   };
 
   return NextResponse.json({
     upcoming,
-    calendar: activeSessions.map((session) => {
-      const paid = session.payments.reduce((sum, payment) => sum + payment.amount_cents, 0);
-      return {
-        id: session.id,
-        scheduled_at: session.scheduled_at,
-        service_name: session.service_name,
-        client: session.client,
-        stage: session.current_stage?.name ?? "-",
-        status: paid === 0 ? "Da saldare" : paid < session.agreed_price_cents ? "Parzialmente pagata" : "Saldata",
-      };
-    }),
+    calendar: activeSessions.map((session) => ({
+      id: session.id,
+      scheduled_at: session.scheduled_at,
+      service_name: session.service_name,
+      client: session.client,
+      stage: session.current_stage?.name ?? "-",
+      status: paymentStatus(session).label,
+    })),
     receivable,
     paymentStatus: { unpaid, partial, settled },
     sessionsTotalValue,
