@@ -9,7 +9,8 @@ import { sessionSaturdaySurchargeCents, suggestedSessionPrice } from "../lib/dat
 test("print fulfillment applies only to sessions with positive print extras", () => {
   assert.equal(hasPrintExtras([{ category_snapshot: "print", quantity: 1 }]), true);
   assert.equal(hasPrintExtras([{ category_snapshot: "print", quantity: 0 }]), false);
-  assert.equal(hasPrintExtras([{ category_snapshot: "album", quantity: 1 }]), false);
+  assert.equal(hasPrintExtras([{ category_snapshot: "album", quantity: 1 }]), true);
+  assert.equal(hasPrintExtras([{ category_snapshot: "digital", quantity: 3 }]), false);
   assert.equal(hasPrintExtras([{ category_snapshot: null, quantity: 2 }]), false);
   assert.equal(hasPrintExtras([]), false);
 });
@@ -53,6 +54,7 @@ test("pipeline keeps completion drop targets but hides finished sessions with ev
     { id: "digital-finished", current_stage: { code: "delivered" }, extras: [{ category_snapshot: "digital", quantity: 1 }] },
     { id: "zero-prints-finished", current_stage: { code: "delivered" }, extras: [{ category_snapshot: "print", quantity: 0 }] },
     { id: "prints-pending", current_stage: { code: "delivered" }, extras: prints },
+    { id: "album-pending", current_stage: { code: "delivered" }, extras: [{ category_snapshot: "album", quantity: 1 }] },
     { id: "cancelled", current_stage: { code: "cancelled" }, extras: prints },
     ...PRINT_FULFILLMENT_STAGE_CODES.map((stage) => ({ id: stage, current_stage: { code: stage }, extras: prints })),
   ];
@@ -67,6 +69,7 @@ test("pipeline keeps completion drop targets but hides finished sessions with ev
     assert.equal(visibleIds.includes("digital-finished"), false);
     assert.equal(visibleIds.includes("zero-prints-finished"), false);
     assert.equal(visibleIds.includes("prints-pending"), true);
+    assert.equal(visibleIds.includes("album-pending"), true);
     assert.equal(visibleIds.includes("active"), ballFilter !== "client");
     assert.equal(visibleIds.includes("awaiting_print_selection"), ballFilter !== "you");
     assert.equal(visibleIds.includes("print_selection_received"), ballFilter !== "client");

@@ -55,7 +55,7 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       const currentStage = session.current_stage as unknown as { code: string } | null;
       const currentStageCode = currentStage?.code;
       if (!canUsePrintFulfillmentStages(currentStageCode, session.extras ?? [])) {
-        return NextResponse.json({ error: "Gli avanzamenti stampe richiedono un’extra stampa e la consegna delle foto finali." }, { status: 400 });
+        return NextResponse.json({ error: "Gli avanzamenti stampe richiedono un’extra stampa o album e la consegna delle foto finali." }, { status: 400 });
       }
     }
 
@@ -65,12 +65,17 @@ export async function PATCH(request: NextRequest, context: RouteContext<"/api/se
       return NextResponse.json({ error: overlaps ? "Il ripristino crea una sovrapposizione con un'altra sessione." : "Aggiornamento non riuscito." }, { status: overlaps ? 409 : 500 });
     }
 
-    await supabaseAdmin
+    // PostgREST ignora order/limit sugli update: si aggiorna per id la sola riga appena creata dal trigger.
+    const { data: latestHistory } = await supabaseAdmin
       .from("session_stage_history")
-      .update({ changed_at: changedAt.toISOString(), notes })
+      .select("id")
       .eq("session_id", id)
       .order("changed_at", { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
+    if (latestHistory) {
+      await supabaseAdmin.from("session_stage_history").update({ changed_at: changedAt.toISOString(), notes }).eq("id", latestHistory.id);
+    }
 
     const { data } = await loadSession(id);
     const loaded = data as unknown as { id: string; scheduled_at: string; duration_minutes: number; location: string | null; notes: string | null; service_name: string; icloud_event_url: string | null; client: { first_name: string; last_name: string } | null } | null;

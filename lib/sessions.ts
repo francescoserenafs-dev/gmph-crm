@@ -7,7 +7,7 @@ export type SessionStage = {
 export const PRINT_FULFILLMENT_STAGE_CODES = ["awaiting_print_selection", "print_selection_received", "prints_completed"] as const;
 
 export function hasPrintExtras(extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {
-  return extras.some((extra) => extra.category_snapshot === "print" && extra.quantity > 0);
+  return extras.some((extra) => (extra.category_snapshot === "print" || extra.category_snapshot === "album") && extra.quantity > 0);
 }
 
 export function canUsePrintFulfillmentStages(currentStageCode: string | null | undefined, extras: readonly { category_snapshot: string | null; quantity: number }[]): boolean {

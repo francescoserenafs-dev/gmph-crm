@@ -546,7 +546,7 @@ export function SessionDirectory() {
     const session = pipelineSessions.find((item) => item.id === sessionId);
     if (!stageId || !session || session.current_stage?.code === targetCode) return;
     if ((PRINT_FULFILLMENT_STAGE_CODES as readonly string[]).includes(targetCode) && !canUsePrintFulfillmentStages(session.current_stage?.code, session.extras)) {
-      setError("Gli avanzamenti stampe sono disponibili dopo la consegna delle foto finali, per sessioni con extra stampe.");
+      setError("Gli avanzamenti stampe sono disponibili dopo la consegna delle foto finali, per sessioni con extra stampe o album.");
       return;
     }
     const previous = pipelineSessions;
