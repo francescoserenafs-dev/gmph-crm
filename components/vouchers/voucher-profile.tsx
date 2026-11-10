@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
+import { DeleteVoucherButton } from "@/components/vouchers/delete-voucher-button";
 
 type Payment = { id: string; amount_cents: number; paid_at: string; paid_date: string | null; payment_method_name: string; notes: string | null };
 type Redemption = { id: string; amount_cents: number; voucher_unused_cents: number | null; paid_date: string | null; session: { id: string; scheduled_at: string; service_name: string } | null };
@@ -17,6 +19,7 @@ type Voucher = {
   purchase_price_cents: number;
   is_complimentary: boolean;
   status: string;
+  redeemed_session_id: string | null;
   purchased_at: string;
   expires_at: string;
   notes: string | null;
@@ -40,12 +43,14 @@ function toDateInput(iso: string) {
 }
 
 export function VoucherProfile({ voucherId }: { voucherId: string }) {
+  const router = useRouter();
   const [voucher, setVoucher] = useState<Voucher | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [methods, setMethods] = useState<Method[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -181,10 +186,20 @@ export function VoucherProfile({ voucherId }: { voucherId: string }) {
               {voucher.recipient ? ` - Beneficiario ${voucher.recipient.first_name} ${voucher.recipient.last_name}` : ""}
             </p>
           </div>
-          {balance > 0 ? (
-            <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white" onClick={openPaymentDialog} type="button">Registra pagamento</button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {balance > 0 ? (
+              <button className="h-11 bg-[#9b5d43] px-5 text-sm font-semibold text-white" onClick={openPaymentDialog} type="button">Registra pagamento</button>
+            ) : null}
+            <DeleteVoucherButton
+              disabled={busy}
+              onDeleted={() => { router.replace("/vouchers"); router.refresh(); }}
+              onError={setDeleteError}
+              voucher={voucher}
+            />
+          </div>
         </header>
+
+        {deleteError ? <p className="mt-5 text-sm text-[#a53e31]" role="alert">{deleteError}</p> : null}
 
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Tipo">{voucher.voucher_type === "value" ? "A valore" : `Sessione ${voucher.service_name ?? ""}`}</Card>

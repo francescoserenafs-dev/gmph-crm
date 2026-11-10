@@ -22,6 +22,24 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/vou
   return NextResponse.json({ voucher: data });
 }
 
+export async function DELETE(_request: NextRequest, context: RouteContext<"/api/vouchers/[id]">) {
+  const { id } = await context.params;
+  const { data, error } = await supabaseAdmin.rpc("delete_unredeemed_voucher", { p_voucher_id: id });
+
+  if (error) {
+    if (error.code === "P0001" || error.code === "23503") {
+      return NextResponse.json({ error: "Il buono e gia stato riscattato o ha riferimenti che ne impediscono l'eliminazione." }, { status: 409 });
+    }
+    if (error.code === "PGRST202") {
+      return NextResponse.json({ error: "Eliminazione non ancora disponibile: applicare la migrazione del database." }, { status: 503 });
+    }
+    return NextResponse.json({ error: "Non e stato possibile eliminare il buono." }, { status: 500 });
+  }
+  if (data !== true) return NextResponse.json({ error: "Buono non trovato." }, { status: 404 });
+
+  return NextResponse.json({ success: true });
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext<"/api/vouchers/[id]">) {
   const { id } = await context.params;
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;

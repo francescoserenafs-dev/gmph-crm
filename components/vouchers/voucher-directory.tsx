@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ClientCombobox } from "@/components/shared/client-combobox";
+import { DeleteVoucherButton } from "@/components/vouchers/delete-voucher-button";
 import { addMonthsToDateKey } from "@/lib/datetime";
 
 type Client = { id: string; first_name: string; last_name: string; email: string };
@@ -18,6 +19,7 @@ type Voucher = {
   purchase_price_cents: number;
   is_complimentary: boolean;
   status: string;
+  redeemed_session_id: string | null;
   purchased_at: string;
   expires_at: string;
   purchaser: { id: string; first_name: string; last_name: string } | null;
@@ -192,7 +194,7 @@ export function VoucherDirectory() {
                   <span className="min-w-0 truncate"><span className="text-xs text-[#675f57] sm:hidden">Beneficiario: </span>{voucher.recipient ? <Link className="hover:underline" href={`/clients/${voucher.recipient.id}`}>{voucher.recipient.first_name} {voucher.recipient.last_name}</Link> : "-"}</span>
                   <span><span className="text-xs text-[#675f57] sm:hidden">Scadenza: </span>{dateOnly.format(new Date(voucher.expires_at))}</span>
                   <span>{statusLabels[voucher.status] ?? voucher.status}</span>
-                <span className="flex justify-start gap-2">
+                <span className="flex flex-wrap justify-start gap-2">
                   {balance > 0 ? <button className="border border-[#cfc5b8] px-2 py-1 text-xs font-semibold hover:bg-[#eee8df]" onClick={() => openPayment(voucher)} type="button">Pagamento</button> : null}
                   {voucher.status === "active" ? (
                     <button
@@ -205,6 +207,16 @@ export function VoucherDirectory() {
                       <UserPlusIcon />
                     </button>
                   ) : null}
+                  <DeleteVoucherButton
+                    compact
+                    disabled={busy}
+                    onDeleted={() => {
+                      setVouchers((current) => current.filter((item) => item.id !== voucher.id));
+                      setRefreshKey((key) => key + 1);
+                    }}
+                    onError={setError}
+                    voucher={voucher}
+                  />
                 </span>
               </article>
             );
