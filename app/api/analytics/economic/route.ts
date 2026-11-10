@@ -3,6 +3,7 @@ import { computeEconomicDashboard } from "@/lib/economic-plans";
 import { loadEconomicDataset, loadPlan, loadPlanYears, parseYear } from "@/lib/economic-plans-server";
 import { toLocalDateKey } from "@/lib/datetime";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { loadCostAnalytics } from "@/lib/expenses-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +25,19 @@ export async function GET(request: NextRequest) {
     const years = new Set<number>([...planYears, year, currentYear]);
     for (let candidate = firstYear; candidate <= currentYear; candidate += 1) years.add(candidate);
 
+    const now = new Date();
     const dashboard = computeEconomicDashboard({
       year,
-      now: new Date(),
+      now,
       plan: loaded?.plan ?? null,
       ...dataset,
       serviceNames: new Map((services.data ?? []).map((service) => [service.id, service.name])),
     });
 
-    return NextResponse.json({ ...dashboard, years: Array.from(years).sort((a, b) => b - a), planYears });
+    const costsResult = await loadCostAnalytics(year, dataset, now)
+      .then((costs) => ({ costs, costsError: null }))
+      .catch(() => ({ costs: null, costsError: "Analisi costi non disponibile. Verifica la migrazione e riprova dalla pagina Costi." }));
+    return NextResponse.json({ ...dashboard, ...costsResult, years: Array.from(years).sort((a, b) => b - a), planYears });
   } catch {
     return NextResponse.json({ error: "Non e stato possibile caricare l'analisi economica." }, { status: 500 });
   }

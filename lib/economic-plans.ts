@@ -23,14 +23,15 @@ export function computePlanTotals(services: PlanService[]) {
   };
 }
 
-export type ActivePackage = { serviceTypeId: string; name: string; priceCents: number };
+export type ActivePackage = { serviceTypeId: string; name: string; priceCents: number; saturdaySurchargeCents?: number };
 
 // Listino attuale come solo riferimento visivo: non alimenta mai il piano.
 export function priceListFor(serviceTypeId: string, packages: ActivePackage[]) {
   const own = packages.filter((entry) => entry.serviceTypeId === serviceTypeId);
   if (own.length === 0) return null;
   const prices = own.map((entry) => entry.priceCents);
-  return { minCents: Math.min(...prices), maxCents: Math.max(...prices), packages: own };
+  const saturdayPrices = own.map((entry) => entry.priceCents + (entry.saturdaySurchargeCents ?? 0));
+  return { minCents: Math.min(...prices), maxCents: Math.max(...saturdayPrices), packages: own };
 }
 
 export function ticketAboveListMax(plannedTicketCents: number, priceList: { maxCents: number } | null): boolean {
@@ -121,6 +122,8 @@ export type EconomicSession = {
   isAddonService: boolean;
   agreedPriceCents: number;
   extrasCents: number;
+  extraCosts?: { quantity: number; unitCostCents: number | null }[];
+  inclusionCosts?: { quantity: number; unitCostCents: number | null }[];
   payments: EconomicSessionPayment[];
   isCancelled: boolean;
 };

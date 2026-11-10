@@ -22,7 +22,8 @@ type EconomicSessionRow = {
   agreed_price_cents: number;
   current_stage: { code: string } | null;
   service: { is_addon: boolean } | null;
-  extras: { line_total_cents: number }[];
+  extras: { line_total_cents: number; quantity: number; unit_cost_cents: number | null }[];
+  inclusions: { quantity: number; unit_cost_cents_snapshot: number | null }[];
   payments: { amount_cents: number; category: string; applied_voucher_id: string | null }[];
 };
 
@@ -36,10 +37,11 @@ export async function loadEconomicSessions(year: number): Promise<EconomicSessio
   const { start, end } = yearBounds(year);
   const rows = await loadPaged<EconomicSessionRow>((from, to) => supabaseAdmin
     .from("sessions")
-    .select("scheduled_at, service_type_id, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), service:service_types(is_addon), extras:session_extras(line_total_cents), payments(amount_cents, category, applied_voucher_id)")
+    .select("scheduled_at, service_type_id, service_name, agreed_price_cents, current_stage:session_stages!sessions_current_stage_id_fkey(code), service:service_types(is_addon), extras:session_extras(line_total_cents, quantity, unit_cost_cents), inclusions:session_package_inclusion_snapshots(quantity, unit_cost_cents_snapshot), payments(amount_cents, category, applied_voucher_id)")
     .gte("scheduled_at", start)
     .lt("scheduled_at", end)
     .order("scheduled_at")
+    .order("id")
     .range(from, to));
   return rows.map((row) => ({
     scheduledAt: row.scheduled_at,
@@ -48,6 +50,8 @@ export async function loadEconomicSessions(year: number): Promise<EconomicSessio
     isAddonService: row.service?.is_addon === true,
     agreedPriceCents: row.agreed_price_cents,
     extrasCents: (row.extras ?? []).reduce((sum, extra) => sum + extra.line_total_cents, 0),
+    extraCosts: (row.extras ?? []).map((extra) => ({ quantity: extra.quantity, unitCostCents: extra.unit_cost_cents ?? null })),
+    inclusionCosts: (row.inclusions ?? []).map((item) => ({ quantity: item.quantity, unitCostCents: item.unit_cost_cents_snapshot ?? null })),
     payments: (row.payments ?? []).map((payment) => ({ amountCents: payment.amount_cents, category: payment.category, appliedVoucherId: payment.applied_voucher_id })),
     isCancelled: row.current_stage?.code === "cancelled",
   }));
@@ -177,13 +181,16 @@ export async function loadPlanYears(): Promise<number[]> {
 export async function loadActivePackages(): Promise<ActivePackage[]> {
   const { data, error } = await supabaseAdmin
     .from("session_packages")
-    .select("service_type_id, name, price_cents")
+    .select("service_type_id, name, price_cents, service:service_types(saturday_surcharge_cents)")
     .eq("is_active", true)
     .not("price_cents", "is", null)
     .order("sort_order")
     .order("price_cents");
   if (error) throw error;
-  return (data ?? []).map((row) => ({ serviceTypeId: row.service_type_id, name: row.name, priceCents: row.price_cents as number }));
+  return (data ?? []).map((row) => {
+    const service = Array.isArray(row.service) ? row.service[0] : row.service;
+    return { serviceTypeId: row.service_type_id, name: row.name, priceCents: row.price_cents as number, saturdaySurchargeCents: service?.saturday_surcharge_cents ?? 0 };
+  });
 }
 
 export type PlanPayload = Omit<EconomicPlan, "year">;

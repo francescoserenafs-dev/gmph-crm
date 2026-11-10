@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const allowedTables = new Set(["clients", "sessions", "gift_vouchers", "payments"]);
+const allowedTables = new Set(["clients", "sessions", "gift_vouchers", "payments", "expenses", "recurring_expense_rules", "expense_categories"]);
 
 export async function GET(request: NextRequest) {
   const table = request.nextUrl.searchParams.get("table") ?? "";

@@ -3,18 +3,19 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { InfoTooltip } from "@/components/shared/info-tooltip";
+import { CostAnalysis } from "@/components/costs/cost-analysis";
+import type { CostAnalytics } from "@/lib/expenses";
+import { formatMoney as money } from "@/lib/money";
 import { MONTH_NAMES, computePlanTotals, computeVoucherPlanTotals, priceListFor, ticketAboveListMax, type ActivePackage, type EconomicDashboard, type EconomicPlan } from "@/lib/economic-plans";
 import { addDraftService, draftToServices, draftToVoucherPlan, euroToCents, removeDraftService, servicesToDraft, updateDraftService, updateDraftServiceMonth, voucherPlanToDraft, type DraftService, type DraftVoucherPlan } from "@/lib/economic-plan-draft";
 
-type Dashboard = EconomicDashboard & { years: number[]; planYears: number[] };
+type Dashboard = EconomicDashboard & { years: number[]; planYears: number[]; costs: CostAnalytics | null; costsError: string | null };
 type Service = { id: string; name: string; is_active: boolean };
 type Draft = { notes: string; services: DraftService[]; voucher: DraftVoucherPlan };
 
 const SHORT_MONTHS = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
-const euro = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 const percent = new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1 });
-const money = (cents: number | null) => (cents === null ? "—" : euro.format(cents / 100));
 const rate = (value: number | null) => (value === null ? "—" : percent.format(value));
 const wholeEuro = (cents: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
 const selectClass = "h-11 border border-[#cfc5b8] bg-white px-3";
@@ -185,6 +186,7 @@ function DashboardView({ year, setYear, onOpenPlan }: { year: string; setYear: (
             rows={data.monthlyCash.map((row) => [row.label, money(row.sessionCashCents), money(row.voucherSalesCents), money(row.totalCashCents), money(row.redemptionsCents), money(row.priorYearRedemptionsCents), money(row.complimentaryRedemptionsCents), ...(data.hasPlan ? [money(row.plannedVoucherSalesCents)] : [])])}
             title={<span className="inline-flex items-center gap-1.5">Cassa e buoni per mese {data.year}<InfoTooltip label="Informazioni su Cassa e buoni per mese" text="Per data del pagamento. Cassa totale = cassa da sessioni + vendite buoni, mai i riscatti. I riscatti sono mostrati per data di registrazione e non sono denaro. I totali annuali dei riscatti possono differire di poco dai KPI, che si riferiscono alle sessioni dell'anno." /></span>}
           />
+          {data.costs ? <CostAnalysis data={data.costs} /> : <p className="mt-8 border-t border-[#d8d0c5] pt-5 text-sm text-[#a53e31]" role="alert">{data.costsError ?? "Analisi costi non disponibile."}</p>}
         </div>
       ) : null}
     </>
@@ -346,7 +348,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
               <thead><tr className="text-xs font-semibold uppercase tracking-[0.06em] text-[#675f57]">
                 <th className="px-4 py-2 text-left">Servizio</th>
                 <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Sessioni pianificate<InfoTooltip label="Informazioni su Sessioni pianificate" text="Somma delle sessioni inserite nei 12 mesi della distribuzione mensile. Calcolato, non modificabile." /></span></th>
-                <th className="px-4 py-2 text-left"><span className="inline-flex items-center gap-1">Listino attuale<InfoTooltip label="Informazioni su Listino attuale" text="Prezzi dei pacchetti attivi oggi nel Catalogo. Solo riferimento: non modifica il piano." /></span></th>
+                <th className="px-4 py-2 text-left"><span className="inline-flex items-center gap-1">Listino attuale<InfoTooltip label="Informazioni su Listino attuale" text="Dal prezzo base minimo al prezzo massimo comprensivo del supplemento sabato, per i pacchetti attivi oggi nel Catalogo. Solo riferimento: non modifica il piano." /></span></th>
                 <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Ticket medio pianificato (EUR)<InfoTooltip label="Informazioni su Ticket medio pianificato" text="Ricavo medio previsto per una sessione del servizio, inclusi extra, stampe, album, supplementi e upgrade. Può essere inferiore, uguale o superiore al listino." /></span></th>
                 <th className="px-4 py-2 text-right"><span className="inline-flex items-center gap-1">Valore pianificato<InfoTooltip label="Informazioni su Valore pianificato" text="Sessioni pianificate × Ticket medio pianificato. Calcolato, non modificabile." /></span></th>
                 <th className="px-4 py-2" />
@@ -364,7 +366,7 @@ function PlanView({ year, setYear }: { year: string; setYear: (value: string) =>
                         {priceList ? (
                           <span className="inline-flex items-center gap-1">
                             {priceList.minCents === priceList.maxCents ? wholeEuro(priceList.minCents) : `${wholeEuro(priceList.minCents)}–${wholeEuro(priceList.maxCents)}`}
-                            <InfoTooltip label={`Pacchetti attivi ${name}`} text={priceList.packages.map((entry) => `${entry.name} — ${wholeEuro(entry.priceCents)}`).join(" · ")} />
+                            <InfoTooltip label={`Pacchetti attivi ${name}`} text={priceList.packages.map((entry) => `${entry.name} — ${wholeEuro(entry.priceCents)}${entry.saturdaySurchargeCents ? ` (sabato ${wholeEuro(entry.priceCents + entry.saturdaySurchargeCents)})` : ""}`).join(" · ")} />
                           </span>
                         ) : "—"}
                       </td>

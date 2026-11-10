@@ -1,6 +1,7 @@
 # Modello economico e buoni regalo — novembre 2026
 
 Documento di riferimento del modello economico del CRM dopo la revisione del 9–10 novembre 2026.
+Per costi pagati, ricorrenze e marginalita, vedere anche [Gestione costi e marginalita.md](Gestione%20costi%20e%20marginalita.md).
 Sostituisce, **per questi temi**, le sezioni §20, §21, §24–§30 e §57 dell'audit storico del 19/10/2026 (`Audit Ottobre 2026/CRM_GMPH_COMPLETE_AUDIT_19102026.md`), che resta invariato come fotografia di quella data.
 
 > I valori del CRM sono indicatori gestionali e non sostituiscono la contabilità fiscale.
@@ -117,6 +118,8 @@ Un'unica RPC atomica `save_economic_plan(p_year, p_create, p_notes, p_services, 
 
 **Scelta delle date per i riscatti.** I KPI annuali dei riscatti si riferiscono alle **sessioni dell'anno** (copertura del lavoro svolto). La tabella mensile di cassa mostra i riscatti per **data di registrazione** del riscatto, come tutti i movimenti di quella tabella. Nessuna colonna mescola i due criteri; i totali possono differire di poco se un riscatto viene registrato in un mese o anno diverso da quello della sessione.
 
+La nuova sezione Costi e risultati dell'Economico riusa `loadCostAnalytics` e `computeCostAnalytics`, come `/costs`. Legge i costi diretti storici da extra e inclusioni del pacchetto, senza ricostruirli dal catalogo. Spese operative e imposte sono separate, IVA inclusa, per data di pagamento; risultato operativo e finale usano il valore dei soli servizi erogati. Il saldo di cassa sottrae solo le uscite registrate, non nuovamente i costi diretti. Un costo storico mancante rende il margine parziale. Home e Piano restano invariati.
+
 ## 7. Home
 
 - Gauge **"Valore servizi vs piano"**: valore servizi acquisiti dell'anno corrente (Europe/Rome) / valore servizi pianificato. Non usa mai la cassa.
@@ -157,6 +160,11 @@ Non è più letto né scritto dall'app (Home, Configurazione, API). La colonna *
 | Buoni previsti per mese | `economic_plan_monthly_voucher_targets.target_count` |
 | Vendite buoni previste | quantità mensile × ticket medio buono (calcolato) |
 | Date e mesi | Europe/Rome (`romeDateKey`, `paymentDateKey`, `lib/datetime.ts`) |
+| Costi pagati | `expenses.net_amount_cents + expenses.vat_amount_cents`, per `paid_date` |
+| Classificazione storica costi | Snapshot di categoria/tipo/marketing e metodo su `expenses` |
+| Ricorrenze | `recurring_expense_rules`, cursore `processed_through` e coppia univoca regola/occorrenza |
+| Costi diretti storici | `session_extras.unit_cost_cents` e `session_package_inclusion_snapshots.unit_cost_cents_snapshot`, per quantita |
+| Margini e risultati | `computeCostAnalytics` in `lib/expenses.ts`, nessuna allocazione delle spese generali ai servizi |
 
 ## 11. Codice
 
@@ -166,6 +174,8 @@ Non è più letto né scritto dall'app (Home, Configurazione, API). La colonna *
 | `lib/economic-plans-server.ts` | Caricamento dati (`loadEconomicDataset`: sessioni per data sessione, pagamenti per `paid_date`, buoni con pagamenti di acquisto), parser e salvataggio atomico del Piano, `getPlannedServiceValueForYear` |
 | `app/api/analytics/economic` | Dashboard Economico |
 | `app/api/dashboard`, `app/api/dashboard/analytics` | Home (stessi helper e loader) |
+| `lib/expenses.ts`, `lib/expenses-server.ts` | Calcoli e validazioni costi, RPC ricorrenze, analisi condivisa con il dataset economico |
+| `components/costs/cost-analysis.tsx` | Unico componente per il riepilogo in Costi ed Economico |
 
 Volumi piccoli: query dirette e paginate a blocchi da 1.000, nessuna cache né vista materializzata.
 
@@ -177,6 +187,8 @@ Volumi piccoli: query dirette e paginate a blocchi da 1.000, nessuna cache né v
 | `20261110000000_economic_plan_voucher_sales` | Additiva: `planned_voucher_ticket_cents`, tabella `economic_plan_monthly_voucher_targets` (mese 1–12, `target_count ≥ 0`, unique per piano/mese, trigger audit e `updated_at`, RLS), RPC `save_economic_plan` estesa al piano buoni, commento legacy su `annual_budget_cents`. Nessun dato esistente modificato o pre-compilato |
 
 > **Ordine di rilascio:** applicare `20261110000000` **prima** di pubblicare il codice. Senza la nuova colonna e la nuova tabella il caricamento del Piano fallisce, e con esso Analisi → Economico e il gauge della Home.
+
+La gestione costi richiede inoltre `20261110102946_expense_management.sql`: nuove tabelle `expense_categories`, `expenses`, `recurring_expense_rules`, snapshot, RLS, audit e RPC atomiche. Nessun backfill o modifica di dati precedenti. Non e stata applicata al database live durante l'implementazione. Senza questa migrazione, Costi restituisce un errore esplicito; l'Economico mantiene disponibili le sezioni precedenti e segnala l'assenza dell'analisi costi.
 
 ## 13. Test
 

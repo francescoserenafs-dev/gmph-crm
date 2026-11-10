@@ -34,6 +34,7 @@ function fakeSupabase(resolve) {
       const calls = { table };
       const builder = {
         select(columns) { calls.select = columns; return builder; },
+        eq(column, value) { calls.eq = [column, value]; return builder; },
         gte(column, value) { calls.gte = [column, value]; return builder; },
         lt(column, value) { calls.lt = [column, value]; return builder; },
         not() { return builder; },
@@ -340,6 +341,27 @@ test("current price list is reference only: active packages range, none for serv
   assert.equal(ticketAboveListMax(999999, null), false);
 });
 
+test("current price list includes Saturday surcharge in the maximum, keeping the base minimum", () => {
+  const packages = [
+    { serviceTypeId: "autunno", name: "Mini Sessione Autunno", priceCents: 11500, saturdaySurchargeCents: 2000 },
+    { serviceTypeId: "ritratto", name: "Base", priceCents: 16000, saturdaySurchargeCents: 2000 },
+    { serviceTypeId: "ritratto", name: "Completo", priceCents: 30000, saturdaySurchargeCents: 2000 },
+    { serviceTypeId: "senza-supplemento", name: "Base", priceCents: 10000, saturdaySurchargeCents: 0 },
+  ];
+  const autunno = priceListFor("autunno", packages);
+  assert.equal(autunno.minCents, 11500);
+  assert.equal(autunno.maxCents, 13500);
+  assert.equal(ticketAboveListMax(12500, autunno), false);
+  const ritratto = priceListFor("ritratto", packages);
+  assert.equal(ritratto.minCents, 16000);
+  assert.equal(ritratto.maxCents, 32000);
+  assert.equal(ticketAboveListMax(32000, ritratto), false);
+  assert.equal(ticketAboveListMax(32001, ritratto), true);
+  const noSurcharge = priceListFor("senza-supplemento", packages);
+  assert.equal(noSurcharge.minCents, 10000);
+  assert.equal(noSurcharge.maxCents, 10000);
+});
+
 /* --- Home vs Economico (caso I) ------------------------------------------ */
 
 const homeDataset = () => {
@@ -436,6 +458,31 @@ test("shared loaders: Europe/Rome year bounds, add-on flag, structured payments,
   assert.equal(JSON.stringify(vouchers[0].purchaseDates), JSON.stringify(["2025-12-20"]));
   assert.equal(vouchers[1].creditCents, 24000);
   assert.equal(JSON.stringify(vouchers[1].purchaseDates), JSON.stringify(["2027-01-01"]));
+});
+
+test("active package loader includes the service Saturday surcharge in the displayed price range", async () => {
+  let query;
+  const server = loadModule("../lib/economic-plans-server.ts", {
+    "@/lib/datetime": datetime,
+    "@/lib/economic-plans": economicPlans,
+    "@/lib/supabase/admin": { supabaseAdmin: fakeSupabase((calls) => {
+      query = calls;
+      return { data: [
+        { service_type_id: "autunno", name: "Mini Sessione Autunno", price_cents: 11500, service: { saturday_surcharge_cents: 2000 } },
+        { service_type_id: "ritratto", name: "Completo", price_cents: 30000, service: [{ saturday_surcharge_cents: 2000 }] },
+        { service_type_id: "senza-supplemento", name: "Base", price_cents: 10000, service: { saturday_surcharge_cents: 0 } },
+      ], error: null };
+    }) },
+  });
+  const packages = await server.loadActivePackages();
+  assert.equal(query.table, "session_packages");
+  assert.match(query.select, /service:service_types\(saturday_surcharge_cents\)/);
+  assert.deepEqual(query.eq, ["is_active", true]);
+  assert.equal(packages[0].saturdaySurchargeCents, 2000);
+  assert.equal(priceListFor("autunno", packages).maxCents, 13500);
+  assert.equal(packages[1].saturdaySurchargeCents, 2000);
+  assert.equal(priceListFor("ritratto", packages).maxCents, 32000);
+  assert.equal(packages[2].saturdaySurchargeCents, 0);
 });
 
 test("plan payload: only canonical data (services, tickets, monthly quantities, voucher plan) is accepted", async () => {
