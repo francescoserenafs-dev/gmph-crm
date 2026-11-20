@@ -8,6 +8,7 @@ import { SessionPackageDialog } from "@/components/packages/session-package-dial
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { ActionMenu } from "@/components/shared/action-menu";
 import { DuplicateIcon } from "@/components/shared/icons";
+import { InfoTooltip } from "@/components/shared/info-tooltip";
 import { Modal } from "@/components/shared/modal";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { sessionSaturdaySurchargeCents, suggestedSessionPrice, toLocalDateKey, toLocalTimeLabel } from "@/lib/datetime";
@@ -416,7 +417,7 @@ export function SessionProfile({ sessionId }: { sessionId: string }) {
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <Card label="Data e ora">{dateTime.format(new Date(session.scheduled_at))}</Card>
           <Card label="Durata">{session.duration_minutes} min</Card>
-          <Card label="Prezzo concordato">{euro.format(session.agreed_price_cents / 100)}</Card>
+          <Card label="Valore Sessione" tooltip="Somma del prezzo concordato e degli extra registrati. È il valore complessivo, non l'importo già incassato: pagamenti e saldo residuo sono indicati separatamente.">{euro.format(due / 100)}</Card>
           <Card label="Saldo residuo">{euro.format(balance / 100)}</Card>
           <Card label="Avanzamento">{session.current_stage?.name ?? "-"}</Card>
           <Card label="Luogo">{session.location ?? "-"}</Card>
@@ -793,8 +794,8 @@ function StageTimeline({ allStages, currentStageId, stageHistory }: { allStages:
   );
 }
 
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="border border-[#d8d0c5] bg-white px-4 py-3"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}</p><p className="mt-1 text-sm font-medium">{children}</p></div>;
+function Card({ label, children, tooltip }: { label: string; children: React.ReactNode; tooltip?: string }) {
+  return <div className="border border-[#d8d0c5] bg-white px-4 py-3"><p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#675f57]">{label}{tooltip ? <InfoTooltip label={`Informazioni su ${label}`} text={tooltip} /> : null}</p><p className="mt-1 text-sm font-medium">{children}</p></div>;
 }
 
 function ModalActions({ busy, onCancel, submitLabel }: { busy: boolean; onCancel: () => void; submitLabel: string }) {
